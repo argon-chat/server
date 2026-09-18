@@ -1,6 +1,6 @@
 {
   "Storage": {
-    "Endpoint": "http://localhost:9321",
+    "Endpoint": "localhost:9321",
     "AccessKey": "argon",
     "SecretKey": "argon",
     "BucketName": "argon-dev",

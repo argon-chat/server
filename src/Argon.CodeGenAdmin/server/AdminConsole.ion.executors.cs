@@ -1642,6 +1642,392 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         
         IonFormatterStorage<TenantActionResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetCosmeticKinds_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetCosmeticKinds");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetCosmeticKinds();
+        
+        IonFormatterStorage<CosmeticKindList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetCosmeticKindEnabled_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetCosmeticKindEnabled");
+    
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __isenabled = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetCosmeticKindEnabled(__kindkey, __isenabled);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PurgeOrphanedCosmetics_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.PurgeOrphanedCosmetics");
+    
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PurgeOrphanedCosmetics(__kindkey);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SearchCosmetics_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SearchCosmetics");
+    
+        var __query = IonFormatterStorage<CosmeticQuery>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SearchCosmetics(__query);
+        
+        IonFormatterStorage<CosmeticPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetCosmetic");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetCosmetic(__cosmeticid);
+        
+        IonFormatterStorage<CosmeticDetails>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateCosmetic");
+    
+        var __input = IonFormatterStorage<CreateCosmeticInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateCosmetic(__input);
+        
+        IonFormatterStorage<CreateCosmeticResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UpdateCosmetic");
+    
+        var __input = IonFormatterStorage<UpdateCosmeticInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UpdateCosmetic(__input);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetCosmeticAcquisition_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetCosmeticAcquisition");
+    
+        var __input = IonFormatterStorage<CosmeticAcquisitionInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetCosmeticAcquisition(__input);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetCosmeticBoardPolicy_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetCosmeticBoardPolicy");
+    
+        var __input = IonFormatterStorage<CosmeticBoardPolicyInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetCosmeticBoardPolicy(__input);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetCosmeticEnabled_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetCosmeticEnabled");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __isenabled = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetCosmeticEnabled(__cosmeticid, __isenabled);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetCosmeticTranslation_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetCosmeticTranslation");
+    
+        var __input = IonFormatterStorage<CosmeticTranslationInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetCosmeticTranslation(__input);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteCosmeticTranslation_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteCosmeticTranslation");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __locale = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteCosmeticTranslation(__cosmeticid, __locale);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PublishCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.PublishCosmetic");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PublishCosmetic(__cosmeticid);
+        
+        IonFormatterStorage<PublishCosmeticResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnpublishCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UnpublishCosmetic");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __reason = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UnpublishCosmetic(__cosmeticid, __reason);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteCosmetic");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteCosmetic(__cosmeticid);
+        
+        IonFormatterStorage<DeleteItemResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadCosmeticAsset_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.BeginUploadCosmeticAsset");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __slot = IonFormatterStorage<CosmeticAssetSlotKind>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadCosmeticAsset(__cosmeticid, __slot);
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadCosmeticAsset_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CompleteUploadCosmeticAsset");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __slot = IonFormatterStorage<CosmeticAssetSlotKind>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CompleteUploadCosmeticAsset(__cosmeticid, __slot, __blobid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetCosmeticShipped_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetCosmeticShipped");
+    
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __build = IonFormatterStorage<string>.Read(reader);
+        var __shipped = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetCosmeticShipped(__cosmeticid, __build, __shipped);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateCosmeticCodes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateCosmeticCodes");
+    
+        var __input = IonFormatterStorage<CreateCosmeticCodesInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateCosmeticCodes(__input);
+        
+        IonFormatterStorage<CreateCosmeticCodesResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GrantCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GrantCosmetic");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __expiresat = reader.ReadNullable<datetime>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GrantCosmetic(__userid, __cosmeticid, __expiresat);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeCosmetic_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RevokeCosmetic");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RevokeCosmetic(__userid, __cosmeticid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetUserCosmetics_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetUserCosmetics");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetUserCosmetics(__userid);
+        
+        IonFormatterStorage<UserCosmeticList>.Write(writer, result);
+    }
 
     
     
@@ -1835,6 +2221,50 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return SetTenantVerified_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteTenant", StringComparison.InvariantCultureIgnoreCase))
             return DeleteTenant_Execute(reader, writer, ct);
+        if (methodName.Equals("GetCosmeticKinds", StringComparison.InvariantCultureIgnoreCase))
+            return GetCosmeticKinds_Execute(reader, writer, ct);
+        if (methodName.Equals("SetCosmeticKindEnabled", StringComparison.InvariantCultureIgnoreCase))
+            return SetCosmeticKindEnabled_Execute(reader, writer, ct);
+        if (methodName.Equals("PurgeOrphanedCosmetics", StringComparison.InvariantCultureIgnoreCase))
+            return PurgeOrphanedCosmetics_Execute(reader, writer, ct);
+        if (methodName.Equals("SearchCosmetics", StringComparison.InvariantCultureIgnoreCase))
+            return SearchCosmetics_Execute(reader, writer, ct);
+        if (methodName.Equals("GetCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return GetCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return CreateCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("SetCosmeticAcquisition", StringComparison.InvariantCultureIgnoreCase))
+            return SetCosmeticAcquisition_Execute(reader, writer, ct);
+        if (methodName.Equals("SetCosmeticBoardPolicy", StringComparison.InvariantCultureIgnoreCase))
+            return SetCosmeticBoardPolicy_Execute(reader, writer, ct);
+        if (methodName.Equals("SetCosmeticEnabled", StringComparison.InvariantCultureIgnoreCase))
+            return SetCosmeticEnabled_Execute(reader, writer, ct);
+        if (methodName.Equals("SetCosmeticTranslation", StringComparison.InvariantCultureIgnoreCase))
+            return SetCosmeticTranslation_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteCosmeticTranslation", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteCosmeticTranslation_Execute(reader, writer, ct);
+        if (methodName.Equals("PublishCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return PublishCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("UnpublishCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return UnpublishCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadCosmeticAsset", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadCosmeticAsset_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadCosmeticAsset", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadCosmeticAsset_Execute(reader, writer, ct);
+        if (methodName.Equals("SetCosmeticShipped", StringComparison.InvariantCultureIgnoreCase))
+            return SetCosmeticShipped_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateCosmeticCodes", StringComparison.InvariantCultureIgnoreCase))
+            return CreateCosmeticCodes_Execute(reader, writer, ct);
+        if (methodName.Equals("GrantCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return GrantCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("RevokeCosmetic", StringComparison.InvariantCultureIgnoreCase))
+            return RevokeCosmetic_Execute(reader, writer, ct);
+        if (methodName.Equals("GetUserCosmetics", StringComparison.InvariantCultureIgnoreCase))
+            return GetUserCosmetics_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

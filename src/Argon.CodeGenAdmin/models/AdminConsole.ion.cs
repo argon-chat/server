@@ -79,7 +79,7 @@ public sealed record ItemTemplateInfo(guid itemId, string templateId, bool isUsa
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record CreateItemTemplateInput(string templateId, bool isUsable, bool isGiftable, bool isAffectBadge, i4? ttl, ItemScenarioKind scenarioType, IonArray<string> boxContentTemplateIds);
+public sealed record CreateItemTemplateInput(string templateId, bool isUsable, bool isGiftable, bool isAffectBadge, i4? ttl, ItemScenarioKind scenarioType, IonArray<string> boxContentTemplateIds, guid? cosmeticId, i4? cosmeticDurationDays);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -459,6 +459,98 @@ public sealed record StrandedAccountDeletionPage(IonArray<StrandedAccountDeletio
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticKindList(IonArray<CosmeticKindInfo> kinds, IonArray<CosmeticOrphanInfo> orphans);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticKindInfo(string kindKey, string? description, string primitive, IonArray<string> surfaces, IonArray<string> scopes, string stacking, i4 layer, i4 maxSlots, CosmeticBoardCapability? boardCapability, string entitlement, string? legacyField, string featureFlagKey, bool isEnabled, IonArray<CosmeticAssetRequirementInfo> assets, i4 itemCount, i4 publishedItemCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticAssetRequirementInfo(CosmeticAssetSlotKind slot, string kind, i8 maxBytes, bool isRequired);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticOrphanInfo(string kindKey, i4 itemCount, i4 equippedCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticQuery(string? kindKey, string? text, bool onlyPublished, bool onlyEnabled, i4 offset, i4 limit, bool onlyShipped);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticPage(IonArray<CosmeticSummary> items, i4 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticSummary(guid cosmeticId, string kindKey, string slug, string nameKey, string? rarity, i4 version, bool isEnabled, bool isPublished, IonArray<CosmeticAcquisitionKind> acquisition, bool hasRequiredAssets, i4? legacyId, datetime createdAt, datetime? publishedAt, datetime? shippedInClientAt, string? shippedInClientBuild, string? name);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticDetails(guid cosmeticId, string kindKey, CosmeticKindInfo? kind, string slug, string nameKey, string? descriptionKey, string? rarity, i4 sortOrder, i4 version, string payloadJson, bool payloadIsValid, IonArray<string> payloadErrors, CosmeticBoardPolicy? board, CosmeticAssetSourceKind assetSource, IonArray<CosmeticAssetInfo> assets, bool isEnabled, bool isPublished, datetime? publishedAt, datetime? availableFrom, datetime? availableUntil, IonArray<CosmeticAcquisitionKind> acquisition, UltimaPlan? ultimaTierRequired, string? priceSku, string? grantItemTemplateId, i4? legacyId, i4 ownerCount, i4 equippedCount, datetime createdAt, datetime? shippedInClientAt, string? shippedInClientBuild, IonArray<CosmeticTranslationInfo> translations);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticAssetInfo(CosmeticAssetSlotKind slot, string fileId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticTranslationInfo(string locale, string name, string? description);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticTranslationInput(guid cosmeticId, string locale, string name, string? description);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateCosmeticCodesInput(guid cosmeticId, string referenceItemTemplateId, i4 count, datetime validFrom, datetime validTo, string? prefix);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateCosmeticCodesResult(bool success, string? error, IonArray<string> codes);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateCosmeticInput(string kindKey, string slug, string nameKey, string? descriptionKey, string? rarity, i4 sortOrder, string payloadJson, CosmeticAssetSourceKind assetSource, string? name, string? description);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateCosmeticResult(bool success, guid? cosmeticId, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticBoardCapability(i4 maxWidth, i4 minHeight, i4 maxHeight, i4? minWidth);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticBoardPolicy(i4 maxPerBoard, i4 defaultWidth, i4 defaultHeight);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UpdateCosmeticInput(guid cosmeticId, string? nameKey, string? descriptionKey, string? rarity, i4? sortOrder, string? payloadJson, datetime? availableFrom, datetime? availableUntil, bool clearAvailableFrom, bool clearAvailableUntil);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticBoardPolicyInput(guid cosmeticId, i4? maxPerBoard, i4? defaultWidth, i4? defaultHeight);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CosmeticAcquisitionInput(guid cosmeticId, IonArray<CosmeticAcquisitionKind> acquisition, UltimaPlan? ultimaTierRequired, string? priceSku, string? grantItemTemplateId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record PublishCosmeticResult(bool success, PublishCosmeticError error, string? detail);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserCosmeticList(IonArray<UserCosmeticInfo> items);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserCosmeticInfo(guid cosmeticId, string kindKey, string slug, string nameKey, CosmeticOwnershipSourceKind source, datetime grantedAt, datetime? expiresAt, datetime? revokedAt, bool isActive, bool viaSubscription);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind : u4
 {
     None = 0,
@@ -538,6 +630,7 @@ public enum ItemScenarioKind : u4
     Premium = 2,
     QualifierBox = 3,
     Box = 4,
+    Cosmetic = 5,
 }
 
 /// <summary>Open-enum helpers for <see cref="ItemScenarioKind"/>.</summary>
@@ -552,7 +645,7 @@ public static class Ion_ItemScenarioKind_OpenEnum
 {
     /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
     public static bool IsKnown(this ItemScenarioKind value)
-        => value == ItemScenarioKind.None || value == ItemScenarioKind.RedeemCode || value == ItemScenarioKind.Premium || value == ItemScenarioKind.QualifierBox || value == ItemScenarioKind.Box;
+        => value == ItemScenarioKind.None || value == ItemScenarioKind.RedeemCode || value == ItemScenarioKind.Premium || value == ItemScenarioKind.QualifierBox || value == ItemScenarioKind.Box || value == ItemScenarioKind.Cosmetic;
 
     /// <summary>
     /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
@@ -764,6 +857,178 @@ public static class Ion_AccountDeletionStatusView_OpenEnum
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum PublishCosmeticError : u4
+{
+    None = 0,
+    NotFound = 1,
+    UnknownKind = 2,
+    AlreadyPublished = 3,
+    MissingAsset = 4,
+    PayloadInvalid = 5,
+    MissingName = 6,
+}
+
+/// <summary>Open-enum helpers for <see cref="PublishCosmeticError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_PublishCosmeticError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this PublishCosmeticError value)
+        => value == PublishCosmeticError.None || value == PublishCosmeticError.NotFound || value == PublishCosmeticError.UnknownKind || value == PublishCosmeticError.AlreadyPublished || value == PublishCosmeticError.MissingAsset || value == PublishCosmeticError.PayloadInvalid || value == PublishCosmeticError.MissingName;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this PublishCosmeticError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CosmeticAssetSlotKind : u4
+{
+    Primary = 0,
+    Poster = 1,
+    Small = 2,
+    Secondary = 3,
+    Tertiary = 4,
+    Quaternary = 5,
+}
+
+/// <summary>Open-enum helpers for <see cref="CosmeticAssetSlotKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CosmeticAssetSlotKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CosmeticAssetSlotKind value)
+        => value == CosmeticAssetSlotKind.Primary || value == CosmeticAssetSlotKind.Poster || value == CosmeticAssetSlotKind.Small || value == CosmeticAssetSlotKind.Secondary || value == CosmeticAssetSlotKind.Tertiary || value == CosmeticAssetSlotKind.Quaternary;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CosmeticAssetSlotKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CosmeticAssetSourceKind : u4
+{
+    Catalogue = 0,
+    UserProvided = 1,
+}
+
+/// <summary>Open-enum helpers for <see cref="CosmeticAssetSourceKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CosmeticAssetSourceKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CosmeticAssetSourceKind value)
+        => value == CosmeticAssetSourceKind.Catalogue || value == CosmeticAssetSourceKind.UserProvided;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CosmeticAssetSourceKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CosmeticAcquisitionKind : u4
+{
+    OperatorGrant = 0,
+    PromoCode = 1,
+    UltimaTier = 2,
+    Purchase = 3,
+    Gift = 4,
+    Drop = 5,
+}
+
+/// <summary>Open-enum helpers for <see cref="CosmeticAcquisitionKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CosmeticAcquisitionKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CosmeticAcquisitionKind value)
+        => value == CosmeticAcquisitionKind.OperatorGrant || value == CosmeticAcquisitionKind.PromoCode || value == CosmeticAcquisitionKind.UltimaTier || value == CosmeticAcquisitionKind.Purchase || value == CosmeticAcquisitionKind.Gift || value == CosmeticAcquisitionKind.Drop;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CosmeticAcquisitionKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CosmeticOwnershipSourceKind : u4
+{
+    OperatorGrant = 0,
+    PromoCode = 1,
+    Purchase = 2,
+    Gift = 3,
+    Subscription = 4,
+    Item = 5,
+}
+
+/// <summary>Open-enum helpers for <see cref="CosmeticOwnershipSourceKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CosmeticOwnershipSourceKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CosmeticOwnershipSourceKind value)
+        => value == CosmeticOwnershipSourceKind.OperatorGrant || value == CosmeticOwnershipSourceKind.PromoCode || value == CosmeticOwnershipSourceKind.Purchase || value == CosmeticOwnershipSourceKind.Gift || value == CosmeticOwnershipSourceKind.Subscription || value == CosmeticOwnershipSourceKind.Item;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CosmeticOwnershipSourceKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IAdminConsole : IIonService
 {
     Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default);
@@ -859,6 +1124,28 @@ public interface IAdminConsole : IIonService
     Task<TenantActionResult> UpdateTenant(UpdateTenantInput input, CancellationToken ct = default);
     Task<TenantActionResult> SetTenantVerified(guid tenantId, bool isVerified, CancellationToken ct = default);
     Task<TenantActionResult> DeleteTenant(guid tenantId, CancellationToken ct = default);
+    Task<CosmeticKindList> GetCosmeticKinds(CancellationToken ct = default);
+    Task<UserActionResult> SetCosmeticKindEnabled(string kindKey, bool isEnabled, CancellationToken ct = default);
+    Task<UserActionResult> PurgeOrphanedCosmetics(string kindKey, CancellationToken ct = default);
+    Task<CosmeticPage> SearchCosmetics(CosmeticQuery query, CancellationToken ct = default);
+    Task<CosmeticDetails> GetCosmetic(guid cosmeticId, CancellationToken ct = default);
+    Task<CreateCosmeticResult> CreateCosmetic(CreateCosmeticInput input, CancellationToken ct = default);
+    Task<UserActionResult> UpdateCosmetic(UpdateCosmeticInput input, CancellationToken ct = default);
+    Task<UserActionResult> SetCosmeticAcquisition(CosmeticAcquisitionInput input, CancellationToken ct = default);
+    Task<UserActionResult> SetCosmeticBoardPolicy(CosmeticBoardPolicyInput input, CancellationToken ct = default);
+    Task<UserActionResult> SetCosmeticEnabled(guid cosmeticId, bool isEnabled, CancellationToken ct = default);
+    Task<UserActionResult> SetCosmeticTranslation(CosmeticTranslationInput input, CancellationToken ct = default);
+    Task<UserActionResult> DeleteCosmeticTranslation(guid cosmeticId, string locale, CancellationToken ct = default);
+    Task<PublishCosmeticResult> PublishCosmetic(guid cosmeticId, CancellationToken ct = default);
+    Task<UserActionResult> UnpublishCosmetic(guid cosmeticId, string reason, CancellationToken ct = default);
+    Task<DeleteItemResult> DeleteCosmetic(guid cosmeticId, CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadCosmeticAsset(guid cosmeticId, CosmeticAssetSlotKind slot, CancellationToken ct = default);
+    Task<UserActionResult> CompleteUploadCosmeticAsset(guid cosmeticId, CosmeticAssetSlotKind slot, guid blobId, CancellationToken ct = default);
+    Task<UserActionResult> SetCosmeticShipped(guid cosmeticId, string build, bool shipped, CancellationToken ct = default);
+    Task<CreateCosmeticCodesResult> CreateCosmeticCodes(CreateCosmeticCodesInput input, CancellationToken ct = default);
+    Task<UserActionResult> GrantCosmetic(guid userId, guid cosmeticId, datetime? expiresAt, CancellationToken ct = default);
+    Task<UserActionResult> RevokeCosmetic(guid userId, guid cosmeticId, CancellationToken ct = default);
+    Task<UserCosmeticList> GetUserCosmetics(guid userId, CancellationToken ct = default);
 }
 
 

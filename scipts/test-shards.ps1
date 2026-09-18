@@ -136,6 +136,8 @@ $generalShards = @(
         'ArchetypeTests'
         'ChannelHighWaterMarkTests'
         'ChannelModerationTests'
+        'CosmeticAdminTests'
+        'CosmeticKeyItemTests'
         'DataExportTests'
         'FeatureFlagTests'
         'IdentityTests'
@@ -156,6 +158,7 @@ $generalShards = @(
     @(   # ~272 s serial
         'AegisOAuthTests'
         'AegisRoleTests'
+        'CosmeticEquipTests'
         'BotApiTests'
         'ChannelBadgeTests'
         'ClusterTopologyTests'

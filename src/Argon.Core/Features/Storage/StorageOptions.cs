@@ -169,6 +169,16 @@ public class FileLimitsOptions
     public long BannerMaxBytes { get; set; } = 10 * 1024 * 1024;
 
     /// <summary>
+    ///     Catalogue cosmetic asset max size (default 8 MB).
+    /// </summary>
+    /// <remarks>
+    ///     The ceiling for any slot. A kind declares its own, smaller limit per slot — a badge icon
+    ///     is capped at a quarter of a megabyte — and the tighter of the two wins, so raising this
+    ///     does not loosen anything a kind has already decided.
+    /// </remarks>
+    public long CosmeticAssetMaxBytes { get; set; } = 8 * 1024 * 1024;
+
+    /// <summary>
     ///     Video max size (default 100 MB)
     /// </summary>
     public long VideoMaxBytes { get; set; } = 100 * 1024 * 1024;

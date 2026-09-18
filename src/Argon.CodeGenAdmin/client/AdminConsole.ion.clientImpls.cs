@@ -204,6 +204,50 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(SetTenantVerified), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DeleteTenant_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(DeleteTenant), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetCosmeticKinds_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetCosmeticKinds), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetCosmeticKindEnabled_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetCosmeticKindEnabled), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PurgeOrphanedCosmetics_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(PurgeOrphanedCosmetics), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SearchCosmetics_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SearchCosmetics), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CreateCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(UpdateCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetCosmeticAcquisition_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetCosmeticAcquisition), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetCosmeticBoardPolicy_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetCosmeticBoardPolicy), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetCosmeticEnabled_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetCosmeticEnabled), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetCosmeticTranslation_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetCosmeticTranslation), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteCosmeticTranslation_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(DeleteCosmeticTranslation), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PublishCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(PublishCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UnpublishCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(UnpublishCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(DeleteCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadCosmeticAsset_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(BeginUploadCosmeticAsset), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadCosmeticAsset_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CompleteUploadCosmeticAsset), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetCosmeticShipped_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetCosmeticShipped), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateCosmeticCodes_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CreateCosmeticCodes), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GrantCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GrantCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RevokeCosmetic_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(RevokeCosmetic), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetUserCosmetics_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetUserCosmetics), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -1831,6 +1875,392 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<TenantActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<CosmeticKindList> GetCosmeticKinds(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetCosmeticKinds_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<CosmeticKindList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetCosmeticKindEnabled(string __kindkey, bool __isenabled, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetCosmeticKindEnabled_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __kindkey);
+        IonFormatterStorage<bool>.Write(writer, __isenabled);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> PurgeOrphanedCosmetics(string __kindkey, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), PurgeOrphanedCosmetics_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __kindkey);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<CosmeticPage> SearchCosmetics(CosmeticQuery __query, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SearchCosmetics_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CosmeticQuery>.Write(writer, __query);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<CosmeticPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<CosmeticDetails> GetCosmetic(guid __cosmeticid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<CosmeticDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<CreateCosmeticResult> CreateCosmetic(CreateCosmeticInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CreateCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CreateCosmeticInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<CreateCosmeticResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> UpdateCosmetic(UpdateCosmeticInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), UpdateCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<UpdateCosmeticInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetCosmeticAcquisition(CosmeticAcquisitionInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetCosmeticAcquisition_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CosmeticAcquisitionInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetCosmeticBoardPolicy(CosmeticBoardPolicyInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetCosmeticBoardPolicy_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CosmeticBoardPolicyInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetCosmeticEnabled(guid __cosmeticid, bool __isenabled, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetCosmeticEnabled_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<bool>.Write(writer, __isenabled);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetCosmeticTranslation(CosmeticTranslationInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetCosmeticTranslation_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CosmeticTranslationInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> DeleteCosmeticTranslation(guid __cosmeticid, string __locale, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), DeleteCosmeticTranslation_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<string>.Write(writer, __locale);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<PublishCosmeticResult> PublishCosmetic(guid __cosmeticid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), PublishCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<PublishCosmeticResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> UnpublishCosmetic(guid __cosmeticid, string __reason, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), UnpublishCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<string>.Write(writer, __reason);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<DeleteItemResult> DeleteCosmetic(guid __cosmeticid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), DeleteCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<DeleteItemResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadCosmeticAsset(guid __cosmeticid, CosmeticAssetSlotKind __slot, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), BeginUploadCosmeticAsset_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<CosmeticAssetSlotKind>.Write(writer, __slot);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> CompleteUploadCosmeticAsset(guid __cosmeticid, CosmeticAssetSlotKind __slot, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CompleteUploadCosmeticAsset_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<CosmeticAssetSlotKind>.Write(writer, __slot);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetCosmeticShipped(guid __cosmeticid, string __build, bool __shipped, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetCosmeticShipped_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<string>.Write(writer, __build);
+        IonFormatterStorage<bool>.Write(writer, __shipped);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<CreateCosmeticCodesResult> CreateCosmeticCodes(CreateCosmeticCodesInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CreateCosmeticCodes_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CreateCosmeticCodesInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<CreateCosmeticCodesResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> GrantCosmetic(guid __userid, guid __cosmeticid, datetime? __expiresat, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GrantCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        IonFormatterStorage<datetime>.WriteNullable(writer, __expiresat);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> RevokeCosmetic(guid __userid, guid __cosmeticid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), RevokeCosmetic_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<guid>.Write(writer, __cosmeticid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserCosmeticList> GetUserCosmetics(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetUserCosmetics_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserCosmeticList>(writer.Encode(), ct: ct);
     }
 
 }

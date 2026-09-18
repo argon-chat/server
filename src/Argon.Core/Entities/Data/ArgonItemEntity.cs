@@ -49,7 +49,8 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
 
     public static InventoryItem Map(scoped in ArgonItemEntity self)
         => new(self.TemplateId, self.Id, self.CreatedAt.UtcDateTime, self.IsUsable, self.IsGiftable, self.UseVector,
-            self.ReceivedFrom, self.TTL);
+            self.ReceivedFrom, self.TTL,
+            (self.Scenario as CosmeticScenario)?.CosmeticId);
 
     public void Configure(EntityTypeBuilder<ArgonItemEntity> builder)
     {

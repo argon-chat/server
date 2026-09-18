@@ -1518,6 +1518,411 @@ namespace Argon.Core.Migrations
                     b.ToTable("ContentViolations");
                 });
 
+            modelBuilder.Entity("Argon.Entities.CosmeticEquipEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BoardH")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<int>("BoardW")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<int>("BoardX")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BoardY")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CosmeticItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("KindKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<Guid>("LoadoutId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Overrides")
+                        .HasColumnType("text");
+
+                    b.Property<int>("SlotIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CosmeticItemId");
+
+                    b.HasIndex("LoadoutId", "KindKey", "SlotIndex")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("CosmeticEquips");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticItemEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AcquisitionMode")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AssetFileIds")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("AssetSource")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("AvailableFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("AvailableUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("BoardDefaultH")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("BoardDefaultW")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DescriptionKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<string>("GrantItemTemplateId")
+                        .HasMaxLength(255)
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("KindKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int?>("LegacyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MaxPerBoard")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PriceSku")
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Rarity")
+                        .HasMaxLength(32)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ShippedInClientAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ShippedInClientBuild")
+                        .HasMaxLength(64)
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("UltimaTierRequired")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsPublished", "AvailableUntil");
+
+                    b.HasIndex("KindKey", "LegacyId")
+                        .IsUnique()
+                        .HasFilter("\"LegacyId\" IS NOT NULL AND \"IsDeleted\" = false");
+
+                    b.HasIndex("KindKey", "Slug")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("KindKey", "IsPublished", "IsEnabled");
+
+                    b.ToTable("Cosmetics");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticLoadoutEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AvatarFileIdOverride")
+                        .HasMaxLength(64)
+                        .HasColumnType("text");
+
+                    b.Property<string>("BioOverride")
+                        .HasMaxLength(512)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DisplayNameChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayNameOverride")
+                        .HasMaxLength(64)
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPaused")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"IsDefault\" = true AND \"IsDeleted\" = false");
+
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("CosmeticLoadouts");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticOwnershipEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CosmeticItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GiftedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("InventoryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CosmeticItemId");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasFilter("\"ExpiresAt\" IS NOT NULL AND \"RevokedAt\" IS NULL");
+
+                    b.HasIndex("UserId", "CosmeticItemId")
+                        .IsUnique()
+                        .HasFilter("\"RevokedAt\" IS NULL AND \"IsDeleted\" = false");
+
+                    b.ToTable("CosmeticOwnerships");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticScopeAssignmentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("LoadoutId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoadoutId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"SpaceId\" IS NULL AND \"IsDeleted\" = false");
+
+                    b.HasIndex("UserId", "SpaceId")
+                        .IsUnique()
+                        .HasFilter("\"SpaceId\" IS NOT NULL AND \"IsDeleted\" = false");
+
+                    b.ToTable("CosmeticScopeAssignments");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticTranslationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CosmeticItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CosmeticItemId", "Locale")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("CosmeticTranslations");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
             modelBuilder.Entity("Argon.Entities.DeviceBanEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2704,6 +3109,10 @@ namespace Argon.Core.Migrations
                     b.Property<long?>("JoinedViaInviteId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Nickname")
+                        .HasMaxLength(32)
+                        .HasColumnType("text");
+
                     b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
@@ -3222,6 +3631,20 @@ namespace Argon.Core.Migrations
                     b.HasDiscriminator().HasValue("Box");
                 });
 
+            modelBuilder.Entity("Argon.Api.Entities.Data.CosmeticScenario", b =>
+                {
+                    b.HasBaseType("Argon.Api.Entities.Data.ItemUseScenario");
+
+                    b.Property<Guid>("CosmeticId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("DurationDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("CosmeticDurationDays");
+
+                    b.HasDiscriminator().HasValue("Cosmetic");
+                });
+
             modelBuilder.Entity("Argon.Api.Entities.Data.MultipleQualifierBox", b =>
                 {
                     b.HasBaseType("Argon.Api.Entities.Data.ItemUseScenario");
@@ -3238,7 +3661,8 @@ namespace Argon.Core.Migrations
                     b.HasBaseType("Argon.Api.Entities.Data.ItemUseScenario");
 
                     b.Property<int>("DurationDays")
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("DurationDays");
 
                     b.Property<string>("GiftMessage")
                         .HasMaxLength(256)
@@ -3547,6 +3971,84 @@ namespace Argon.Core.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Argon.Entities.CosmeticEquipEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.CosmeticItemEntity", "Item")
+                        .WithMany()
+                        .HasForeignKey("CosmeticItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Argon.Entities.CosmeticLoadoutEntity", "Loadout")
+                        .WithMany("Equips")
+                        .HasForeignKey("LoadoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+
+                    b.Navigation("Loadout");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticLoadoutEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticOwnershipEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.CosmeticItemEntity", "Item")
+                        .WithMany()
+                        .HasForeignKey("CosmeticItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Argon.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticScopeAssignmentEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.CosmeticLoadoutEntity", "Loadout")
+                        .WithMany()
+                        .HasForeignKey("LoadoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Argon.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loadout");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticTranslationEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.CosmeticItemEntity", "Item")
+                        .WithMany()
+                        .HasForeignKey("CosmeticItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+                });
+
             modelBuilder.Entity("Argon.Entities.OperatorAppAccessEntity", b =>
                 {
                     b.HasOne("Argon.Core.Entities.Data.DevAppEntity", "App")
@@ -3839,6 +4341,11 @@ namespace Argon.Core.Migrations
             modelBuilder.Entity("Argon.Entities.ChannelGroupEntity", b =>
                 {
                     b.Navigation("Channels");
+                });
+
+            modelBuilder.Entity("Argon.Entities.CosmeticLoadoutEntity", b =>
+                {
+                    b.Navigation("Equips");
                 });
 
             modelBuilder.Entity("Argon.Entities.OperatorEntity", b =>

@@ -66,6 +66,7 @@ public sealed class CoreRole : IArgonRole
         features.Add<SfuFeature>();
         features.Add<KlipyFeature>();
         features.Add<LinkPreviewFeature>();
+        features.Add<CosmeticsFeature>();
 
         // Every grain that raises an event needs the bus. Publishing goes through the backplane, so
         // this brings no listening socket with it — the client endpoint is entrypoint's business.
@@ -240,6 +241,7 @@ public sealed class CommerceRole : IArgonRole
         features.Add<RepositoriesFeature>();
         features.Add<PermissionsFeature>();
         features.Add<XsollaFeature>();
+        features.Add<CosmeticsFeature>();
 
         // A purchase tells the buyer and their space about itself.
         features.Add<RealtimeBusFeature>();
@@ -253,6 +255,10 @@ public sealed class CommerceRole : IArgonRole
         registry.AddToRef<SpaceBoostGrain>();
         registry.AddToRef<InventoryGrain>();
         registry.AddToRef<UserLevelGrain>();
+
+        // Cosmetics sit with the rest of what an account owns: the grant, the subscription that
+        // covers it and the inventory row it came from are all already here.
+        registry.AddToRef<CosmeticsGrain>();
 
         registry.AcceptRemote<IUserGrain>("single call site in UltimaGrain");
     }

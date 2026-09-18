@@ -1,0 +1,6 @@
+{
+  "OperatorAuth": {
+    "MetadataAddress": "https://localhost:5003/.well-known/openid-configuration",
+    "ValidIssuer": "https://localhost:5003/"
+  }
+}

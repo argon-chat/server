@@ -121,6 +121,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(SetBoostStripHidden))]
     Task SetBoostStripHidden(bool hidden);
 
+
     /// <summary>
     /// Flips the platform-controlled space flags on behalf of an operator. Null leaves a flag
     /// alone, so the two admin buttons can share one entry point without either clobbering the

@@ -183,5 +183,15 @@ public record UpdateProfileResult(ArgonUser User, ArgonUserProfile Profile);
 
 public enum UserFileKind
 {
-    Avatar
+    Avatar,
+
+    /// <summary>
+    /// A picture somebody puts on their own profile rather than on their face — a card on the board.
+    /// </summary>
+    /// <remarks>
+    /// Stored under the banner purpose, which is the one that already means "a large picture on a
+    /// profile". Unlike an avatar it is not written to a column: it belongs to whichever card its
+    /// wearer is editing, so the caller is handed the file id.
+    /// </remarks>
+    ProfilePicture
 }

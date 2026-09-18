@@ -8,6 +8,7 @@ using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
 using Argon.Core.Features.Logic;
 using Argon.Features.Admin;
+using Argon.Features.Cosmetics;
 using Argon.Grains.Interfaces;
 using ConsoleContracts;
 using ion.runtime;
@@ -15,7 +16,7 @@ using Livekit.Server.Sdk.Dotnet;
 using Argon.Services.Ion;
 using Microsoft.Extensions.Caching.Hybrid;
 
-public class AdminConsoleImpl(
+public partial class AdminConsoleImpl(
     IGrainFactory grainFactory,
     ILogger<IAdminConsole> logger,
     IDbContextFactory<ApplicationDbContext> dbFactory,
@@ -31,7 +32,10 @@ public class AdminConsoleImpl(
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier sessionNotifier,
     IOptions<AccountDeletionOptions> deletionOptions,
-    IEmailJournal emailJournal
+    IEmailJournal emailJournal,
+    CosmeticKindRegistry cosmeticKinds,
+    ICosmeticProfileProjection cosmeticProjection,
+    CosmeticGrantService cosmeticGrants
 ) : IAdminConsole
 {
     public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
@@ -127,8 +131,9 @@ public class AdminConsoleImpl(
             conversationsCount
         );
 
-        // Profile info
-        var profile = user.Profile.ToDto();
+        // Profile info, resolved the same way a client would see it — an operator looking at a card
+        // that disagrees with what the person is actually wearing is answering the wrong question.
+        var profile = await cosmeticProjection.ApplyAsync(user.Profile.ToDto(), null, ct);
 
         // Passkeys count & TwoFactor
         var passkeyCount = await db.Passkeys.CountAsync(p => p.UserId == userId && p.IsCompleted, ct);
@@ -478,6 +483,7 @@ public class AdminConsoleImpl(
                 QualifierBox => ItemScenarioKind.QualifierBox,
                 MultipleQualifierBox => ItemScenarioKind.QualifierBox,
                 BoxScenario => ItemScenarioKind.Box,
+                CosmeticScenario => ItemScenarioKind.Cosmetic,
                 _ => ItemScenarioKind.None
             };
 
@@ -726,6 +732,33 @@ public class AdminConsoleImpl(
                 }
             }
 
+            // A key names the cosmetic it will hand over at the moment it is authored, not at the
+            // moment it is used — the same rule InventoryGrain.UseItemAsync falls back on for a key
+            // whose cosmetic vanished later, held here first so a template is never created broken.
+            if (input.scenarioType is ItemScenarioKind.Cosmetic)
+            {
+                if (input.cosmeticId is not { } cosmeticId)
+                {
+                    logger.LogWarning("CreateItemTemplate failed: scenarioType is Cosmetic but cosmeticId is missing");
+                    return new CreateItemTemplateResult(false, null, "A Cosmetic template requires a cosmeticId");
+                }
+
+                var cosmeticExists = await db.Cosmetics.AnyAsync(c => c.Id == cosmeticId, ct);
+                if (!cosmeticExists)
+                {
+                    logger.LogWarning("CreateItemTemplate failed: cosmetic {CosmeticId} not found", cosmeticId);
+                    return new CreateItemTemplateResult(false, null, $"Cosmetic {cosmeticId} not found");
+                }
+
+                // Zero is not "no window" — that is what an absent value already means — so letting it
+                // through would silently mint a key that expires the instant it is used.
+                if (input.cosmeticDurationDays is { } days && days <= 0)
+                {
+                    logger.LogWarning("CreateItemTemplate failed: cosmeticDurationDays must be positive when given, was {Days}", days);
+                    return new CreateItemTemplateResult(false, null, "cosmeticDurationDays must be positive when given");
+                }
+            }
+
             ItemUseScenario? scenario = input.scenarioType switch
             {
                 ItemScenarioKind.Box => new BoxScenario
@@ -753,6 +786,12 @@ public class AdminConsoleImpl(
                     Key = ArgonId.New(),
                     Code = "",
                     ServiceKey = ""
+                },
+                ItemScenarioKind.Cosmetic => new CosmeticScenario
+                {
+                    Key          = ArgonId.New(),
+                    CosmeticId   = input.cosmeticId!.Value,
+                    DurationDays = input.cosmeticDurationDays
                 },
                 _ => null
             };
@@ -1253,7 +1292,9 @@ public class AdminConsoleImpl(
                 null,
                 0, 0, 0
             );
-            profile = user.Profile?.ToDto();
+            profile = user.Profile is null
+                ? null
+                : await cosmeticProjection.ApplyAsync(user.Profile.ToDto(), null, ct);
         }
 
         var recentAudit = await auditService.GetRecentByOperatorAsync(operatorId, 20, ct);

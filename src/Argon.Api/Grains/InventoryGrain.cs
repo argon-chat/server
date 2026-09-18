@@ -4,6 +4,8 @@ using Api.Entities.Data;
 using Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Logic;
+using Argon.Features.Cosmetics;
+using Npgsql;
 using Orleans.Concurrency;
 using System.Linq;
 using Core.Entities.Data;
@@ -12,7 +14,8 @@ using Core.Entities.Data;
 public class InventoryGrain(
     IDbContextFactory<ApplicationDbContext> context,
     ILogger<IInventoryGrain> logger,
-    ISystemNotificationService systemNotification) : Grain, IInventoryGrain
+    ISystemNotificationService systemNotification,
+    CosmeticGrantService cosmeticGrants) : Grain, IInventoryGrain
 {
     public async Task<List<DetailedInventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
     {
@@ -173,6 +176,7 @@ public class InventoryGrain(
     public async Task<List<InventoryItem>> GetItemsForUserAsync(Guid userId, CancellationToken ct = default)
         => await context.Select(ctx => ctx.Items
            .AsNoTracking()
+           .Include(x => x.Scenario)
            .Where(x => x.OwnerId == userId)
            .Where(x => x.TTL == null || x.CreatedAt + x.TTL > DateTimeOffset.UtcNow)
            .ToListAsync(ct)
@@ -279,6 +283,72 @@ public class InventoryGrain(
 
                         await GrainFactory.GetGrain<IUltimaGrain>(userId)
                            .ActivateSubscriptionAsync(tier, premium.DurationDays, null, usableItem.Id, ct);
+
+                        return true;
+                    }
+                    case CosmeticScenario cosmetic:
+                    {
+                        // Counted from the moment of use rather than from when the item was received:
+                        // a key sat on in an inventory for a month still grants its full window.
+                        DateTimeOffset? expiresAt = cosmetic.DurationDays is { } days
+                            ? DateTimeOffset.UtcNow.AddDays(days)
+                            : null;
+
+                        // Marked for deletion and deliberately not saved. The grant below writes
+                        // through this same context and calls SaveChangesAsync itself, which flushes
+                        // everything pending — so one write carries both the key's disappearance and
+                        // the ownership row, and a rollback leaves neither. Saving here would make
+                        // them two, and the gap between them is a key spent for nothing.
+                        ctx.Remove(usableItem);
+
+                        CosmeticGrantResult grant;
+
+                        try
+                        {
+                            grant = await cosmeticGrants.GrantAsync(ctx, userId, cosmetic.CosmeticId,
+                                CosmeticOwnershipSource.Item, expiresAt, usableItem.Id,
+                                CosmeticGrantIntent.OnlyIfMissing, ct);
+                        }
+                        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: "23505" })
+                        {
+                            // Two keys for the same cosmetic used at the same instant both read no
+                            // ownership row and both insert; the filtered unique index on
+                            // (UserId, CosmeticItemId) lets exactly one of them through and the loser
+                            // arrives here. That is a duplicate a millisecond late rather than a
+                            // fault, so it gets the duplicate's answer — nothing written, and the key
+                            // still in the inventory to use again or give away.
+                            //
+                            // The narrowing to 23505 is the point of the filter: this catch means
+                            // "somebody beat us to it" and nothing else. A foreign key that no longer
+                            // resolves, a concurrency failure, any other constraint — none of those
+                            // are contention, and swallowing them here would file a schema fault as
+                            // an ordinary busy moment and log it at warning forever. They fall through
+                            // to the critical handler below, which is where a fault belongs.
+                            logger.LogWarning(e, "Key {ItemId} lost a race granting cosmetic {CosmeticId} to {UserId}",
+                                usableItem.Id, cosmetic.CosmeticId, userId);
+
+                            await trx.RollbackAsync(ct);
+                            return false;
+                        }
+
+                        // AlreadyOwned is the duplicate policy doing its job; NotServable is a cosmetic
+                        // that has been unpublished or has run out its window, so the grant would buy
+                        // something unwearable; an unknown user or cosmetic is a key pointing at
+                        // nothing. Either way nothing was granted, so nothing may be taken — the
+                        // rollback is what leaves the item where it was.
+                        if (grant.Status is not (CosmeticGrantStatus.Granted or CosmeticGrantStatus.Extended))
+                        {
+                            // Logged because from the outside every one of these looks the same: a
+                            // button that did nothing. The status is the only thing that says which
+                            // refusal it was.
+                            logger.LogInformation("Key {ItemId} granted nothing for {UserId}: cosmetic {CosmeticId} is {Status}",
+                                usableItem.Id, userId, cosmetic.CosmeticId, grant.Status);
+
+                            await trx.RollbackAsync(ct);
+                            return false;
+                        }
+
+                        await trx.CommitAsync(ct);
 
                         return true;
                     }

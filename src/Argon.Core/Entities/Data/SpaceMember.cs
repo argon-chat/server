@@ -11,6 +11,16 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
     /// <summary>Id of the <see cref="SpaceInvite"/> the member joined through, if any (null for owners / direct joins).</summary>
     public ulong? JoinedViaInviteId { get; set; }
 
+    /// <summary>
+    /// What this person is called in this space, overriding their display name. Null is the display
+    /// name unchanged.
+    /// </summary>
+    /// <remarks>
+    /// A scalar rather than a cosmetic: the name is content, and everything that styles it — font,
+    /// colour, motion — is a cosmetic worn in the loadout assigned to this space.
+    /// </remarks>
+    public string? Nickname { get; set; }
+
     public virtual UserEntity  User  { get; set; }
     public virtual SpaceEntity Space { get; set; }
 
@@ -32,6 +42,8 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
 
     public void Configure(EntityTypeBuilder<SpaceMemberEntity> builder)
     {
+        builder.Property(x => x.Nickname).HasMaxLength(32);
+
         builder.HasOne(x => x.Space)
            .WithMany(x => x.Users)
            .HasForeignKey(x => x.SpaceId);
