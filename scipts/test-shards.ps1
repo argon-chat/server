@@ -120,6 +120,10 @@ $presenceFixtures = @(
 # which keeps the two general shards near each other and keeps every fixture that drives
 # AutoDeleteSchedulerGrain's whole-table scan inside one stack. Regenerate with -FromTrx after the
 # next full sharded run.
+#
+# ProfilePrefetchTests (added 2026-09-18, with the PrefetchProfiles batch) is hand-placed into the
+# first shard for the same reason: it is five short fixtures' worth of session-and-space setup, and
+# the first shard was the lighter of the two as measured. Not worth a regeneration on its own.
 $generalShards = @(
     @(   # ~237 s serial
         'AccountConsoleTests'
@@ -140,6 +144,7 @@ $generalShards = @(
         'ModerationTests'
         'NotificationCounterTests'
         'ProfileCardTests'
+        'ProfilePrefetchTests'
         'ReadStateCacheTests'
         'RealtimeReplayBufferTests'
         'SecurityTests'

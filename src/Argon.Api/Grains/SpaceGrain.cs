@@ -442,12 +442,14 @@ public class SpaceGrain(
     /// Everyone a member list is showing, in one query instead of one round trip each.
     /// </summary>
     /// <remarks>
-    /// <para>The answer for an id is the same one <see cref="PrefetchProfile"/> gives, placeholders
-    /// included, and the list is one entry per requested id in the order asked — a caller pairs the
-    /// two up by position or by <c>userId</c>, whichever it finds easier.</para>
-    /// <para>Scoped to this space, unlike its single-member counterpart: the archetypes on a profile
-    /// are the roles the member holds <em>here</em>, and a member of several spaces has a different
-    /// set in each.</para>
+    /// <para>One entry per requested id, in the order asked — a caller pairs the two up by position
+    /// or by <c>userId</c>, whichever it finds easier — with the same placeholders
+    /// <see cref="PrefetchProfile"/> uses for an id there is nothing to say about.</para>
+    /// <para>Two things it is stricter about than its single-member counterpart. It is scoped to
+    /// this space, because the archetypes on a profile are the roles the member holds <em>here</em>
+    /// and a member of several spaces holds a different set in each; and it answers only about
+    /// current members, because a departure is a soft delete and a membership that has ended is not
+    /// a membership.</para>
     /// </remarks>
     public async Task<List<ArgonUserProfile>> PrefetchProfiles(List<Guid> userIds)
     {
@@ -471,8 +473,7 @@ public class SpaceGrain(
             await using var ctx = await context.CreateDbContextAsync();
 
             // The space id is what says the caller has met these people at all — a hundred ids and
-            // no membership behind them is a directory walk, not a member list. Query filters left
-            // on for this one, so a membership the caller has left does not still open the door.
+            // no membership behind them is a directory walk, not a member list.
             var callerIsMember = await ctx.UsersToServerRelations
                .AsNoTracking()
                .AnyAsync(member => member.SpaceId == spaceId && member.UserId == callerId);
@@ -480,8 +481,11 @@ public class SpaceGrain(
             if (!callerIsMember)
                 throw new InvalidOperationException($"user '{callerId}' is not a member of space '{spaceId}'");
 
+            // Soft-delete filters left on, on both queries: a departure is a soft delete
+            // (RemoveMemberAsync writes exactly that), so a membership that has ended neither opens
+            // the door for the caller nor answers for the member. Former members fall through to
+            // the placeholder below, taking the roles they used to hold with them.
             var members = await ctx.UsersToServerRelations
-               .IgnoreQueryFilters()
                .AsNoTracking()
                .Where(member => member.SpaceId == spaceId && lookup.Contains(member.UserId))
                .Include(member => member.User)
