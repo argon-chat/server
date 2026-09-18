@@ -51,7 +51,7 @@ services:
   # hybrid cache 10. The stock image allows sixteen, so nothing has to be configured for 10 to exist —
   # which is the one thing worth checking when swapping this for another Redis-compatible server.
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: argon-redis
     ports:
       - "6379:6379"
