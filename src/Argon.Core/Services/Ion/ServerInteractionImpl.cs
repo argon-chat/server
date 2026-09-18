@@ -100,6 +100,9 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task<ArgonUserProfile> PrefetchProfile(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchProfile(userId);
 
+    public async Task<IonArray<ArgonUserProfile>> PrefetchProfiles(Guid spaceId, IonArray<Guid> userIds, CancellationToken ct = default)
+        => new(await this.GetGrain<ISpaceGrain>(spaceId).PrefetchProfiles(userIds.Values.ToList()));
+
     [Obsolete("Superseded by GetSpaceSnapshot; remove once no shipped client calls it.")]
     public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, CancellationToken ct = default)
         => new(await this.GetGrain<ISpaceReadGrain>(spaceId)

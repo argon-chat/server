@@ -438,6 +438,90 @@ public class SpaceGrain(
         };
     }
 
+    /// <summary>
+    /// Everyone a member list is showing, in one query instead of one round trip each.
+    /// </summary>
+    /// <remarks>
+    /// <para>One entry per requested id, in the order asked — a caller pairs the two up by position
+    /// or by <c>userId</c>, whichever it finds easier — with the same placeholders
+    /// <see cref="PrefetchProfile"/> uses for an id there is nothing to say about.</para>
+    /// <para>Two things it is stricter about than its single-member counterpart. It is scoped to
+    /// this space, because the archetypes on a profile are the roles the member holds <em>here</em>
+    /// and a member of several spaces holds a different set in each; and it answers only about
+    /// current members, because a departure is a soft delete and a membership that has ended is not
+    /// a membership.</para>
+    /// </remarks>
+    public async Task<List<ArgonUserProfile>> PrefetchProfiles(List<Guid> userIds)
+    {
+        // A member list asks about what it is showing and chunks anything larger, so this is a
+        // ceiling rather than a working size. It is a ceiling at all because the ids come from the
+        // caller: without one, a single call walks the profile of every account it can name.
+        const int maxBatch = 100;
+
+        var asked = userIds.Count > maxBatch ? userIds.Take(maxBatch).ToList() : userIds;
+
+        // Guests never registered, so there is nothing to look up for them — and the rest is one
+        // query however many ids came in.
+        var lookup = asked.Where(id => !IsGuestUserId(id)).Distinct().ToList();
+        var found  = new Dictionary<Guid, ArgonUserProfile>(lookup.Count);
+
+        if (lookup.Count > 0)
+        {
+            var spaceId  = this.GetPrimaryKey();
+            var callerId = this.GetUserId();
+
+            await using var ctx = await context.CreateDbContextAsync();
+
+            // The space id is what says the caller has met these people at all — a hundred ids and
+            // no membership behind them is a directory walk, not a member list.
+            var callerIsMember = await ctx.UsersToServerRelations
+               .AsNoTracking()
+               .AnyAsync(member => member.SpaceId == spaceId && member.UserId == callerId);
+
+            if (!callerIsMember)
+                throw new InvalidOperationException($"user '{callerId}' is not a member of space '{spaceId}'");
+
+            // Soft-delete filters left on, on both queries: a departure is a soft delete
+            // (RemoveMemberAsync writes exactly that), so a membership that has ended neither opens
+            // the door for the caller nor answers for the member. Former members fall through to
+            // the placeholder below, taking the roles they used to hold with them.
+            var members = await ctx.UsersToServerRelations
+               .AsNoTracking()
+               .Where(member => member.SpaceId == spaceId && lookup.Contains(member.UserId))
+               .Include(member => member.User)
+               .ThenInclude(user => user.Profile)
+               .Include(member => member.SpaceMemberArchetypes)
+               .ToListAsync();
+
+            foreach (var member in members)
+            {
+                // A member row with no profile row behind it is not worth failing the other
+                // ninety-nine over; it reads as an account that is no longer there.
+                if (member.User?.Profile is not { } profile)
+                    continue;
+
+                found[member.UserId] = profile.ToDto() with
+                {
+                    archetypes = new(member.SpaceMemberArchetypes.Select(x => x.ToDto()))
+                };
+            }
+        }
+
+        return asked
+           .Select(id => IsGuestUserId(id)
+                ? PlaceholderProfile(id, "Guest User")
+                : found.GetValueOrDefault(id) ?? PlaceholderProfile(id, "Deleted Account"))
+           .ToList();
+    }
+
+    /// <summary>
+    /// What a profile looks like when there is no profile: the id, the one line explaining why, and
+    /// nothing else. Guests never registered, so there is no "in Argon since" to show for them.
+    /// </summary>
+    private static ArgonUserProfile PlaceholderProfile(Guid userId, string bio)
+        => new(userId, null, null, null, null, bio, IonArray<string>.Empty,
+            IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
+
     public async Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default)
     {
         if (IsGuestUserId(userId))

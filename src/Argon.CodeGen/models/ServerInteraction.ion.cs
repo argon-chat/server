@@ -250,6 +250,7 @@ public interface IServerInteraction : IIonService
     Task<SpaceStats> GetSpaceStats(guid spaceId, CancellationToken ct = default);
     Task<ArgonUser> PrefetchUser(guid spaceId, guid userId, CancellationToken ct = default);
     Task<ArgonUserProfile> PrefetchProfile(guid spaceId, guid userId, CancellationToken ct = default);
+    Task<IonArray<ArgonUserProfile>> PrefetchProfiles(guid spaceId, IonArray<guid> userIds, CancellationToken ct = default);
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, CancellationToken ct = default);
     Task<IonArray<Archetype>> GetServerArchetypes(guid spaceId, CancellationToken ct = default);
     Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId, CancellationToken ct = default);
