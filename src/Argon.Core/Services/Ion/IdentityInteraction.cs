@@ -266,7 +266,25 @@ public class IdentityInteraction(
         }
 
         if (string.IsNullOrEmpty(refreshToken))
+        {
+            // THE ONE PATH THAT ENDS A WEB SESSION WITHOUT SAYING WHY, and the reason a browser
+            // coming back from a night asleep asks for a password is impossible to diagnose after
+            // the fact. There are three quite different ways to arrive here and they need
+            // different fixes, so they are told apart rather than lumped into one silence:
+            // the cookie never arrived, it arrived but the fetch-metadata gate refused it, or the
+            // caller is not a browser at all and simply sent nothing.
+            if (http.HttpContext is { } asked)
+                logger.LogWarning(
+                    "A session refresh had no credential to check. cookiePresent={CookiePresent} "
+                  + "fetchSite={FetchSite} hasMachineId={HasMachineId} userAgent={UserAgent}",
+                    asked.Request.Cookies.ContainsKey(webSession.Value.CookieName),
+                    asked.Request.Headers.TryGetValue("Sec-Fetch-Site", out var site) ? site.ToString() : "(absent)",
+                    asked.Request.Cookies.ContainsKey(ArgonSecureCookie.CookieName)
+                        || asked.Request.Headers.ContainsKey("X-Sec-Carry"),
+                    asked.Request.Headers.UserAgent.ToString() is { Length: > 0 } ua ? ua[..Math.Min(ua.Length, 120)] : "(absent)");
+
             return new BadAuthStatus(BadAuthKind.REQUIRED_RELOGIN);
+        }
 
         var badClientReason = await IsBadClient();
 
@@ -349,6 +367,12 @@ public class IdentityInteraction(
 
             var newIssued = flow.GenerateAccessToken(userId, machineId, scopes, carried,
                 fromBrowserCookie ? webSession.Value.AccessTokenLifetime : null);
+
+            // A browser that refreshed out of its cookie is handed the new token the same way, so
+            // the credential it authorises with never passes through script. It is still returned
+            // in the body as well, for a page holding an older bundle that expects it there.
+            if (fromBrowserCookie && http.HttpContext is { } browser)
+                WebAccessCookie.Write(browser, webSession.Value, newIssued);
 
             return new GoodAuthStatus(newIssued);
         }

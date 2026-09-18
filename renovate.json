@@ -23,6 +23,26 @@
         "tailwindcss"
       ],
       "allowedVersions": "<4.0.0"
+    },
+    {
+      "description": "Never take a pre-release of anything: -beta.3, -alpha, -rc, -preview, -next and friends. Stable releases only, on every manager.",
+      "matchPackageNames": [
+        "*"
+      ],
+      "allowedVersions": "!/-(alpha|beta|rc|canary|dev|next|nightly|preview|pre|snapshot|experimental|insiders|unstable|test)/i",
+      "ignoreUnstable": true
+    },
+    {
+      "description": "Pinned infrastructure images: the compose stack in deploy/ is validated against these exact tags (postgres 17, NATS 2.10, SeaweedFS 3.97). Bump them deliberately, with a stack run afterwards, not by bot PR.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "postgres",
+        "nats",
+        "chrislusf/seaweedfs"
+      ],
+      "enabled": false
     }
   ]
 }

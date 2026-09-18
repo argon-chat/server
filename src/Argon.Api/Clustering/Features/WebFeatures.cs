@@ -1,6 +1,7 @@
 ﻿namespace Argon.Api.Clustering;
 
 using Argon.Features.Email;
+using Argon.Features.Reporting;
 
 using Argon.Features.AccountConsole;
 using Argon.Features.Aegis;
@@ -341,6 +342,27 @@ public sealed class WebSessionFeature : IArgonFeature
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapWebSession();
+}
+
+/// <summary>
+/// Browser-delivered reports — crashes above all. See <see cref="BrowserReportEndpoints"/>.
+/// </summary>
+/// <remarks>
+/// Requires <see cref="WebSessionFeature"/> for its origin allowlist rather than carrying a second
+/// list of its own: the clients allowed to open a session are exactly the ones allowed to report.
+/// </remarks>
+public sealed class BrowserReportFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Describing("browser crash and deprecation reports")
+            .Requires<WebSessionFeature>()
+            .After<RoutingFeature>();
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Builder.AddBrowserReports();
+
+    public void Map(ArgonEndpointContext ctx)
+        => ctx.App.MapBrowserReports();
 }
 
 public sealed class DiscoveryFeature : IArgonFeature

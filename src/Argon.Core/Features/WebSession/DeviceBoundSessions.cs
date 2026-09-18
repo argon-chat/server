@@ -20,6 +20,13 @@ using Microsoft.Extensions.Logging;
 /// and re-stamping its expiry would have made a bound session <i>less</i> durable than an unbound
 /// one: an hour away from the keyboard and there would be nothing left to re-stamp.</para>
 /// </remarks>
+/// <summary>
+/// What the script-driven endpoints take: the two values DBSC puts in <c>Sec-</c> headers.
+/// </summary>
+/// <param name="Proof">The signed JWS, or null on the leg that is asking for a challenge.</param>
+/// <param name="SessionId">Which binding to refresh. Ignored by registration.</param>
+public sealed record DeviceProofRequest(string? Proof, string? SessionId);
+
 public sealed record DeviceBoundSession(
     [property: JsonPropertyName("uid")] Guid UserId,
     [property: JsonPropertyName("sid")] Guid ArgonSessionId,
@@ -66,11 +73,21 @@ public static class DeviceBoundSessionEndpoints
     /// <summary>Our challenge, sent when a refresh arrives without a usable one.</summary>
     public const string ChallengeHeader = "Secure-Session-Challenge";
 
+    /// <summary>Where a browser without DBSC drives registration itself. See the remarks on
+    /// <see cref="DeviceRegisterAsync"/> for why the protocol's own path cannot be reused.</summary>
+    public const string DeviceRegisterPath = "/auth/web/device/register";
+
+    /// <inheritdoc cref="DeviceRegisterPath"/>
+    public const string DeviceRefreshPath = "/auth/web/device/refresh";
+
     public static WebApplication MapDeviceBoundSessions(this WebApplication app)
     {
         app.MapPost(RegisterPath, RegisterAsync).AllowAnonymous();
         app.MapPost(RefreshPath, RefreshAsync).AllowAnonymous();
         app.MapGet(StatePath, StateAsync).AllowAnonymous();
+
+        app.MapPost(DeviceRegisterPath, DeviceRegisterAsync).AllowAnonymous();
+        app.MapPost(DeviceRefreshPath, DeviceRefreshAsync).AllowAnonymous();
 
         return app;
     }
@@ -103,6 +120,107 @@ public static class DeviceBoundSessionEndpoints
             $"(ES256);path=\"{RegisterPath}\";challenge=\"{challenge}\"";
     }
 
+    // ── the two ways in ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Chromium's entry point: it sets the headers the protocol names, on its own.</summary>
+    private static Task<IResult> RegisterAsync(HttpContext http, ClassicJwtFlow flow,
+        UserManagerService users, IArgonCacheDatabase cache, IOptions<WebSessionOptions> options,
+        ILoggerFactory loggers, CancellationToken ct)
+        => RegisterCoreAsync(http, flow, users, cache, options, loggers, Header(http, ResponseHeader), ct);
+
+    /// <inheritdoc cref="RegisterAsync"/>
+    private static Task<IResult> RefreshAsync(HttpContext http, UserManagerService users,
+        IArgonCacheDatabase cache, IOptions<WebSessionOptions> options, ILoggerFactory loggers,
+        CancellationToken ct)
+        => Header(http, SessionIdHeader) is { } named
+            ? RefreshCoreAsync(http, users, cache, options, loggers, Unquote(named),
+                Header(http, ResponseHeader), asJson: false, ct)
+            : Task.FromResult(Results.BadRequest());
+
+    /// <summary>
+    /// The same exchange, driven by script, for the browsers that will not drive it themselves.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why a second pair of endpoints and not the same ones.</b> DBSC names the session in
+    /// <c>Sec-Secure-Session-Id</c> and carries the proof in <c>Secure-Session-Response</c>.
+    /// <c>Sec-</c> is a forbidden header prefix — <c>fetch</c> drops such headers without telling
+    /// anyone — so script physically cannot speak the protocol as written. These carry the same two
+    /// values in a body and hand them to the same verification, so the two paths cannot drift: what
+    /// differs is the envelope and nothing else.</para>
+    ///
+    /// <para><b>What the fallback is worth.</b> The key is generated non-extractable, so
+    /// <c>exportKey</c> throws on it and the private half never becomes bytes a script can read or
+    /// send anywhere. A cookie copied off this machine cannot be renewed on another one.</para>
+    ///
+    /// <para><b>And what it is not.</b> It does not stop someone already running code on the page —
+    /// they can sign with the key in place — and it does not stop malware reading the browser
+    /// profile off disk, because a software key lives in that profile. Resisting that is what a TPM
+    /// is for and is exactly the gap DBSC exists to close; this closes the remote half of it.</para>
+    /// </remarks>
+    private static async Task<IResult> DeviceRegisterAsync(HttpContext http, ClassicJwtFlow flow,
+        UserManagerService users, IArgonCacheDatabase cache, IOptions<WebSessionOptions> options,
+        ILoggerFactory loggers, DeviceProofRequest? body, CancellationToken ct)
+    {
+        var settings = options.Value;
+
+        if (!settings.DeviceBinding.Enabled)
+            return Results.NotFound();
+
+        // No proof yet: this is the first leg, and it asks for something to sign.
+        if (body?.Proof is not { Length: > 0 } proof)
+            return await OfferChallengeAsync(http, flow, cache, settings, ct);
+
+        return await RegisterCoreAsync(http, flow, users, cache, options, loggers, proof, ct);
+    }
+
+    /// <inheritdoc cref="DeviceRegisterAsync"/>
+    private static async Task<IResult> DeviceRefreshAsync(HttpContext http, UserManagerService users,
+        IArgonCacheDatabase cache, IOptions<WebSessionOptions> options, ILoggerFactory loggers,
+        DeviceProofRequest? body, CancellationToken ct)
+    {
+        if (body?.SessionId is not { Length: > 0 } session)
+            return Results.BadRequest();
+
+        return await RefreshCoreAsync(http, users, cache, options, loggers, session, body.Proof,
+            asJson: true, ct);
+    }
+
+    /// <summary>
+    /// Hands out a challenge bound to the session this browser already holds.
+    /// </summary>
+    /// <remarks>
+    /// Chromium gets its first challenge on the session exchange, in a header it reads for itself.
+    /// Script cannot read that header cross-origin, so the driver asks for one — and the session it
+    /// is issued against is read from the credential, never from anything the caller said.
+    /// </remarks>
+    private static async Task<IResult> OfferChallengeAsync(HttpContext http, ClassicJwtFlow flow,
+        IArgonCacheDatabase cache, WebSessionOptions settings, CancellationToken ct)
+    {
+        if (WebSessionCookie.Read(http, settings) is not { } refreshToken)
+            return Results.Unauthorized();
+
+        Guid? boundSession;
+
+        try
+        {
+            flow.ValidateRefreshTokenSession(refreshToken, http.GetMachineId(), out boundSession, out _, out _);
+        }
+        catch (Exception)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (boundSession is not { } sessionId)
+            return Results.Unauthorized();
+
+        var challenge = NewChallenge();
+
+        await cache.StringSetAsync(ChallengeKey(challenge), sessionId.ToString(),
+            settings.DeviceBinding.ChallengeLifetime, ct);
+
+        return Results.Json(new { challenge });
+    }
+
     // ── registration ─────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -117,13 +235,14 @@ public static class DeviceBoundSessionEndpoints
     /// <para>The challenge is deleted before anything is issued. A proof is worth one registration,
     /// and a replayed one must find nothing to match against rather than a second session.</para>
     /// </remarks>
-    private static async Task<IResult> RegisterAsync(
+    private static async Task<IResult> RegisterCoreAsync(
         HttpContext                 http,
         ClassicJwtFlow              flow,
         UserManagerService          users,
         IArgonCacheDatabase         cache,
         IOptions<WebSessionOptions> options,
         ILoggerFactory              loggers,
+        string?                     proof,
         CancellationToken           ct)
     {
         var settings = options.Value;
@@ -132,7 +251,7 @@ public static class DeviceBoundSessionEndpoints
         if (!settings.DeviceBinding.Enabled)
             return Results.NotFound();
 
-        if (Header(http, ResponseHeader) is not { } proof)
+        if (proof is null)
             return Results.BadRequest();
 
         if (ChallengeOf(proof) is not { } challenge)
@@ -156,9 +275,16 @@ public static class DeviceBoundSessionEndpoints
         }
 
         // The session this browser already holds, read from the credential rather than from anything
-        // the caller said about itself.
-        if (WebSessionCookie.Read(http, settings) is not { } refreshToken)
+        // the caller said about itself. ReadForDeviceBinding rather than Read: this request has no
+        // fetch metadata because no page made it — see that method for why the check is both
+        // inapplicable and unnecessary here.
+        if (WebSessionCookie.ReadForDeviceBinding(http, settings) is not { } refreshToken)
+        {
+            // Said out loud because this used to be the one silent 401 on the path: a binding that
+            // fails here leaves nothing in the log and a browser retrying for ever.
+            log.LogWarning("A device binding for session {SessionId} arrived without a session cookie", offeredTo);
             return Results.Unauthorized();
+        }
 
         Guid   userId;
         Guid?  boundSession;
@@ -208,12 +334,15 @@ public static class DeviceBoundSessionEndpoints
     /// the second carries the signature. A challenge is spent on use, so a captured proof buys one
     /// refresh that has already happened.
     /// </remarks>
-    private static async Task<IResult> RefreshAsync(
+    private static async Task<IResult> RefreshCoreAsync(
         HttpContext                 http,
         UserManagerService          users,
         IArgonCacheDatabase         cache,
         IOptions<WebSessionOptions> options,
         ILoggerFactory              loggers,
+        string                      session,
+        string?                     proof,
+        bool                        asJson,
         CancellationToken           ct)
     {
         var settings = options.Value;
@@ -222,10 +351,7 @@ public static class DeviceBoundSessionEndpoints
         if (!settings.DeviceBinding.Enabled)
             return Results.NotFound();
 
-        if (Header(http, SessionIdHeader) is not { } dbscSessionId)
-            return Results.BadRequest();
-
-        if (await LoadAsync(cache, Unquote(dbscSessionId), ct) is not { } record)
+        if (await LoadAsync(cache, session, ct) is not { } record)
         {
             // Nothing to refresh: the binding expired or was ended. Answering "continue: false" is
             // how the protocol says a session is over, and it stops the browser asking again.
@@ -233,24 +359,22 @@ public static class DeviceBoundSessionEndpoints
             return Results.Json(new { @continue = false }, statusCode: StatusCodes.Status200OK);
         }
 
-        var session   = Unquote(dbscSessionId);
-        var proof     = Header(http, ResponseHeader);
         var pendingAt = PendingChallengeKey(session);
 
         if (proof is null)
-            return await ChallengeAsync(http, cache, settings, session, pendingAt, ct);
+            return await ChallengeAsync(http, cache, settings, session, pendingAt, asJson, ct);
 
         var expected = await cache.StringGetAsync(pendingAt, ct);
 
         if (expected is null)
-            return await ChallengeAsync(http, cache, settings, session, pendingAt, ct);
+            return await ChallengeAsync(http, cache, settings, session, pendingAt, asJson, ct);
 
         await cache.KeyDeleteAsync(pendingAt, ct);
 
         if (!DeviceBoundProof.VerifyRefresh(proof, record.PublicKeyJwk, expected))
         {
             log.LogWarning("A refresh for device binding {Thumbprint} did not verify", record.Thumbprint);
-            return await ChallengeAsync(http, cache, settings, session, pendingAt, ct);
+            return await ChallengeAsync(http, cache, settings, session, pendingAt, asJson, ct);
         }
 
         // Seen recently, so keep it: a binding is as long-lived as the session it carries, and its
@@ -260,12 +384,22 @@ public static class DeviceBoundSessionEndpoints
         return await IssueAsync(http, users, cache, settings, session, record, ct);
     }
 
+    /// <param name="asJson">
+    /// Whether to answer in the body rather than in the <c>Secure-Session-Challenge</c> header.
+    /// <para>The header is the protocol, and Chromium reads it. Script cannot: the response is
+    /// cross-origin and nothing exposes that header to it, so the driver in the browsers without
+    /// DBSC is handed the same challenge the only way it can receive one.</para>
+    /// </param>
     private static async Task<IResult> ChallengeAsync(HttpContext http, IArgonCacheDatabase cache,
-        WebSessionOptions settings, string session, string pendingKey, CancellationToken ct)
+        WebSessionOptions settings, string session, string pendingKey, bool asJson, CancellationToken ct)
     {
         var challenge = NewChallenge();
 
         await cache.StringSetAsync(pendingKey, challenge, settings.DeviceBinding.ChallengeLifetime, ct);
+
+        if (asJson)
+            return Results.Json(new { challenge, sessionId = session },
+                statusCode: StatusCodes.Status401Unauthorized);
 
         http.Response.Headers[ChallengeHeader] = $"\"{challenge}\";id=\"{session}\"";
 
@@ -287,10 +421,19 @@ public static class DeviceBoundSessionEndpoints
         IArgonCacheDatabase cache, WebSessionOptions settings, string dbscSessionId,
         DeviceBoundSession record, CancellationToken ct)
     {
+        // The ACCESS credential is what binding shortens — the token every call spends, and the
+        // cookie carrying it. A bound browser gets another by proving its key, so this can be cut
+        // below an unbound session's.
         var issued = await users.GenerateJwt(record.UserId, record.MachineId, record.Scopes,
-            record.ArgonSessionId, accessLifetime: settings.AccessTokenLifetime);
+            record.ArgonSessionId, accessLifetime: settings.DeviceBinding.BoundCookieLifetime);
 
-        WebSessionCookie.Write(http, settings, issued.refreshToken!, settings.DeviceBinding.BoundCookieLifetime);
+        // THE REFRESH COOKIE KEEPS ITS FULL LIFE, and that is deliberate. It used to be cut to the
+        // same few minutes, which made the session itself depend on the binding renewing — so a
+        // laptop asleep overnight came back signed out, with a perfectly good device key in hand.
+        // See DeviceBindingOptions.BoundCookieLifetime for why the short window was also buying
+        // very little: this cookie is HttpOnly and __Host-, so script never had it to steal.
+        WebSessionCookie.Write(http, settings, issued.refreshToken!);
+        WebAccessCookie.Write(http, settings, issued.token, settings.DeviceBinding.BoundCookieLifetime);
 
         // So the state endpoint can answer without the browser telling it anything it chose itself.
         await cache.StringSetAsync(BoundKey(record.ArgonSessionId), dbscSessionId, settings.Lifetime, ct);
@@ -301,7 +444,13 @@ public static class DeviceBoundSessionEndpoints
             dbscSessionId,
             RefreshPath,
             new DeviceBoundScope(origin, IncludeSite: false),
-            [new DeviceBoundCredential("cookie", settings.CookieName, "Path=/; Secure; HttpOnly")]));
+            [
+                new DeviceBoundCredential("cookie", settings.CookieName, "Path=/; Secure; HttpOnly"),
+                // The credential that actually authorises calls. Binding the refresh cookie alone
+                // would leave the one spent on every request unprotected — which is what the bearer
+                // header was, and the reason this cookie exists.
+                new DeviceBoundCredential("cookie", settings.AccessCookieName, "Path=/; Secure; HttpOnly"),
+            ]));
     }
 
     // ── what the page is allowed to know ─────────────────────────────────────────────────────────
@@ -332,6 +481,29 @@ public static class DeviceBoundSessionEndpoints
         var bound = await cache.StringGetAsync(BoundKey(sessionId), ct) is not null;
 
         return Results.Json(new { bound, offered = settings.DeviceBinding.Enabled });
+    }
+
+    /// <summary>
+    /// Ends the binding on a session that is over.
+    /// </summary>
+    /// <remarks>
+    /// <para>Deleting the record is also what ends it for the browser: the next refresh finds
+    /// nothing and is answered with <c>continue: false</c>, which is the protocol's way of saying a
+    /// session is finished and what stops the browser asking again.</para>
+    ///
+    /// <para>Left behind, the binding outlives the session it named — the browser keeps showing a
+    /// device session that can never succeed, and the next sign-in registers a second one beside
+    /// it. Two for one browser, one of them dead.</para>
+    /// </remarks>
+    public static async Task EndAsync(IArgonCacheDatabase cache, Guid argonSessionId, CancellationToken ct)
+    {
+        var boundAt = BoundKey(argonSessionId);
+
+        // The record is stored under the binding's own id, which only this pointer knows.
+        if (await cache.StringGetAsync(boundAt, ct) is { } dbscSessionId)
+            await cache.KeyDeleteAsync(SessionKey(dbscSessionId), ct);
+
+        await cache.KeyDeleteAsync(boundAt, ct);
     }
 
     // ── storage ──────────────────────────────────────────────────────────────────────────────────

@@ -42,6 +42,8 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         typeof(IServerInteraction).GetMethod(nameof(PrefetchUser), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> PrefetchProfile_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(PrefetchProfile), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PrefetchProfiles_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(PrefetchProfiles), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetChannels_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(GetChannels), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetServerArchetypes_Ref = new(() =>
@@ -284,6 +286,24 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         writer.WriteEndArray();
     
         return await req.CallAsync<ArgonUserProfile>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<ArgonUserProfile>> PrefetchProfiles(guid __spaceid, IonArray<guid> __userids, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), PrefetchProfiles_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.WriteArray(writer, __userids);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<ArgonUserProfile>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<RealtimeChannel>> GetChannels(guid __spaceid, CancellationToken ct = default)

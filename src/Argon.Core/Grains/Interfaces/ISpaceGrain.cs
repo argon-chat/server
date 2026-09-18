@@ -150,6 +150,16 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(PrefetchProfile))]
     Task<ArgonUserProfile> PrefetchProfile(Guid userId);
 
+    /// <summary>
+    /// What <see cref="PrefetchProfile"/> answers, for many members in one query.
+    /// </summary>
+    /// <remarks>
+    /// One entry per id, in the order asked, so the caller can pair the answers up with its
+    /// request. Ids past the grain's cap are not answered at all rather than answered wrongly.
+    /// </remarks>
+    [Alias(nameof(PrefetchProfiles))]
+    Task<List<ArgonUserProfile>> PrefetchProfiles(List<Guid> userIds);
+
     [Alias(nameof(PrefetchUser))]
     Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default);
 
