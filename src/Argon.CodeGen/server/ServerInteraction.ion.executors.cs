@@ -226,6 +226,24 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<ArgonUserProfile>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PrefetchProfiles_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.PrefetchProfiles");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __userids = IonFormatterStorage<guid>.ReadArray(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PrefetchProfiles(__spaceid, __userids);
+        
+        IonFormatterStorage<ArgonUserProfile>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetChannels_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
@@ -474,6 +492,8 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
             return PrefetchUser_Execute(reader, writer, ct);
         if (methodName.Equals("PrefetchProfile", StringComparison.InvariantCultureIgnoreCase))
             return PrefetchProfile_Execute(reader, writer, ct);
+        if (methodName.Equals("PrefetchProfiles", StringComparison.InvariantCultureIgnoreCase))
+            return PrefetchProfiles_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannels", StringComparison.InvariantCultureIgnoreCase))
             return GetChannels_Execute(reader, writer, ct);
         if (methodName.Equals("GetServerArchetypes", StringComparison.InvariantCultureIgnoreCase))
