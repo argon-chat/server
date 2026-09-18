@@ -25,11 +25,35 @@ public sealed class KestrelFeature : IArgonFeature
         ctx.Builder.WebHost.UseQuic();
         ctx.Builder.WebHost.ConfigureKestrel(kestrel =>
         {
-            kestrel.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
-
             var tls = options.UseLocalhostCertificate ||
                       (options.UseFileCertificate &&
                        File.Exists(options.CertificatePath) && File.Exists(options.CertificateKeyPath));
+
+            // Loaded once, whoever ends up using it: LoadLocalhostCertificate also publishes the
+            // fingerprint the transport layer pins against, and doing that twice is a wasted read.
+            var certificate = tls
+                ? options.UseLocalhostCertificate
+                    ? LoadLocalhostCertificate(ctx, options)
+                    : X509Certificate2.CreateFromPemFile(options.CertificatePath, options.CertificateKeyPath)
+                : null;
+
+            // The certificate goes on the endpoint defaults rather than on the listener below, because
+            // the consoles get ports of their own and the ion runtime opens those with a plain
+            // ListenAnyIP it gives nobody a say in. Those ports share this application's pipeline, and
+            // OpenIddict in it refuses anything that did not arrive over TLS — so without this an admin
+            // console port listens, accepts the connection, and answers every call with "This server
+            // only accepts HTTPS requests", which reaches the browser as a transport error with no
+            // server in it at all.
+            //
+            // Inert wherever there is no certificate, which is every deployment: TLS is terminated at
+            // the ingress there and these ports are plain HTTP behind it, exactly as before.
+            kestrel.ConfigureEndpointDefaults(listen =>
+            {
+                listen.UseConnectionLogging();
+
+                if (certificate is not null)
+                    listen.UseHttps(certificate);
+            });
 
             // Nothing to say: no port and no certificate means ASPNETCORE_URLS decides, which is what
             // the container image and the test host both rely on.
@@ -40,12 +64,6 @@ public sealed class KestrelFeature : IArgonFeature
             {
                 if (!tls)
                     return;
-
-                if (options.UseLocalhostCertificate)
-                    listen.UseHttps(LoadLocalhostCertificate(ctx, options));
-                else
-                    listen.UseHttps(https => https.ServerCertificate =
-                        X509Certificate2.CreateFromPemFile(options.CertificatePath, options.CertificateKeyPath));
 
                 listen.DisableAltSvcHeader = false;
                 listen.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
