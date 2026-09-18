@@ -1,6 +1,7 @@
 namespace ArgonComplexTest.Tests;
 
 using ArgonContracts;
+using Argon.Grains.Interfaces;
 using ion.runtime;
 
 /// <summary>
@@ -16,6 +17,11 @@ using ion.runtime;
 /// names. That matters more here than it did there: a call that answers about a hundred ids is a
 /// directory walk if nothing stands behind the space id, so the refusal is the test that earns its
 /// place — the successes only show the feature works.</para>
+///
+/// <para>A refusal reaches a client as <c>IonRequestException</c> and nothing more specific: the
+/// grain throws, and the transport turns anything thrown into one upstream error. So the refusal
+/// tests make the same call twice, once from someone entitled to make it — otherwise "it threw"
+/// would pass just as well for a call that is broken outright as for one that was refused.</para>
 /// </remarks>
 [TestFixture]
 public class ProfilePrefetchTests : TestBase
@@ -88,10 +94,16 @@ public class ProfilePrefetchTests : TestBase
         var spaceId = await NewSpaceAsync(owner, ct);
         await JoinAsync(owner, member, spaceId, ct);
 
+        var asked = new IonArray<Guid>([member.UserId]);
+
+        // The same call, from someone who is in the space, so that what the outsider gets back is
+        // read as a refusal of them rather than as the whole call being broken.
+        Assert.That(await owner.Servers.PrefetchProfiles(spaceId, asked, ct), Has.Count.EqualTo(1));
+
         // The space id is the only thing saying the caller has met these people. Naming one they are
         // not in has to be refused outright, or a bare user id is all a directory walk needs.
-        Assert.ThrowsAsync<InvalidOperationException>(
-            () => outsider.Servers.PrefetchProfiles(spaceId, new IonArray<Guid>([member.UserId]), ct));
+        Assert.ThrowsAsync<IonRequestException>(
+            () => outsider.Servers.PrefetchProfiles(spaceId, asked, ct));
     }
 
     [Test, CancelAfter(120_000)]
@@ -111,6 +123,55 @@ public class ProfilePrefetchTests : TestBase
             // An id that belongs to nobody in this space must not come back carrying roles.
             Assert.That(profiles.Values[0].archetypes.Values, Is.Empty);
         });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task PrefetchProfiles_ForSomeoneWhoLeft_StopsAnsweringForThem(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var leaver = await CreateSessionAsync(ct);
+
+        var spaceId = await NewSpaceAsync(owner, ct);
+        await JoinAsync(owner, leaver, spaceId, ct);
+
+        var whileIn = await owner.Servers.PrefetchProfiles(spaceId, new IonArray<Guid>([leaver.UserId]), ct);
+        Assert.That(whileIn.Values[0].bio, Is.Not.EqualTo("Deleted Account"),
+            "a current member should be answered for, or the rest of this test proves nothing");
+
+        // A departure is a soft delete — this is the write RemoveMemberAsync commits — and a
+        // membership that has ended is not a membership.
+        await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).RemoveMemberAsync(leaver.UserId);
+
+        var afterLeaving = await owner.Servers.PrefetchProfiles(spaceId, new IonArray<Guid>([leaver.UserId]), ct);
+
+        Assert.That(afterLeaving.Values, Has.Count.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterLeaving.Values[0].userId, Is.EqualTo(leaver.UserId));
+            Assert.That(afterLeaving.Values[0].bio, Is.EqualTo("Deleted Account"));
+            // The roles they used to hold here leave with them.
+            Assert.That(afterLeaving.Values[0].archetypes.Values, Is.Empty);
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task PrefetchProfiles_FromSomeoneWhoLeft_IsRefused(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var leaver = await CreateSessionAsync(ct);
+
+        var spaceId = await NewSpaceAsync(owner, ct);
+        await JoinAsync(owner, leaver, spaceId, ct);
+
+        var asked = new IonArray<Guid>([owner.UserId]);
+        Assert.That(await leaver.Servers.PrefetchProfiles(spaceId, asked, ct), Has.Count.EqualTo(1),
+            "a member should be answered while they are still one");
+
+        await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).RemoveMemberAsync(leaver.UserId);
+
+        // The door closes the same way it opened: the membership that let them ask is gone.
+        Assert.ThrowsAsync<IonRequestException>(
+            () => leaver.Servers.PrefetchProfiles(spaceId, asked, ct));
     }
 
     [Test, CancelAfter(120_000)]
