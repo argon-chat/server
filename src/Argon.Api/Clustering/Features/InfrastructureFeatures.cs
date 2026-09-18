@@ -90,7 +90,27 @@ public sealed class SentryFeature : IArgonFeature
             // says "argon" and nothing more — and the roles fail differently enough that the first
             // question about any event is which one it came from. A tag rather than a context
             // because Sentry indexes tags: this is meant to be searched and grouped by.
-            o.DefaultTags["argon.role"] = ctx.Role.Id.Value;
+            var role = ctx.Role.Id.Value;
+
+            o.DefaultTags["argon.role"] = role;
+
+            // AND AGAIN FOR METRICS, BECAUSE DefaultTags DOES NOT REACH THEM.
+            //
+            // They are a different pipeline: a tag lands on an event, and a metric is not an event —
+            // it is a trace item with its own attribute bag, and nothing copies one into the other.
+            // The result was 280 thousand metric rows a quarter hour, from eight hosts across six
+            // roles, with no way to tell which role any of them came from — the first question anyone
+            // asks of a number that looks wrong. Nothing reported it: every row was well-formed and
+            // every chart drew, the roles were simply summed together.
+            //
+            // BeforeSendMetric rather than the meter bridge, because it is the last thing every
+            // metric passes through — including any the SDK or a library emits without going near
+            // the bridge — so the attribute cannot go missing from a metric this process sent.
+            o.SetBeforeSendMetric(metric =>
+            {
+                metric.SetAttribute("argon.role", role);
+                return metric;
+            });
 
             // Both are opt-in in the SDK. Metrics additionally need the bridge below, which has
             // nothing to send them through unless this is on.
