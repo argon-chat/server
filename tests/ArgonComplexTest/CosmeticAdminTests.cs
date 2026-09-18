@@ -175,7 +175,7 @@ public class CosmeticAdminTests : TestBase
 
         var id = await CreateAsync(admin, new CreateCosmeticInput(
             "profile.frame", slug, $"cosmetic_{slug}", null, "rare", 0,
-            """{"width":4,"colors":[-16711681,-65281],"angle":90,"glow":0.5}""",
+            """{"parts":[{"type":"ring","thickness":3,"colors":[-16711681,-65281],"angle":90,"glow":0.5}]}""",
             CosmeticAssetSourceKind.Catalogue, $"Frame {slug}", null), ct);
 
         var published = await admin.PublishCosmetic(id, ct);
@@ -207,7 +207,7 @@ public class CosmeticAdminTests : TestBase
 
         var created = await admin.CreateCosmetic(new CreateCosmeticInput(
             "profile.frame", UniqueSlug(), "n", null, null, 0,
-            """{"width":4,"colors":[],"angle":90,"glow":0}""",
+            """{"parts":[{"type":"ring","thickness":3,"colors":[],"angle":90,"glow":0}]}""",
             CosmeticAssetSourceKind.Catalogue, null, null), ct);
 
         Assert.That(created.success, Is.False);
