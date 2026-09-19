@@ -1,7 +1,6 @@
 namespace Argon.Grains;
 
 using Argon.Api.Grains.Interfaces;
-using Argon.Core.Features.Logic;
 using Argon.Core.Features.Transport;
 using Argon.Features.Storage;
 using Argon.Features.Moderation;
@@ -31,20 +30,12 @@ public class UserGrain(
         var profile = await ctx.UserProfiles.FirstAsync(x => x.UserId == userId, ct);
 
         // Check if any premium-only field is being set
-        var hasPremiumField = input.backgroundId.HasValue
-                           || input.voiceCardEffectId.HasValue
-                           || input.avatarFrameId.HasValue
-                           || input.nickEffectId.HasValue
-                           || input.primaryColor.HasValue
+        var hasPremiumField = input.primaryColor.HasValue
                            || input.accentColor.HasValue
                            || input.customStatus is not null;
 
         if (hasPremiumField && !user.HasActiveUltima)
             return UpdateMeError.PREMIUM_REQUIRED;
-
-        // Validate preset IDs
-        if (!ProfilePresetValidator.IsValidPresetId(input.backgroundId, input.voiceCardEffectId, input.avatarFrameId, input.nickEffectId))
-            return UpdateMeError.INVALID_PRESET_ID;
 
         // DisplayName update with cooldown
         if (!string.IsNullOrEmpty(input.displayName))
@@ -77,15 +68,9 @@ public class UserGrain(
             user.AvatarFileId = input.avatarId;
         }
 
-        // Premium profile fields
-        if (input.backgroundId.HasValue)
-            profile.BackgroundId = input.backgroundId.Value;
-        if (input.voiceCardEffectId.HasValue)
-            profile.VoiceCardEffectId = input.voiceCardEffectId.Value;
-        if (input.avatarFrameId.HasValue)
-            profile.AvatarFrameId = input.avatarFrameId.Value;
-        if (input.nickEffectId.HasValue)
-            profile.NickEffectId = input.nickEffectId.Value;
+        // Premium profile fields. backgroundId, voiceCardEffectId, avatarFrameId and nickEffectId are
+        // still on the wire so shipped clients keep decoding, but nothing reads them any more: the
+        // presets they named never grew past a hard-coded list and are being replaced wholesale.
         if (input.primaryColor.HasValue)
             profile.PrimaryColor = input.primaryColor.Value;
         if (input.accentColor.HasValue)
