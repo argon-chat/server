@@ -12,10 +12,6 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
     public          DateOnly?    DateOfBirth        { get; set; }
     public          string?      Bio                { get; set; }
     public          List<string> Badges             { get; set; } = new();
-    public          int?         BackgroundId       { get; set; }
-    public          int?         VoiceCardEffectId  { get; set; }
-    public          int?         AvatarFrameId      { get; set; }
-    public          int?         NickEffectId       { get; set; }
     public          int?         PrimaryColor       { get; set; }
     public          int?         AccentColor        { get; set; }
 
@@ -53,10 +49,12 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             self.Bio,
             new IonArray<string>(self.Badges),
             IonArray<SpaceMemberArchetype>.Empty,
-            self.BackgroundId,
-            self.VoiceCardEffectId,
-            self.AvatarFrameId,
-            self.NickEffectId,
+            // backgroundId, voiceCardEffectId, avatarFrameId, nickEffectId: kept in the contract so
+            // shipped clients keep decoding this record, always null now that the columns are gone.
+            null,
+            null,
+            null,
+            null,
             self.PrimaryColor,
             self.AccentColor,
             // The user row is the authority on "in Argon since", but most call sites read the profile
