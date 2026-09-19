@@ -314,10 +314,6 @@ public class UltimaGrain(
         await ctx.UserProfiles
            .Where(x => x.UserId == UserId)
            .ExecuteUpdateAsync(s => s
-               .SetProperty(x => x.BackgroundId, (int?)null)
-               .SetProperty(x => x.VoiceCardEffectId, (int?)null)
-               .SetProperty(x => x.AvatarFrameId, (int?)null)
-               .SetProperty(x => x.NickEffectId, (int?)null)
                .SetProperty(x => x.PrimaryColor, (int?)null)
                .SetProperty(x => x.AccentColor, (int?)null)
                .SetProperty(x => x.CustomStatus, (string?)null)

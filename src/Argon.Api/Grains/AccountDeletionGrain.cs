@@ -1557,10 +1557,6 @@ public class AccountDeletionGrain(
             profile.Bio = null;
             profile.DateOfBirth = null;
             profile.Badges = [];
-            profile.BackgroundId = 0;
-            profile.VoiceCardEffectId = 0;
-            profile.AvatarFrameId = 0;
-            profile.NickEffectId = 0;
             profile.PrimaryColor = 0;
             profile.AccentColor = 0;
             ctx.UserProfiles.Update(profile);
