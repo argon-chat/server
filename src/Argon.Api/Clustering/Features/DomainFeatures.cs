@@ -1,5 +1,6 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Cosmetics;
 using Argon.Features.Integrations.Crawler;
 using Argon.HealthChecks;
 using Argon.Features.Integrations.Phones;
@@ -280,4 +281,26 @@ public sealed class AccountDeletionFeature : IArgonFeature
             .Options<DataExportOptions>(DataExportOptions.SectionName);
 
     // Nothing to register: the framework binds and validates what this feature declares.
+}
+
+/// <summary>
+/// The profile cosmetics engine: the kinds this build ships, read once from the assembly.
+/// </summary>
+/// <remarks>
+/// <para>The registry is built here rather than lazily on first use so that a malformed kind — a
+/// missing key, two kinds on one layer, an axis over a kind nobody declared — stops the process at
+/// configuration with the type named, instead of surfacing as a profile that renders wrong.</para>
+///
+/// <para>Whether a kind is <i>enabled</i> is a feature flag and a separate question; this feature
+/// only decides what exists. See <c>CosmeticKindRegistry</c>.</para>
+/// </remarks>
+public sealed class CosmeticsFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("cosmetics")
+            .Describing("profile cosmetics catalogue and kind registry")
+            .Requires<DatabaseFeature>();
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddSingleton(CosmeticKindRegistry.FromAssembly(typeof(ICosmeticKind).Assembly));
 }
