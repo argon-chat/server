@@ -98,6 +98,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Cosmetics
+
+    public DbSet<CosmeticItemEntity>        Cosmetics            => Set<CosmeticItemEntity>();
+    public DbSet<CosmeticOwnershipEntity>   CosmeticOwnerships   => Set<CosmeticOwnershipEntity>();
+    public DbSet<CosmeticTranslationEntity> CosmeticTranslations => Set<CosmeticTranslationEntity>();
+
+#endregion
+
 #region File Storage
 
     public DbSet<FileEntity>        Files        => Set<FileEntity>();
@@ -416,6 +424,24 @@ public static class ArgonTablePlacement
         // today; the ion surface passes null for it (ChannelInteractionImpl:54). A space has a
         // handful of groups and every bootstrap reads all of them (SpaceReadGrain:323).
         modelBuilder.Entity<ChannelGroupEntity>().PlacementGlobal();
+
+        // Written by an operator: created once, edited while it is being authored, published once,
+        // and then left alone until it is retired. Tens of writes per row, ever, and the writer is
+        // a person in a console rather than any user path. Read by every rendered profile — the
+        // card, the member list row and the message author line all resolve through it — which is
+        // the same shape as ArchetypeEntity above and settled by the same argument.
+        modelBuilder.Entity<CosmeticItemEntity>().PlacementGlobal();
+
+        // One row per cosmetic per language, written beside the item it names and by the same
+        // person in the same console. Read on every catalogue open, in whatever language the
+        // reader happens to be in, from wherever they happen to be.
+        modelBuilder.Entity<CosmeticTranslationEntity>().PlacementGlobal();
+
+        // One insert per grant and one update per revoke, and most rows never see the second. A
+        // subscription-included cosmetic writes nothing here at all by design, so the busiest
+        // imaginable account still sits orders of magnitude below the message path. Read on every
+        // equip validation and on every catalogue open, and read from wherever the person is.
+        modelBuilder.Entity<CosmeticOwnershipEntity>().PlacementGlobal();
 
         // ───── Regional: homed in the primary region, because a column on the row is hot. Not
         // because a person clicked something — every table above is written by a person too.
