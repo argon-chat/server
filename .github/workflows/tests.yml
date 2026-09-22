@@ -91,8 +91,10 @@ jobs:
           dotnet restore
           dotnet tool restore
 
+      # The Ion contracts are compiled to C# by the build. `frozen` fails it when a committed
+      # ion.lock.json does not record the committed .ion schema: a local build never writes the lock.
       - name: Build
-        run: dotnet build --no-restore --verbosity minimal
+        run: dotnet build --no-restore --verbosity minimal -p:IonLockMode=frozen
 
       - name: Test
         shell: pwsh
