@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Argon.Features.Storage;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +23,7 @@ public record FileEntity : ArgonEntity, IEntityTypeConfiguration<FileEntity>
 
     public void Configure(EntityTypeBuilder<FileEntity> builder)
     {
+        builder.HasHashShardedKey();
         builder.HasIndex(x => x.OwnerId);
         builder.HasIndex(x => x.S3Key).IsUnique();
         builder.HasIndex(x => new { x.SpaceId, x.ChannelId });

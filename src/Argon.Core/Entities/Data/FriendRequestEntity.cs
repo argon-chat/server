@@ -32,9 +32,6 @@ public record FriendRequestEntity : IEntityTypeConfiguration<FriendRequestEntity
            .HasDefaultValueSql("now()")
            .ValueGeneratedOnAdd();
 
-        builder.HasIndex(x => x.RequesterId)
-           .HasDatabaseName("idx_friend_requests_requester");
-
         builder.HasIndex(x => x.TargetId)
            .HasDatabaseName("idx_friend_requests_target");
 

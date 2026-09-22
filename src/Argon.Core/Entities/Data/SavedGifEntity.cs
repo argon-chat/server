@@ -20,7 +20,8 @@ public record SavedGifEntity : ArgonEntity, IEntityTypeConfiguration<SavedGifEnt
     {
         builder.HasIndex(x => new { x.UserId, x.Slug }).IsUnique()
             .HasFilter("\"Slug\" IS NOT NULL");
-        builder.HasIndex(x => x.UserId);
+        // The unique index is partial, so it cannot serve a user's whole list; this one pages it.
+        builder.HasIndex(x => new { x.UserId, x.AddedAt });
         builder.HasIndex(x => x.FileId);
     }
 }

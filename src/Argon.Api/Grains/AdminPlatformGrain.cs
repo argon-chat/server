@@ -263,14 +263,22 @@ public sealed class AdminPlatformGrain(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var templates = await db.Items
+           .AsNoTracking()
            .Where(i => i.IsReference)
            .Include(i => i.Scenario)
            .ToListAsync(ct);
 
-        var result = new List<ItemTemplateInfo>();
-        foreach (var t in templates)
-        {
-            var scenarioType = t.Scenario switch
+        var boxedItems = await AdminBoxContents.ReadAsync(db, templates.Select(t => t.Scenario), ct);
+
+        var result = templates.Select(t => new ItemTemplateInfo(
+            t.Id,
+            t.TemplateId,
+            t.IsUsable,
+            t.IsGiftable,
+            t.IsAffectBadge,
+            t.TTL.HasValue ? (int)t.TTL.Value.TotalSeconds : null,
+            t.CreatedAt.UtcDateTime,
+            t.Scenario switch
             {
                 RedeemScenario       => ItemScenarioKind.RedeemCode,
                 PremiumScenario      => ItemScenarioKind.Premium,
@@ -278,39 +286,9 @@ public sealed class AdminPlatformGrain(
                 MultipleQualifierBox => ItemScenarioKind.QualifierBox,
                 BoxScenario          => ItemScenarioKind.Box,
                 _                    => ItemScenarioKind.None
-            };
-
-            var boxContents = IonArray<BoxContentInfo>.Empty;
-            switch (t.Scenario)
-            {
-                case QualifierBox qb when qb.ReferenceItemId != Guid.Empty:
-                {
-                    var refItem = await db.Items.FirstOrDefaultAsync(i => i.Id == qb.ReferenceItemId, ct);
-                    if (refItem is not null)
-                        boxContents = new IonArray<BoxContentInfo>([new BoxContentInfo(refItem.Id, refItem.TemplateId)]);
-                    break;
-                }
-                case MultipleQualifierBox { ReferenceItemIds.Count: > 0 } mqb:
-                {
-                    var refItems = await db.Items.Where(i => mqb.ReferenceItemIds.Contains(i.Id)).ToListAsync(ct);
-                    if (refItems.Count > 0)
-                        boxContents = new IonArray<BoxContentInfo>(refItems.Select(ri => new BoxContentInfo(ri.Id, ri.TemplateId)).ToList());
-                    break;
-                }
-            }
-
-            result.Add(new ItemTemplateInfo(
-                t.Id,
-                t.TemplateId,
-                t.IsUsable,
-                t.IsGiftable,
-                t.IsAffectBadge,
-                t.TTL.HasValue ? (int)t.TTL.Value.TotalSeconds : null,
-                t.CreatedAt.UtcDateTime,
-                scenarioType,
-                boxContents
-            ));
-        }
+            },
+            AdminBoxContents.Of(t.Scenario, boxedItems)
+        )).ToList();
 
         return new ItemTemplateList(new IonArray<ItemTemplateInfo>(result));
     }
@@ -413,14 +391,9 @@ public sealed class AdminPlatformGrain(
                 return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: template {itemId} is used in coupons");
             }
 
-            var usedInQualifierBoxes = await db.Items
-               .Where(i => i.IsReference && i.Scenario != null)
-               .Include(argonItemEntity => argonItemEntity.Scenario)
-               .ToListAsync(ct);
-
-            var isUsedInBox = usedInQualifierBoxes.Any(i =>
-                (i.Scenario is QualifierBox qb && qb.ReferenceItemId == itemId) ||
-                (i.Scenario is MultipleQualifierBox mqb && mqb.ReferenceItemIds.Contains(itemId)));
+            var isUsedInBox = await db.Items.AnyAsync(i => i.IsReference
+                && ((i.Scenario is QualifierBox && ((QualifierBox)i.Scenario).ReferenceItemId == itemId)
+                 || (i.Scenario is MultipleQualifierBox && ((MultipleQualifierBox)i.Scenario).ReferenceItemIds.Contains(itemId))), ct);
 
             if (isUsedInBox)
             {
@@ -489,8 +462,17 @@ public sealed class AdminPlatformGrain(
                     return new CreateItemTemplateResult(false, null, $"Reference items not found: {string.Join(", ", missingIds)}");
                 }
 
-                var existingBoxTemplates = await db.Items
-                   .Where(i => i.IsReference && i.Scenario != null)
+                // Only boxes that hold the first requested item can be a duplicate; the exact comparison below
+                // runs on those alone.
+                var firstId = boxContentIds[0];
+                var holdingFirst = boxContentIds.Count == 1
+                    ? db.Items.Where(i => i.IsReference && i.Scenario is QualifierBox
+                                       && ((QualifierBox)i.Scenario).ReferenceItemId == firstId)
+                    : db.Items.Where(i => i.IsReference && i.Scenario is MultipleQualifierBox
+                                       && ((MultipleQualifierBox)i.Scenario).ReferenceItemIds.Contains(firstId));
+
+                var existingBoxTemplates = await holdingFirst
+                   .AsNoTracking()
                    .Include(i => i.Scenario)
                    .ToListAsync(ct);
 
@@ -607,6 +589,7 @@ public sealed class AdminPlatformGrain(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var couponEntities = await db.Coupons
+           .AsNoTracking()
            .Include(c => c.ReferenceItemEntity)
            .ToListAsync(ct);
 
@@ -666,6 +649,7 @@ public sealed class AdminPlatformGrain(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var entities = await db.TenantDirectory
+           .AsNoTracking()
            .Where(t => !t.IsDeleted)
            .OrderBy(t => t.Domain)
            .ToListAsync(ct);

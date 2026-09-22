@@ -177,7 +177,7 @@ public class ProductionTopologyTests
 
         Assert.Multiple(() =>
         {
-            foreach (var id in new[] { ArgonRoleId.Admin, ArgonRoleId.Account, ArgonRoleId.Aegis, ArgonRoleId.BotApi })
+            foreach (var id in new[] { ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin, ArgonRoleId.Account, ArgonRoleId.Aegis })
                 Assert.That(catalog.Require(id).Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"),
                     $"role '{id}' reaches its data through grains; something in its feature graph requires the database");
         });

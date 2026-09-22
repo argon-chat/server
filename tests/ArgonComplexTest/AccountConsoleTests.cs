@@ -1641,6 +1641,36 @@ public class AccountConsoleTests : TestBase
     /// being read out of it is an error code, and a CBOR reader would throw on a payload that turned
     /// out not to be one.
     /// </remarks>
+    /// <summary>
+    /// Accepting a team invite adds the member once and spends the invite, so a second accept is refused.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task Accepting_a_team_invite_adds_the_member_and_spends_the_invite(CancellationToken ct = default)
+    {
+        var owner   = await CreateSessionAsync(ct);
+        var invitee = await CreateSessionAsync(ct);
+        var teams   = GetGrainFactory().GetGrain<IDevTeamsGrain>(Guid.Empty);
+
+        var team = await teams.CreateTeamAsync(owner.UserId, $"accept-{Guid.NewGuid():N}"[..24], ct);
+
+        Assert.That(await teams.InviteUserToTeamAsync(team.teamId, owner.UserId, invitee.Credentials.username,
+            TimeSpan.FromHours(1), ct), Is.EqualTo(InviteUserError.OK));
+
+        await teams.AcceptInviteAsync(invitee.UserId, team.teamId, ct);
+
+        var joined  = await teams.IsUserInTeamAsync(invitee.UserId, team.teamId, ct);
+        var pending = await teams.GetMyInvitesAsync(invitee.UserId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(joined, Is.True);
+            Assert.That(pending, Is.Empty, "the accepted invite is still pending");
+        });
+
+        Assert.That(async () => await teams.AcceptInviteAsync(invitee.UserId, team.teamId, ct), Throws.Exception,
+            "a spent invite was accepted a second time");
+    }
+
     private async Task<IonProbe> PostIonAsync(string interfaceName, string methodName, string? bearerToken, CancellationToken ct)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, $"/ion/{interfaceName}/{methodName}.unary")

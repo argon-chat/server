@@ -9,12 +9,9 @@ using Argon.Core.Grains.Interfaces;
 using ion.runtime;
 
 public class UserInteractionImpl(
-    IDbContextFactory<ApplicationDbContext> context,
     ILogger<IUserInteraction> logger) : IUserInteraction
 
 {
-    private const int MaxOwnedSpacesPerUser = 10;
-
     public async Task<ArgonUser> GetMe(CancellationToken ct = default)
     {
         var user = await this.GetGrain<IUserGrain>(this.GetUserId()).GetMe();
@@ -29,22 +26,19 @@ public class UserInteractionImpl(
 
     public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default)
     {
-        var callerId = this.GetUserId();
-
-        await using (var ctx = await context.CreateDbContextAsync(ct))
-        {
-            var ownedCount = await ctx.Spaces.CountAsync(s => s.CreatorId == callerId, ct);
-            if (ownedCount >= MaxOwnedSpacesPerUser)
-                return new FailedCreateSpace(CreateSpaceError.LIMIT_REACHED);
-        }
-
         try
         {
             // The space's home region for the rest of its life, and the reason a call about it can be
             // routed without asking anything: it is in the key.
             var result = await this.GetGrain<ISpaceGrain>(ArgonId.New())
                .CreateSpace(new ServerInput(request.name, request.description, request.avatarFieldId));
-            return new SuccessCreateSpace(result.Value);
+
+            if (result.IsSuccess)
+                return new SuccessCreateSpace(result.Value);
+
+            return new FailedCreateSpace(result.Error is ServerCreationError.LIMIT_REACHED
+                ? CreateSpaceError.LIMIT_REACHED
+                : CreateSpaceError.UNKNOWN);
         }
         catch (Exception e)
         {

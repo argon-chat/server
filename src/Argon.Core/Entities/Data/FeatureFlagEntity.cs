@@ -60,7 +60,6 @@ public record FeatureFlagEntity : ArgonEntity<string>, IEntityTypeConfiguration<
         builder.Property(x => x.Variants).HasMaxLength(2048);
         builder.Property(x => x.UssdActivationCode).HasMaxLength(32);
 
-        builder.HasIndex(x => x.DefaultEnabled);
         builder.HasIndex(x => x.ExpiresAt);
         builder.HasIndex(x => x.UssdActivationCode).IsUnique().HasFilter("\"UssdActivationCode\" IS NOT NULL");
     }

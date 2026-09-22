@@ -25,16 +25,14 @@ How to do it instead:
 
 What guards it:
 
-- The `admin`, `account`, `aegis` and `botapi` roles run **without** `DatabaseFeature`. Don't add it
-  back, and don't add `Requires<DatabaseFeature>()` to a feature those roles take: requirements are
+- No client role — `entrypoint`, `botapi`, `admin`, `account`, `aegis` — runs `DatabaseFeature`. Don't
+  add it back, and don't add `Requires<DatabaseFeature>()` to a feature those roles take: requirements are
   pulled in transitively, so a feature that needs the database gives the database to every role that
   hosts it. That is exactly how `admin` kept a connection pool through `EmailJournalFeature`.
   `ProductionTopologyTests.The_consoles_and_the_identity_server_carry_no_database` (unit, no
   containers) and `RoleStartupTests.The_*_without_a_database` fail when the pool comes back.
 - The one sanctioned connection on a client role is `AegisKeyRingDbContext` on `aegis`, a context
   that maps the data-protection key ring and nothing else. It is not the main database.
-- `entrypoint` still carries `DatabaseFeature`. That is debt, not permission: don't add new queries
-  there, and when you touch an Ion service that queries, move the query into a grain.
 
 ## A new integration fixture must be added to the shard partition (mandatory)
 

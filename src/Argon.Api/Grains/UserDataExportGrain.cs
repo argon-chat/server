@@ -877,14 +877,22 @@ public class UserDataExportGrain(
 
         var channel = channels[0];
 
-        // One page of the caller's own messages in this channel. The Skip is what turns the old
-        // ceiling into a pager: without it a channel contributed its oldest MessageBatchSize
-        // messages and the cursor moved on for good (defect X2).
-        var messages = await db.Messages
+        // One page of the caller's own messages in this channel, after the last one written. Paging at
+        // all is what turns the old ceiling into a pager: without it a channel contributed its oldest
+        // MessageBatchSize messages and the cursor moved on for good (defect X2).
+        var channelMessages = db.Messages
             .AsNoTracking()
-            .Where(m => m.SpaceId == spaceId && m.ChannelId == channel.Id && m.CreatorId == UserId)
-            .OrderBy(m => m.MessageId)
-            .Skip(cursor.ChannelMessageOffset)
+            .Where(m => m.SpaceId == spaceId && m.ChannelId == channel.Id && m.CreatorId == UserId);
+
+        if (cursor.ChannelMessageAfter is { } after)
+            channelMessages = channelMessages.Where(m => m.MessageId > after);
+
+        var ordered = channelMessages.OrderBy(m => m.MessageId);
+
+        // A cursor persisted mid-channel before ChannelMessageAfter existed resumes by position, once.
+        var messages = await (cursor.ChannelMessageAfter is null && cursor.ChannelMessageOffset > 0
+                ? ordered.Skip(cursor.ChannelMessageOffset)
+                : ordered)
             .Take(MessageBatchSize)
             .Select(m => new { m.MessageId, m.Text, m.Entities, m.CreatedAt })
             .ToListAsync();
@@ -913,10 +921,14 @@ public class UserDataExportGrain(
         // the channel index alone. Anything short of a full page is the end of it, and a channel that
         // ends exactly on a boundary costs one extra empty tick rather than a lost message.
         if (messages.Count == MessageBatchSize)
+        {
             cursor.ChannelMessageOffset += MessageBatchSize;
+            cursor.ChannelMessageAfter  =  messages[^1].MessageId;
+        }
         else
         {
             cursor.ChannelMessageOffset = 0;
+            cursor.ChannelMessageAfter  = null;
             cursor.ChannelIndex++;
         }
     }

@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record OperatorAuditEntity : ArgonEntity, IEntityTypeConfiguration<OperatorAuditEntity>
@@ -13,10 +14,11 @@ public record OperatorAuditEntity : ArgonEntity, IEntityTypeConfiguration<Operat
 
     public void Configure(EntityTypeBuilder<OperatorAuditEntity> builder)
     {
+        builder.HasHashShardedKey();
         builder.HasIndex(x => x.OperatorId);
         builder.HasIndex(x => x.Action);
         builder.HasIndex(x => x.TargetId);
-        builder.HasIndex(x => x.CreatedAt);
+        builder.HasIndex(x => x.CreatedAt).IsHashSharded();
         builder.Property(x => x.OperatorEmail).HasMaxLength(256);
         builder.Property(x => x.Action).HasMaxLength(128);
         builder.Property(x => x.TargetType).HasMaxLength(128);

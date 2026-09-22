@@ -197,7 +197,8 @@ public sealed partial record VoiceSlot(
 
 public enum ServerCreationError
 {
-    BAD_MODEL
+    BAD_MODEL,
+    LIMIT_REACHED
 }
 
 

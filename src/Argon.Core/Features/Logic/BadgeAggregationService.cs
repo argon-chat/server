@@ -68,36 +68,28 @@ public class BadgeAggregationService(
 
     public async Task<GlobalBadges> GetGlobalBadgesAsync(Guid userId, CancellationToken ct = default)
     {
+        // The three services read through contexts of their own and run beside the queries below;
+        // everything this method reads itself goes through one context.
         var readStatesTask  = readStateService.GetAllReadStatesAsync(userId, ct);
         var muteTask        = muteSettingsService.GetMuteSettingsAsync(userId, ct);
         var badgeCountsTask = systemNotificationService.GetBadgeCountsAsync(userId, ct);
-        var unreadDmTask    = GetUnreadDmCountAsync(userId, ct);
 
-        await Task.WhenAll(readStatesTask, muteTask, badgeCountsTask, unreadDmTask);
+        int unreadDmCount;
+        List<(Guid Id, Guid SpaceId)> channels;
+        Dictionary<Guid, long> stored;
 
-        var readStates    = readStatesTask.Result;
-        var muteSettings  = muteTask.Result;
-        var badgeCounts   = badgeCountsTask.Result;
-        var unreadDmCount = unreadDmTask.Result;
-
-        var mutedTargets = muteSettings
-            .Where(m => m.MuteLevel == MuteLevel.All)
-            .Select(m => m.TargetId)
-            .ToHashSet();
-
-        await using var ctx = await contextFactory.CreateDbContextAsync(ct);
-
-        var spaceIds = await ctx.UsersToServerRelations
-            .AsNoTracking()
-            .Where(x => x.UserId == userId)
-            .Select(x => x.SpaceId)
-            .Distinct()
-            .ToListAsync(ct);
-
-        var spaceBadges = new List<SpaceBadge>();
-
-        if (spaceIds.Count > 0)
+        await using (var ctx = await contextFactory.CreateDbContextAsync(ct))
         {
+            unreadDmCount = await ctx.UserConversations
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.UnreadCount > 0)
+                .CountAsync(ct);
+
+            // A subquery rather than a list read first: it saves the round trip that fetched the ids.
+            var memberOf = ctx.UsersToServerRelations
+                .Where(x => x.UserId == userId)
+                .Select(x => x.SpaceId);
+
             // Which channels exist, and which space each is in. Nothing about the counter is read
             // here any more: Channels.LastMessageId is the dead column, and the mark comes from the
             // side table below.
@@ -106,11 +98,13 @@ public class BadgeAggregationService(
             // It used to be free — the row was written on every send, so a zero really did mean an
             // empty channel — but that stopped being true when the write was coalesced onto a flush
             // timer, and it is doubly untrue now that the number is not on this row at all.
-            var channels = await ctx.Channels
-                .AsNoTracking()
-                .Where(c => spaceIds.Contains(c.SpaceId))
-                .Select(c => new { c.Id, c.SpaceId })
-                .ToListAsync(ct);
+            channels = (await ctx.Channels
+                    .AsNoTracking()
+                    .Where(c => memberOf.Contains(c.SpaceId))
+                    .Select(c => new { c.Id, c.SpaceId })
+                    .ToListAsync(ct))
+                .Select(c => (c.Id, c.SpaceId))
+                .ToList();
 
             // One seek per space over ix_channel_last_messages_space, which is the shape this table
             // was given a SpaceId for. A second query rather than a left join onto the one above,
@@ -118,12 +112,31 @@ public class BadgeAggregationService(
             // tables, and "no row" stays a C# lookup miss instead of a nullable column that the next
             // person to touch this has to remember to coalesce. Neither table needs the other to
             // answer its half.
-            var stored = await ctx.ChannelLastMessages
-                .AsNoTracking()
-                .Where(m => spaceIds.Contains(m.SpaceId))
-                .Select(m => new { m.ChannelId, m.LastMessageId })
-                .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId, ct);
+            stored = channels.Count == 0
+                ? []
+                : await ctx.ChannelLastMessages
+                    .AsNoTracking()
+                    .Where(m => memberOf.Contains(m.SpaceId))
+                    .Select(m => new { m.ChannelId, m.LastMessageId })
+                    .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId, ct);
+        }
 
+        await Task.WhenAll(readStatesTask, muteTask, badgeCountsTask);
+
+        var readStates   = readStatesTask.Result;
+        var muteSettings = muteTask.Result;
+        var badgeCounts  = badgeCountsTask.Result;
+
+        var mutedTargets = muteSettings
+            .Where(m => m.MuteLevel == MuteLevel.All)
+            .Select(m => m.TargetId)
+            .ToHashSet();
+
+        var spaceBadges = new List<SpaceBadge>();
+
+        // A space with no channels can have nothing unread, so the spaces come from the channels.
+        if (channels.Count > 0)
+        {
             // A channel with no row is a channel nobody has posted in, which is the common case and
             // reads as zero. It must not read as "not in the result" — every channel in the space has
             // to reach the loop below, or a channel whose first messages are still only in the Redis
@@ -133,7 +146,7 @@ public class BadgeAggregationService(
 
             var readStateMap = readStates.ToDictionary(r => r.ChannelId);
 
-            foreach (var spaceId in spaceIds)
+            foreach (var spaceId in channels.Select(c => c.SpaceId).Distinct())
             {
                 if (mutedTargets.Contains(spaceId))
                     continue;
@@ -188,15 +201,5 @@ public class BadgeAggregationService(
             new IonArray<ChannelReadState>(ionReadStates),
             new IonArray<MuteSettingsDto>(ionMuteSettings)
         );
-    }
-
-    private async Task<int> GetUnreadDmCountAsync(Guid userId, CancellationToken ct = default)
-    {
-        await using var ctx = await contextFactory.CreateDbContextAsync(ct);
-
-        return await ctx.UserConversations
-            .AsNoTracking()
-            .Where(x => x.UserId == userId && x.UnreadCount > 0)
-            .CountAsync(ct);
     }
 }

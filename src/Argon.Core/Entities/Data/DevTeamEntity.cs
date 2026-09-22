@@ -14,6 +14,9 @@ public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeam
 
     public string Name { get; set; }
 
+    /// <summary>lower(Name), computed by the database.</summary>
+    public string NormalizedName { get; private set; } = null!;
+
     public virtual UserEntity Owner { get; set; }
 
     public virtual ICollection<DevTeamMemberEntity> Members { get; set; } = new List<DevTeamMemberEntity>();
@@ -26,6 +29,12 @@ public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeam
     {
         builder.ToTable("DevTeamEntity");
         builder.HasKey(x => x.TeamId);
+        builder.Property(x => x.NormalizedName)
+           .HasColumnType("text")
+           .HasComputedColumnSql("lower(\"Name\")", stored: true)
+           .ValueGeneratedOnAddOrUpdate();
+        builder.HasIndex(x => x.NormalizedName);
+
         builder.HasOne(x => x.Owner)
            .WithMany()
            .HasForeignKey(x => x.OwnerId);
@@ -155,6 +164,10 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
 
     public          bool    IsInternalApp { get; set; }
     public required string  Name          { get; set; }
+
+    /// <summary>lower(Name), computed by the database.</summary>
+    public string NormalizedName { get; private set; } = null!;
+
     public          string? Description   { get; set; }
 
     public string  ClientId        { get; set; } = null!;
@@ -185,6 +198,12 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
 
         builder.Property(x => x.ClientId).HasMaxLength(256);
         builder.HasIndex(x => x.ClientId).IsUnique();
+
+        builder.Property(x => x.NormalizedName)
+           .HasColumnType("text")
+           .HasComputedColumnSql("lower(\"Name\")", stored: true)
+           .ValueGeneratedOnAddOrUpdate();
+        builder.HasIndex(x => x.NormalizedName);
 
         builder
            .Property(x => x.RequiredScopes)

@@ -1,7 +1,9 @@
 namespace ArgonComplexTest;
 
+using Argon.Core.Entities.Data;
 using Argon.Entities;
 using Argon.Features.EF;
+using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,7 +20,8 @@ using Microsoft.Extensions.DependencyInjection;
 ///
 /// <para>CockroachDB only, and skipped rather than failed elsewhere. On PostgreSQL the multiregional
 /// generator is not installed at all — <c>DatabaseFeature</c> only replaces the generator for
-/// Cockroach — so there is nothing to look for. Run with <c>ARGON_TEST_DB=Cockroach</c>.</para>
+/// Cockroach — so there is nothing to look for. Run with <c>ARGON_TEST_DB=Cockroach</c>.
+/// <see cref="Name_search_reads_the_normalized_columns"/> is the exception: those columns exist on both.</para>
 ///
 /// <para><b>One of these is ignored rather than run:</b>
 /// <see cref="Messages_are_regional_by_row"/>, because the migration it asserts is paused work and a
@@ -218,5 +221,107 @@ public class TablePlacementTests : TestBase
         OnlyOnCockroach();
 
         Assert.That(await CreateTableSqlAsync("DeviceHistories", ct), Does.Not.Contain("LOCALITY GLOBAL"));
+    }
+
+    /// <summary>
+    /// The insert-heavy tables keyed by a UUIDv7 spread their inserts over hash buckets, and the
+    /// re-keying left no unique index on the old key behind.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task Time_ordered_keys_are_hash_sharded(CancellationToken ct = default)
+    {
+        OnlyOnCockroach();
+
+        var tables = new[]
+        {
+            "DeviceObservations", "FileBlobs", "FileCounters", "Files", "OperatorAuditLog", "Reports", "SystemNotifications"
+        };
+
+        Assert.Multiple(async () =>
+        {
+            foreach (var table in tables)
+            {
+                var sql = await CreateTableSqlAsync(table, ct);
+
+                Assert.That(sql, Does.Contain("PRIMARY KEY (\"Id\" ASC) USING HASH"), $"'{table}' key is not hash-sharded");
+                Assert.That(sql, Does.Not.Contain("_Id_key"), $"'{table}' kept a unique index on its old key");
+            }
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Timestamp_leading_indexes_are_hash_sharded(CancellationToken ct = default)
+    {
+        OnlyOnCockroach();
+
+        var indexes = new[]
+        {
+            ("ContentViolations", "CreatedAt"), ("OperatorAuditLog", "CreatedAt"), ("Reports", "CreatedAt"),
+            ("NotificationCounters", "UpdatedAt"), ("ReportCases", "LastReportedAt"), ("UserDailyStats", "Date"),
+            ("FileBlobs", "ExpiresAt"), ("FileBlobs", "FileId")
+        };
+
+        Assert.Multiple(async () =>
+        {
+            foreach (var (table, column) in indexes)
+                Assert.That(await CreateTableSqlAsync(table, ct), Does.Contain($"(\"{column}\" ASC) USING HASH"),
+                    $"the index on {table}.{column} is not hash-sharded");
+        });
+    }
+
+    /// <summary>
+    /// The console's exact-name searches go through the stored lower(Name) columns, on either engine.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task Name_search_reads_the_normalized_columns(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var botAs  = await CreateSessionAsync(ct);
+        var suffix = Guid.NewGuid().ToString("N")[..10];
+
+        var space = new SpaceEntity { Id = Argon.Features.Clustering.Regions.ArgonId.New(), Name = $"Normalized Space {suffix}", CreatorId = owner.UserId };
+        var team  = new DevTeamEntity { TeamId = Guid.NewGuid(), OwnerId = owner.UserId, Name = $"Normalized Team {suffix}" };
+        var bot = new BotEntity
+        {
+            AppId            = Guid.NewGuid(),
+            TeamId           = team.TeamId,
+            Name             = $"Normalized Bot {suffix}",
+            ClientId         = Guid.NewGuid().ToString("N"),
+            ClientSecret     = Guid.NewGuid().ToString("N"),
+            AppType          = DevAppType.Bot,
+            BotToken         = Guid.NewGuid().ToString("N"),
+            BotAsUserId      = botAs.UserId,
+            IsInternalApp    = true,
+            LifecycleState   = BotLifecycleState.Published,
+            MaxSpaces        = 5,
+            RequiredScopes   = [],
+            AllowedRedirects = []
+        };
+
+        await using (var db = await FactoryAsp.Services
+                        .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+                        .CreateDbContextAsync(ct))
+        {
+            db.Spaces.Add(space);
+            db.TeamEntities.Add(team);
+            db.BotEntities.Add(bot);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var directory = GetGrainFactory().GetGrain<IAdminDirectoryGrain>(Guid.Empty);
+
+        var bySpace = await directory.SearchSpaceAsync(space.Name.ToUpperInvariant(), ct);
+        var byTeam  = await directory.SearchTeamAsync(team.Name.ToUpperInvariant(), ct);
+        var byBot   = await directory.SearchBotAsync(bot.Name.ToUpperInvariant(), ct);
+        var byApp   = await directory.SearchInternalAppsAsync(suffix.ToUpperInvariant(), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(space.NormalizedName, Is.EqualTo(space.Name.ToLowerInvariant()), "the computed column was not read back");
+            Assert.That(bySpace.space?.spaceId, Is.EqualTo(space.Id));
+            Assert.That(byTeam.team?.teamId, Is.EqualTo(team.TeamId));
+            Assert.That(byBot.bot?.appId, Is.EqualTo(bot.AppId));
+            Assert.That(byApp.apps.Values.Select(a => a.appId), Does.Contain(bot.AppId));
+        });
     }
 }

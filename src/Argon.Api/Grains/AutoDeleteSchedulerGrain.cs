@@ -266,12 +266,15 @@ public class AutoDeleteSchedulerGrain(
 
         var systemUser    = UserEntity.SystemUser;
         var defaultMonths = options.Value.DefaultInactivityMonths;
-        var offset     = 0;
+        Guid? after = null;
         bool hasMore;
 
         do
         {
-            var page = await ctx.Users
+            // Keyset rather than OFFSET: an offset re-reads every page before it, and the pass walks the whole table.
+            var remaining = after is { } last ? ctx.Users.Where(u => u.Id.CompareTo(last) > 0) : ctx.Users;
+
+            var page = await remaining
                 .AsNoTracking()
                 // Bots and the platform account are not people and have no console to answer from, so
                 // they are excluded here rather than merely barred at approval: an account that can
@@ -289,7 +292,6 @@ public class AutoDeleteSchedulerGrain(
                          && u.Id != systemUser
                          && !ctx.BotEntities.Any(bot => bot.BotAsUserId == u.Id))
                 .OrderBy(u => u.Id)
-                .Skip(offset)
                 .Take(BatchSize)
                 .Select(u => new
                 {
@@ -338,7 +340,8 @@ public class AutoDeleteSchedulerGrain(
                 .ToListAsync();
 
             hasMore = page.Count == BatchSize;
-            offset += page.Count;
+            if (hasMore)
+                after = page[^1].Id;
 
             foreach (var row in page)
             {

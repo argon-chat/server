@@ -1,82 +1,79 @@
 namespace Argon.Features.Repositories;
 
 using Shared;
+using System.Data;
 
 public interface IServerRepository
 {
-    ValueTask<SpaceEntity> CreateAsync(Guid spaceId, ServerInput data, Guid initiator);
-    ValueTask              GrantDefaultArchetypeTo(ApplicationDbContext ctx, Guid spaceId, Guid serverMemberId);
+    /// <returns>The new space, or <c>null</c> when the initiator already owns <see cref="ServerRepository.MaxOwnedSpacesPerUser"/> spaces.</returns>
+    ValueTask<SpaceEntity?> CreateAsync(Guid spaceId, ServerInput data, Guid initiator);
+
+    /// <summary>Stages the grant; the caller's SaveChanges commits it together with the membership.</summary>
+    ValueTask GrantDefaultArchetypeTo(ApplicationDbContext ctx, Guid spaceId, Guid serverMemberId);
 }
 
-public class ServerRepository(
-    IDbContextFactory<ApplicationDbContext> context,
-    ILogger<IServerRepository> logger) : IServerRepository
+public class ServerRepository(IDbContextFactory<ApplicationDbContext> context) : IServerRepository
 {
-    public async ValueTask<SpaceEntity> CreateAsync(Guid spaceId, ServerInput data, Guid initiator)
+    public const int MaxOwnedSpacesPerUser = 10;
+
+    public async ValueTask<SpaceEntity?> CreateAsync(Guid spaceId, ServerInput data, Guid initiator)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         var strategy = ctx.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
-            await using var transaction = await ctx.Database.BeginTransactionAsync();
-            try
+            ctx.ChangeTracker.Clear();
+
+            // Serializable so that two concurrent creations by one user cannot both pass the count.
+            await using var transaction = await ctx.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+            var owned = await ctx.Spaces.CountAsync(s => s.CreatorId == initiator);
+            if (owned >= MaxOwnedSpacesPerUser)
+                return null;
+
+            var server = new SpaceEntity()
             {
-                var server = new SpaceEntity()
-                {
-                    Id           = spaceId,
-                    AvatarFileId = data.AvatarUrl,
-                    CreatorId    = initiator,
-                    Description  = data.Description,
-                    Name         = data.Name!
-                };
+                Id           = spaceId,
+                AvatarFileId = data.AvatarUrl,
+                CreatorId    = initiator,
+                Description  = data.Description,
+                Name         = data.Name!
+            };
 
-                var e = await ctx.Spaces.AddAsync(server);
+            ctx.Spaces.Add(server);
 
-                Ensure.That(await ctx.SaveChangesAsync() == 1);
-
-                var sm = new SpaceMemberEntity
-                {
-                    Id        = ArgonId.New(),
-                    SpaceId   = spaceId,
-                    UserId    = initiator,
-                    CreatorId = initiator,
-                };
-
-                await ctx.UsersToServerRelations.AddAsync(sm);
-
-                Ensure.That(await ctx.SaveChangesAsync() == 1);
-
-                await CloneArchetypesAsync(ctx, spaceId, sm.Id, initiator);
-
-                await transaction.CommitAsync();
-
-                return e.Entity;
-            }
-            catch (Exception e)
+            var sm = new SpaceMemberEntity
             {
-                logger.LogError(e, "failed apply trx");
-                await transaction.RollbackAsync();
-                throw;
-            }
+                Id        = ArgonId.New(),
+                SpaceId   = spaceId,
+                UserId    = initiator,
+                CreatorId = initiator,
+            };
+
+            ctx.UsersToServerRelations.Add(sm);
+
+            await CloneArchetypesAsync(ctx, spaceId, sm.Id, initiator);
+
+            await ctx.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return server;
         });
     }
 
     public async ValueTask GrantDefaultArchetypeTo(ApplicationDbContext ctx, Guid spaceId, Guid serverMemberId)
     {
-        var everyone = await ctx.Archetypes
-           .AsNoTracking()
-           .FirstAsync(x => x.IsDefault && x.SpaceId == spaceId);
+        var everyoneId = await ctx.Archetypes
+           .Where(x => x.IsDefault && x.SpaceId == spaceId)
+           .Select(x => x.Id)
+           .FirstAsync();
 
-        var e1 = new SpaceMemberArchetypeEntity
+        ctx.MemberArchetypes.Add(new SpaceMemberArchetypeEntity
         {
-            ArchetypeId   = everyone.Id,
+            ArchetypeId   = everyoneId,
             SpaceMemberId = serverMemberId
-        };
-
-        await ctx.MemberArchetypes.AddAsync(e1);
-
-        Ensure.That(await ctx.SaveChangesAsync() == 1);
+        });
     }
 
 
@@ -98,29 +95,19 @@ public class ServerRepository(
         everyone.SpaceMemberRoles = new List<SpaceMemberArchetypeEntity>();
         everyone.IsDefault        = true;
 
-        await ctx.Archetypes.AddAsync(everyone);
-        await ctx.Archetypes.AddAsync(owner);
+        ctx.Archetypes.Add(everyone);
+        ctx.Archetypes.Add(owner);
 
-        Ensure.That(await ctx.SaveChangesAsync() == 2);
-
-        var e1 = new SpaceMemberArchetypeEntity()
+        ctx.MemberArchetypes.Add(new SpaceMemberArchetypeEntity
         {
             ArchetypeId   = owner.Id,
             SpaceMemberId = serverMemberId
-        };
+        });
 
-        await ctx.MemberArchetypes.AddAsync(e1);
-
-        Ensure.That(await ctx.SaveChangesAsync() == 1);
-
-        var e2 = new SpaceMemberArchetypeEntity()
+        ctx.MemberArchetypes.Add(new SpaceMemberArchetypeEntity
         {
             ArchetypeId   = everyone.Id,
             SpaceMemberId = serverMemberId
-        };
-
-        await ctx.MemberArchetypes.AddAsync(e2);
-
-        Ensure.That(await ctx.SaveChangesAsync() == 1);
+        });
     }
 }

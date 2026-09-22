@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 /// <summary>
@@ -41,9 +42,10 @@ public record DeviceObservationEntity : ArgonEntity, IEntityTypeConfiguration<De
 
     public void Configure(EntityTypeBuilder<DeviceObservationEntity> builder)
     {
-        // The two questions asked of this table, one index each: "which machines has this account
-        // used" and "which accounts have used this machine".
-        builder.HasIndex(x => x.UserId);
+        builder.HasHashShardedKey();
+
+        // The two questions asked of this table: "which machines has this account used" (the unique
+        // index's UserId prefix) and "which accounts have used this machine".
         builder.HasIndex(x => x.DeviceId);
         builder.HasIndex(x => new { x.UserId, x.DeviceId }).IsUnique();
     }

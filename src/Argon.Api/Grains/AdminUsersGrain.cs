@@ -65,32 +65,39 @@ public sealed class AdminUsersGrain(
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        var user = await db.Users
-           .Include(u => u.Profile)
-           .Include(u => u.BotEntity)
-           .FirstOrDefaultAsync(u => u.Id == userId, ct);
-
-        if (user is null)
-            return null;
-
-        // Get last login from device history
-        var lastLogin = await db.DeviceHistories
-           .Where(d => d.UserId == userId && d.LastLoginTime != null)
-           .OrderByDescending(d => d.LastLoginTime)
-           .Select(d => d.LastLoginTime)
+        // The account, and everything about it that is a single row or a single number, in one round trip.
+        var head = await (
+                from u in db.Users.AsNoTracking()
+                where u.Id == userId
+                join l in db.UserLevels on u.Id equals l.UserId into levels
+                from levelRow in levels.DefaultIfEmpty()
+                join a in db.AutoDeleteSettings on u.Id equals a.UserId into autoDeletes
+                from autoDeleteRow in autoDeletes.DefaultIfEmpty()
+                select new
+                {
+                    User           = u,
+                    u.Profile,
+                    BotVerified    = u.BotEntity != null && u.BotEntity.IsVerified,
+                    Level          = levelRow,
+                    AutoDelete     = autoDeleteRow,
+                    LastLogin      = db.DeviceHistories.Where(d => d.UserId == u.Id).Max(d => d.LastLoginTime),
+                    Blocked        = db.UserBlocklist.Count(b => b.UserId == u.Id),
+                    DirectMessages = db.DirectMessages.Count(m => m.SenderId == u.Id),
+                    Conversations  = db.Conversations.Count(c => c.Participant1Id == u.Id || c.Participant2Id == u.Id),
+                    Passkeys       = db.Passkeys.Count(p => p.UserId == u.Id && p.IsCompleted),
+                    Friends        = db.Friends.Count(f => f.UserId == u.Id),
+                    VoiceSeconds   = db.UserDailyStats.Where(s => s.UserId == u.Id).Sum(s => s.TimeInVoiceSeconds),
+                    CallsMade      = db.UserDailyStats.Where(s => s.UserId == u.Id).Sum(s => s.CallsMade),
+                    MessagesSent   = db.UserDailyStats.Where(s => s.UserId == u.Id).Sum(s => s.MessagesSent),
+                    XpEarned       = db.UserDailyStats.Where(s => s.UserId == u.Id).Sum(s => s.XpEarned)
+                })
            .FirstOrDefaultAsync(ct);
 
-        // Get blocked users count
-        var blockedUsersCount = await db.UserBlocklist.CountAsync(b => b.UserId == userId, ct);
+        if (head is null)
+            return null;
 
-        // Get direct messages count (sent by user)
-        var directMessagesCount = await db.DirectMessages.CountAsync(m => m.SenderId == userId, ct);
+        var user = head.User;
 
-        // Get conversations count (where user is a participant)
-        var conversationsCount = await db.Conversations
-           .CountAsync(c => c.Participant1Id == userId || c.Participant2Id == userId, ct);
-
-        // Account info
         var account = new UserAccountInfo(
             user.Id,
             user.Username,
@@ -106,60 +113,34 @@ public sealed class AdminUsersGrain(
             user.PreferredAuthMode,
             user.PreferredOtpMethod,
             user.AgreeTOS,
-            lastLogin?.UtcDateTime,
-            blockedUsersCount,
-            directMessagesCount,
-            conversationsCount
+            head.LastLogin?.UtcDateTime,
+            head.Blocked,
+            head.DirectMessages,
+            head.Conversations
         );
 
-        // Profile info
-        var profile = user.Profile.ToDto();
-
-        // Passkeys count & TwoFactor
-        var passkeyCount = await db.Passkeys.CountAsync(p => p.UserId == userId && p.IsCompleted, ct);
-        var hasTwoFactor = !string.IsNullOrEmpty(user.TotpSecret);
-
-        // Items with box contents
         var itemEntities = await db.Items
+           .AsNoTracking()
            .Where(i => i.OwnerId == userId && !i.IsReference)
            .Include(i => i.Scenario)
            .ToListAsync(ct);
 
-        var items = new List<InventoryItemInfo>();
-        foreach (var item in itemEntities)
-        {
-            var isBox       = item.Scenario is BoxScenario or QualifierBox or MultipleQualifierBox;
-            var boxContents = IonArray<BoxContentInfo>.Empty;
+        var boxedItems = await AdminBoxContents.ReadAsync(db, itemEntities.Select(i => i.Scenario), ct);
 
-            if (isBox && item.Scenario is QualifierBox qb && qb.ReferenceItemId != Guid.Empty)
-            {
-                var refItem = await db.Items.FirstOrDefaultAsync(i => i.Id == qb.ReferenceItemId, ct);
-                if (refItem is not null)
-                    boxContents = new IonArray<BoxContentInfo>([new BoxContentInfo(refItem.Id, refItem.TemplateId)]);
-            }
+        var items = itemEntities.Select(item => new InventoryItemInfo(
+            item.Id,
+            item.TemplateId,
+            item.IsUsable,
+            item.IsGiftable,
+            item.ReceivedFrom,
+            item.TTL.HasValue ? (int)item.TTL.Value.TotalSeconds : null,
+            item.CreatedAt.UtcDateTime,
+            item.Scenario is BoxScenario or QualifierBox or MultipleQualifierBox,
+            AdminBoxContents.Of(item.Scenario, boxedItems)
+        )).ToList();
 
-            if (isBox && item.Scenario is MultipleQualifierBox { ReferenceItemIds.Count: > 0 } mqb)
-            {
-                var refItems = await db.Items.Where(i => mqb.ReferenceItemIds.Contains(i.Id)).ToListAsync(ct);
-                if (refItems.Count > 0)
-                    boxContents = new IonArray<BoxContentInfo>(refItems.Select(ri => new BoxContentInfo(ri.Id, ri.TemplateId)).ToList());
-            }
-
-            items.Add(new InventoryItemInfo(
-                item.Id,
-                item.TemplateId,
-                item.IsUsable,
-                item.IsGiftable,
-                item.ReceivedFrom,
-                item.TTL.HasValue ? (int)item.TTL.Value.TotalSeconds : null,
-                item.CreatedAt.UtcDateTime,
-                isBox,
-                boxContents
-            ));
-        }
-
-        // Recent messages (last 10)
         var messages = await db.Messages
+           .AsNoTracking()
            .Where(m => m.CreatorId == userId)
            .OrderByDescending(m => m.CreatedAt)
            .Take(10)
@@ -169,33 +150,24 @@ public sealed class AdminUsersGrain(
                 m.SpaceId,
                 m.ChannelId,
                 m.Text,
-                m.CreatedAt
+                m.CreatedAt,
+                SpaceName   = db.Spaces.Where(s => s.Id == m.SpaceId).Select(s => s.Name).FirstOrDefault(),
+                ChannelName = db.Channels.Where(c => c.Id == m.ChannelId).Select(c => c.Name).FirstOrDefault()
             })
            .ToListAsync(ct);
-
-        var spaceIds   = messages.Select(m => m.SpaceId).Distinct().ToList();
-        var channelIds = messages.Select(m => m.ChannelId).Distinct().ToList();
-
-        var spaceNames = await db.Spaces
-           .Where(s => spaceIds.Contains(s.Id))
-           .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-
-        var channelNames = await db.Channels
-           .Where(c => channelIds.Contains(c.Id))
-           .ToDictionaryAsync(c => c.Id, c => c.Name, ct);
 
         var recentMessages = messages.Select(m => new MessageInfo(
             m.MessageId,
             m.SpaceId,
-            spaceNames.GetValueOrDefault(m.SpaceId, "Unknown"),
+            m.SpaceName ?? "Unknown",
             m.ChannelId,
-            channelNames.GetValueOrDefault(m.ChannelId, "Unknown"),
+            m.ChannelName ?? "Unknown",
             m.Text,
             m.CreatedAt.UtcDateTime
         )).ToArray();
 
-        // Device history (last 10)
         var deviceHistoryEntities = await db.DeviceHistories
+           .AsNoTracking()
            .Where(d => d.UserId == userId)
            .OrderByDescending(d => d.LastLoginTime)
            .Take(10)
@@ -210,49 +182,45 @@ public sealed class AdminUsersGrain(
             (ConsoleContracts.DeviceTypeKind)(int)d.DeviceType
         )).ToList();
 
-        // Redeemed coupons
-        var redemptionEntities = await db.CouponRedemption
+        var redemptionRows = await db.CouponRedemption
+           .AsNoTracking()
            .Where(r => r.UserId == userId)
-           .Include(r => r.Coupon)
-           .Include(r => r.Items)
+           .Select(r => new { r.CouponId, r.Coupon.Code, r.RedeemedAt, Items = r.Items.Count })
            .ToListAsync(ct);
 
-        var redemptions = redemptionEntities.Select(r => new RedeemedCouponInfo(
-            r.CouponId,
-            r.Coupon.Code,
-            r.RedeemedAt.UtcDateTime,
-            r.Items.Count
-        )).ToList();
+        var redemptions = redemptionRows
+           .Select(r => new RedeemedCouponInfo(r.CouponId, r.Code, r.RedeemedAt.UtcDateTime, r.Items))
+           .ToList();
 
-        // Spaces (first 5)
-        var spaceMemberships = await db.UsersToServerRelations
+        // The five most recent memberships, each with its space's head counts.
+        var membershipRows = await db.UsersToServerRelations
+           .AsNoTracking()
            .Where(sm => sm.UserId == userId && !sm.IsDeleted)
            .OrderByDescending(sm => sm.CreatedAt)
            .Take(5)
-           .Include(sm => sm.Space)
-           .ToListAsync(ct);
-
-        var spaces = new List<UserSpaceInfo>();
-        foreach (var sm in spaceMemberships)
-        {
-            var memberCount  = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == sm.SpaceId && !x.IsDeleted, ct);
-            var channelCount = await db.Channels.CountAsync(c => c.SpaceId == sm.SpaceId, ct);
-            var isOwner      = sm.Space.CreatorId == userId;
-
-            spaces.Add(new UserSpaceInfo(
+           .Select(sm => new
+            {
                 sm.SpaceId,
                 sm.Space.Name,
                 sm.Space.AvatarFileId,
-                memberCount,
-                channelCount,
-                sm.CreatedAt.UtcDateTime,
-                isOwner
-            ));
-        }
+                sm.Space.CreatorId,
+                sm.CreatedAt,
+                Members  = db.UsersToServerRelations.Count(x => x.SpaceId == sm.SpaceId && !x.IsDeleted),
+                Channels = db.Channels.Count(c => c.SpaceId == sm.SpaceId)
+            })
+           .ToListAsync(ct);
 
-        // Level info
-        var levelEntity = await db.UserLevels.FirstOrDefaultAsync(l => l.UserId == userId, ct);
-        var level = levelEntity is not null
+        var spaces = membershipRows.Select(sm => new UserSpaceInfo(
+            sm.SpaceId,
+            sm.Name,
+            sm.AvatarFileId,
+            sm.Members,
+            sm.Channels,
+            sm.CreatedAt.UtcDateTime,
+            sm.CreatorId == userId
+        )).ToList();
+
+        var level = head.Level is { } levelEntity
             ? new UserLevelInfo(
                 levelEntity.CurrentLevel,
                 levelEntity.CurrentCycleXp,
@@ -261,23 +229,13 @@ public sealed class AdminUsersGrain(
                 levelEntity.LastXpAward.UtcDateTime)
             : new UserLevelInfo(1, 0, 0, false, DateTime.UtcNow);
 
-        // Stats (aggregated)
-        var statsEntities = await db.UserDailyStats
-           .Where(s => s.UserId == userId)
-           .ToListAsync(ct);
-
-        var stats = new UserStatsInfo(
-            statsEntities.Sum(s => s.TimeInVoiceSeconds),
-            statsEntities.Sum(s => s.CallsMade),
-            statsEntities.Sum(s => s.MessagesSent),
-            statsEntities.Sum(s => s.XpEarned)
-        );
+        var stats = new UserStatsInfo(head.VoiceSeconds, head.CallsMade, head.MessagesSent, head.XpEarned);
 
         // Teams (first 3)
         var teamMemberships = await db.MemberTeamEntities
+           .AsNoTracking()
            .Where(tm => tm.UserId == userId)
            .Take(3)
-           .Include(tm => tm.Team)
            .Select(tm => new UserTeamInfo(
                 tm.TeamId,
                 tm.Team.Name,
@@ -287,50 +245,32 @@ public sealed class AdminUsersGrain(
             ))
            .ToListAsync(ct);
 
-        // Friend count
-        var friendCount = await db.Friends.CountAsync(f => f.UserId == userId, ct);
-
-        // Auto-delete settings
-        var autoDeleteEntity = await db.AutoDeleteSettings.FirstOrDefaultAsync(a => a.UserId == userId, ct);
-        var autoDeleteSettings = autoDeleteEntity is not null
-            ? new AutoDeleteSettingsInfo(autoDeleteEntity.Enabled, autoDeleteEntity.Months)
+        var autoDeleteSettings = head.AutoDelete is { } autoDelete
+            ? new AutoDeleteSettingsInfo(autoDelete.Enabled, autoDelete.Months)
             : null;
 
         // Bots owned by user (through team membership)
-        var userTeamIds = await db.MemberTeamEntities
-           .Where(tm => tm.UserId == userId)
-           .Select(tm => tm.TeamId)
+        var userBots = await db.BotEntities
+           .AsNoTracking()
+           .Where(b => db.MemberTeamEntities.Any(tm => tm.UserId == userId && tm.TeamId == b.TeamId))
+           .Select(b => new AdminUserBotInfo(
+                b.AppId,
+                b.Name,
+                b.BotAsUser.Username,
+                b.IsVerified,
+                b.LifecycleState == BotLifecycleState.Published,
+                b.TeamId,
+                b.Team.Name
+            ))
            .ToListAsync(ct);
 
-        var userBots = userTeamIds.Count > 0
-            ? await db.BotEntities
-               .Where(b => userTeamIds.Contains(b.TeamId))
-               .Include(b => b.BotAsUser)
-               .Include(b => b.Team)
-               .Select(b => new AdminUserBotInfo(
-                    b.AppId,
-                    b.Name,
-                    b.BotAsUser.Username,
-                    b.IsVerified,
-                    b.LifecycleState == BotLifecycleState.Published,
-                    b.TeamId,
-                    b.Team.Name
-                ))
-               .ToListAsync(ct)
-            : [];
-
-        // Premium info
         var premiumInfo = await ReadPremiumAsync(db, userId, ct);
-
-        // Bot flag & user flags
-        var isBot = user.BotEntityId is not null;
-        var flags = (UserFlag)(int)UserEntity.GetFlags(user);
 
         return new UserCardDetails(
             account,
-            profile,
-            passkeyCount,
-            hasTwoFactor,
+            head.Profile.ToDto(),
+            head.Passkeys,
+            !string.IsNullOrEmpty(user.TotpSecret),
             new IonArray<InventoryItemInfo>(items),
             new IonArray<MessageInfo>(recentMessages),
             new IonArray<DeviceHistoryInfo>(deviceHistory),
@@ -339,12 +279,12 @@ public sealed class AdminUsersGrain(
             level,
             stats,
             new IonArray<UserTeamInfo>(teamMemberships),
-            friendCount,
+            head.Friends,
             autoDeleteSettings,
             new IonArray<AdminUserBotInfo>(userBots),
             premiumInfo,
-            isBot,
-            flags
+            user.BotEntityId is not null,
+            (UserFlag)(int)UserEntity.GetFlags(user, head.BotVerified)
         );
     }
 
@@ -451,27 +391,27 @@ public sealed class AdminUsersGrain(
         var now = DateTimeOffset.UtcNow;
 
         var devices = await db.DeviceObservations
+           .AsNoTracking()
            .Where(o => o.UserId == userId)
            .Join(db.DeviceKeys, o => o.DeviceId, k => k.DeviceId, (o, k) => k)
            .OrderByDescending(k => k.LastProvenAt)
+           .Select(k => new
+            {
+                k.DeviceId,
+                k.Platform,
+                k.Assurance,
+                k.ClientName,
+                k.EnrolledAt,
+                k.LastProvenAt,
+                Accounts = db.DeviceObservations.Count(o => o.DeviceId == k.DeviceId),
+                IsBanned = db.DeviceBans.Any(b => b.DeviceId == k.DeviceId && (b.ExpiresAt == null || b.ExpiresAt > now))
+            })
            .ToListAsync(ct);
 
-        var summaries = new List<DeviceSummary>(devices.Count);
-
-        foreach (var key in devices)
-        {
-            summaries.Add(new DeviceSummary(
-                key.DeviceId,
-                (int)key.Platform,
-                (int)key.Assurance,
-                key.ClientName,
-                key.EnrolledAt,
-                key.LastProvenAt,
-                await db.DeviceObservations.CountAsync(o => o.DeviceId == key.DeviceId, ct),
-                await db.DeviceBans.AnyAsync(b => b.DeviceId == key.DeviceId && (b.ExpiresAt == null || b.ExpiresAt > now), ct)));
-        }
-
-        return new DeviceList(summaries);
+        return new DeviceList(devices
+           .Select(d => new DeviceSummary(d.DeviceId, (int)d.Platform, (int)d.Assurance, d.ClientName, d.EnrolledAt,
+                d.LastProvenAt, d.Accounts, d.IsBanned))
+           .ToList());
     }
 
     /// <summary>
@@ -577,6 +517,7 @@ public sealed class AdminUsersGrain(
         // throw while compiling the shaper, so this endpoint failed for every caller regardless of
         // whether the user had any transactions. Materialise first, convert after.
         var rows = await db.PaymentTransactions
+           .AsNoTracking()
            .Where(t => t.UserId == userId)
            .OrderByDescending(t => t.CreatedAt)
            .Skip(page * pageSize)
@@ -616,6 +557,7 @@ public sealed class AdminUsersGrain(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var tx = await db.PaymentTransactions
+           .AsNoTracking()
            .Include(t => t.User)
            .FirstOrDefaultAsync(t => t.XsollaTxId == xsollaTxId, ct);
 
@@ -660,16 +602,21 @@ public sealed class AdminUsersGrain(
     /// <summary>The account's latest subscription as the console shows it, or null when it never had one.</summary>
     private static async Task<AdminPremiumInfo?> ReadPremiumAsync(ApplicationDbContext db, Guid userId, CancellationToken ct)
     {
-        var subscription = await db.UltimaSubscriptions
+        var row = await db.UltimaSubscriptions
+           .AsNoTracking()
            .Where(s => s.UserId == userId)
            .OrderByDescending(s => s.StartsAt)
+           .Select(s => new
+            {
+                Subscription   = s,
+                UsedBoostSlots = db.SpaceBoosts.Count(b => b.SubscriptionId == s.Id && b.SpaceId != null)
+            })
            .FirstOrDefaultAsync(ct);
 
-        if (subscription is null)
+        if (row is null)
             return null;
 
-        var usedBoostSlots = await db.SpaceBoosts
-           .CountAsync(b => b.SubscriptionId == subscription.Id && b.SpaceId != null, ct);
+        var (subscription, usedBoostSlots) = (row.Subscription, row.UsedBoostSlots);
 
         return new AdminPremiumInfo(
             subscription.Id,

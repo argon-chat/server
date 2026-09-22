@@ -1647,24 +1647,34 @@ public class AccountDeletionGrain(
         await using var ctx = await dbFactory.CreateDbContextAsync();
         var userId = UserId;
 
-        // Friends (both directions)
+        // Friends (both directions), one side per statement so each can seek its own index.
         await ctx.Friends
-            .Where(f => f.UserId == userId || f.FriendId == userId)
+            .Where(f => f.UserId == userId)
+            .ExecuteDeleteAsync();
+        await ctx.Friends
+            .Where(f => f.FriendId == userId)
             .ExecuteDeleteAsync();
 
-        // Pending friend requests (both directions)
+        // Pending friend requests, blocks and ignores (both directions), split the same way.
         await ctx.FriendRequest
-            .Where(r => r.RequesterId == userId || r.TargetId == userId)
+            .Where(r => r.RequesterId == userId)
+            .ExecuteDeleteAsync();
+        await ctx.FriendRequest
+            .Where(r => r.TargetId == userId)
             .ExecuteDeleteAsync();
 
-        // Blocks (both directions)
         await ctx.UserBlocklist
-            .Where(b => b.UserId == userId || b.BlockedId == userId)
+            .Where(b => b.UserId == userId)
+            .ExecuteDeleteAsync();
+        await ctx.UserBlocklist
+            .Where(b => b.BlockedId == userId)
             .ExecuteDeleteAsync();
 
-        // Ignores (both directions)
         await ctx.UserIgnorelist
-            .Where(i => i.UserId == userId || i.IgnoredId == userId)
+            .Where(i => i.UserId == userId)
+            .ExecuteDeleteAsync();
+        await ctx.UserIgnorelist
+            .Where(i => i.IgnoredId == userId)
             .ExecuteDeleteAsync();
 
         // Privacy rules

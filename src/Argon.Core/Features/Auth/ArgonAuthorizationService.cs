@@ -370,50 +370,35 @@ public class ArgonAuthorizationService(
             return RegistrationErrorConstants.UsernameReserved();
         }
 
-        UserEntity? user     = null;
-        var         strategy = ctx.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        var userId = ArgonId.New();
+        var user = new UserEntity()
         {
-            var userId = ArgonId.New();
-            user = new UserEntity()
-            {
-                AvatarFileId              = null,
-                CreatedAt                 = DateTime.UtcNow,
-                Email                     = input.email,
-                Id                        = userId,
-                Username                  = input.username,
-                PasswordDigest            = passwordHashingService.HashPassword(input.password),
-                DisplayName               = input.displayName,
-                DateOfBirth               = input.birthDate,
-                AgreeTOS                  = input.argreeTos,
-                AllowedSendOptionalEmails = input.argreeOptionalEmails,
-                AgreeTosVersion           = input.tosVersion,
-                AgreePrivacyVersion       = input.privacyVersion
-            };
-            await ctx.Users.AddAsync(user);
+            AvatarFileId              = null,
+            CreatedAt                 = DateTime.UtcNow,
+            Email                     = input.email,
+            Id                        = userId,
+            Username                  = input.username,
+            PasswordDigest            = passwordHashingService.HashPassword(input.password),
+            DisplayName               = input.displayName,
+            DateOfBirth               = input.birthDate,
+            AgreeTOS                  = input.argreeTos,
+            AllowedSendOptionalEmails = input.argreeOptionalEmails,
+            AgreeTosVersion           = input.tosVersion,
+            AgreePrivacyVersion       = input.privacyVersion
+        };
+        ctx.Users.Add(user);
 
-            await ctx.UserProfiles.AddAsync(new UserProfileEntity
-            {
-                UserId = userId,
-                Id     = ArgonId.New(),
-                Badges = [],
-            });
-
-            await ctx.SaveChangesAsync();
+        ctx.UserProfiles.Add(new UserProfileEntity
+        {
+            UserId = userId,
+            Id     = ArgonId.New(),
+            Badges = [],
         });
 
+        // One SaveChanges is its own transaction, and the execution strategy retries it as a whole.
+        await ctx.SaveChangesAsync();
+
         sw.Stop();
-
-        if (user is null)
-        {
-            AuthorizationGrainInstrument.UserRegistrations.Add(1,
-                new KeyValuePair<string, object?>("result", "error"));
-
-            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                new KeyValuePair<string, object?>("result", "failed"));
-
-            return RegistrationErrorConstants.InternalError();
-        }
 
         AuthorizationGrainInstrument.UserRegistrations.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
@@ -470,47 +455,34 @@ public class ArgonAuthorizationService(
             return RegistrationErrorConstants.UsernameReserved();
         }
 
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        var userId = ArgonId.New();
+        user = new UserEntity()
         {
-            var userId = ArgonId.New();
-            user = new UserEntity()
-            {
-                AvatarFileId              = null,
-                CreatedAt                 = DateTime.UtcNow,
-                Email                     = input.email,
-                Id                        = userId,
-                Username                  = input.username,
-                PasswordDigest            = passwordHashingService.HashPassword(input.password),
-                DisplayName               = input.displayName,
-                DateOfBirth               = input.birthDate,
-                AgreeTOS                  = input.argreeTos,
-                AllowedSendOptionalEmails = input.argreeOptionalEmails,
-                AgreeTosVersion           = input.tosVersion,
-                AgreePrivacyVersion       = input.privacyVersion
-            };
-            await ctx.Users.AddAsync(user);
+            AvatarFileId              = null,
+            CreatedAt                 = DateTime.UtcNow,
+            Email                     = input.email,
+            Id                        = userId,
+            Username                  = input.username,
+            PasswordDigest            = passwordHashingService.HashPassword(input.password),
+            DisplayName               = input.displayName,
+            DateOfBirth               = input.birthDate,
+            AgreeTOS                  = input.argreeTos,
+            AllowedSendOptionalEmails = input.argreeOptionalEmails,
+            AgreeTosVersion           = input.tosVersion,
+            AgreePrivacyVersion       = input.privacyVersion
+        };
+        ctx.Users.Add(user);
 
-            await ctx.UserProfiles.AddAsync(new UserProfileEntity
-            {
-                UserId = userId,
-                Id     = ArgonId.New(),
-                Badges = [],
-            });
-
-            await ctx.SaveChangesAsync();
+        ctx.UserProfiles.Add(new UserProfileEntity
+        {
+            UserId = userId,
+            Id     = ArgonId.New(),
+            Badges = [],
         });
 
-        sw.Stop();
+        await ctx.SaveChangesAsync();
 
-        if (user is null)
-        {
-            AuthorizationGrainInstrument.UserRegistrations.Add(1,
-                new KeyValuePair<string, object?>("result", "error"));
-            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
-                new KeyValuePair<string, object?>("result", "failed"));
-            return RegistrationErrorConstants.InternalError();
-        }
+        sw.Stop();
 
         AuthorizationGrainInstrument.UserRegistrations.Add(1,
             new KeyValuePair<string, object?>("result", "success"));

@@ -22,6 +22,7 @@ public sealed class AdminOperatorsGrain(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var entities = await db.Operators
+           .AsNoTracking()
            .Include(o => o.Certificates.Where(c => !c.IsDeleted))
            .Where(o => !o.IsDeleted)
            .OrderByDescending(o => o.CreatedAt)
@@ -37,6 +38,7 @@ public sealed class AdminOperatorsGrain(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var op = await db.Operators
+           .AsNoTracking()
            .Include(o => o.Certificates.Where(c => !c.IsDeleted))
            .Include(o => o.User)
            .ThenInclude(u => u!.Profile)
@@ -73,6 +75,7 @@ public sealed class AdminOperatorsGrain(
         }
 
         var recentAudit = await db.OperatorAuditLog
+           .AsNoTracking()
            .Where(a => a.OperatorId == operatorId)
            .OrderByDescending(a => a.CreatedAt)
            .Take(20)
@@ -161,7 +164,7 @@ public sealed class AdminOperatorsGrain(
         if (!await IsSystemOperatorAsync(db, callerOperatorId, ct))
             return Failed("Only system operators can enroll certificates");
 
-        var op = await db.Operators.FirstOrDefaultAsync(x => x.Id == operatorId && !x.IsDeleted, ct);
+        var op = await db.Operators.AsNoTracking().FirstOrDefaultAsync(x => x.Id == operatorId && !x.IsDeleted, ct);
 
         if (op is null)
             return Failed("Operator not found");
@@ -319,6 +322,7 @@ public sealed class AdminOperatorsGrain(
             return Refused("Application not found");
 
         var existing = await db.OperatorAppAccess
+           .AsNoTracking()
            .FirstOrDefaultAsync(a => a.OperatorId == input.operatorId && a.AppId == input.appId, ct);
 
         if (existing is not null)
@@ -425,7 +429,7 @@ public sealed class AdminOperatorsGrain(
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        var query = db.OperatorAuditLog.AsQueryable();
+        var query = db.OperatorAuditLog.AsNoTracking();
 
         if (operatorId.HasValue)
             query = query.Where(a => a.OperatorId == operatorId.Value);

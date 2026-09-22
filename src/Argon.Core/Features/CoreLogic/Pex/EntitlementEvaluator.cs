@@ -124,13 +124,14 @@ public static class EntitlementEvaluator
             permissions |= overwrite.Allow;
         }
 
+        // Only an Allow makes a channel opt-in for that entitlement. A Deny for a role the member does
+        // not hold must not affect them — otherwise a "Muted: deny SendMessages" role locks everyone out.
         var hasRelevantRoleOverwrite = obj.Overwrites.Any(o =>
-            o.Scope == IArchetypeScope.Archetype &&
-            (o.Allow.HasFlag(targetCheck) || o.Deny.HasFlag(targetCheck)));
+            o.Scope == IArchetypeScope.Archetype && o.Allow.HasFlag(targetCheck));
 
         var userHasMatchingRoleOverwrite = obj.Overwrites.Any(o =>
             o is { Scope: IArchetypeScope.Archetype, ArchetypeId: not null } &&
-            (o.Allow.HasFlag(targetCheck) || o.Deny.HasFlag(targetCheck)) &&
+            o.Allow.HasFlag(targetCheck) &&
             member.SpaceMemberArchetypes.Any(smr => smr.ArchetypeId == o.ArchetypeId.Value));
 
         if (hasRelevantRoleOverwrite && !userHasMatchingRoleOverwrite)

@@ -258,6 +258,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
         await strategy.ExecuteAsync(async () =>
         {
+            db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
             var invite = await db.TeamInvites

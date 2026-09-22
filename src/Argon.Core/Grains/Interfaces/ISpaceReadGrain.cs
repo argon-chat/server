@@ -57,4 +57,18 @@ public interface ISpaceReadGrain : IGrainWithGuidKey
     /// <summary>Superseded by <see cref="GetSnapshot"/>; remove once no shipped client calls it.</summary>
     [Alias(nameof(GetChannelGroups))]
     Task<List<ChannelGroup>> GetChannelGroups();
+
+    /// <summary>
+    /// How many members the space has and how many of them are not offline, from the cached roster
+    /// and the same presence answer <see cref="GetPresence"/> gives.
+    /// </summary>
+    [Alias(nameof(GetHeadcount))]
+    Task<SpaceHeadcount> GetHeadcount();
+}
+
+[GenerateSerializer, Immutable]
+public sealed record SpaceHeadcount
+{
+    [Id(0)] public required int Members { get; init; }
+    [Id(1)] public required int Online  { get; init; }
 }

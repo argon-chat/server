@@ -1,8 +1,10 @@
 namespace ArgonComplexTest.Tests;
 
 using Argon.Api.Features.AdminApi;
+using Argon.Core.Entities.Data;
 using Argon.Entities;
 using Argon.Features.Admin;
+using Argon.Features.Auth;
 using Argon.Features.Testing;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure.Account;
@@ -716,6 +718,390 @@ public class AdminConsoleTests : TestBase
             new AuditLogQuery(null, $"never_happened_{Guid.NewGuid():N}", null, null, null, 1, 20), ct);
 
         Assert.That(page.totalCount, Is.EqualTo(0));
+    }
+
+    // ── Cards against the rows behind them ──────────────────────────────────────────────────────
+    //
+    // A card is assembled from a dozen tables. These read the same rows back the plain way and
+    // compare, so the queries behind a card can be rewritten without changing what it says.
+
+    [Test, CancelAfter(180_000)]
+    public async Task GetUserCard_AgreesWithTheRowsBehindIt(CancellationToken ct = default)
+    {
+        var owner   = await CreateSessionAsync(ct);
+        var subject = await CreateSessionAsync(ct);
+
+        var spaceA   = await CreateSpaceAsync(owner, "Card A", ct);
+        var spaceB   = await CreateSpaceAsync(owner, "Card B", ct);
+        var channelA = await CreateTextChannelAsync(owner, spaceA, "card-a", ct);
+        var channelB = await CreateTextChannelAsync(owner, spaceB, "card-b", ct);
+
+        await JoinSpaceAsync(owner, subject, spaceA, ct);
+        await JoinSpaceAsync(owner, subject, spaceB, ct);
+
+        await subject.Channels.SendMessage(spaceA, channelA, "written in A", new IonArray<IMessageEntity>([]),
+            Random.Shared.NextInt64(), null, ct);
+        await subject.Channels.SendMessage(spaceB, channelB, "written in B", new IonArray<IMessageEntity>([]),
+            Random.Shared.NextInt64(), null, ct);
+
+        // Sending counts toward today's stats row, written on the stats grain's own schedule.
+        await GetGrainFactory().GetGrain<IUserStatsGrain>(subject.UserId).FlushToDatabaseAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var db = await NewDbAsync(ct))
+        {
+            db.UserDailyStats.AddRange(
+                new UserDailyStatsEntity
+                {
+                    UserId = subject.UserId, Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                    MessagesSent = 42, CallsMade = 3, TimeInVoiceSeconds = 1234, XpEarned = 77
+                },
+                new UserDailyStatsEntity
+                {
+                    UserId = subject.UserId, Date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)),
+                    MessagesSent = 8, CallsMade = 1, TimeInVoiceSeconds = 66, XpEarned = 23
+                });
+
+            db.Friends.AddRange(
+                new FriendshipEntity { UserId = subject.UserId, FriendId = Guid.NewGuid() },
+                new FriendshipEntity { UserId = subject.UserId, FriendId = Guid.NewGuid() },
+                new FriendshipEntity { UserId = Guid.NewGuid(), FriendId = subject.UserId });
+
+            db.UserBlocklist.Add(new UserBlockEntity { UserId = subject.UserId, BlockedId = Guid.NewGuid() });
+
+            db.Passkeys.AddRange(
+                new UserPasskeyEntity
+                {
+                    Id = Guid.CreateVersion7(), UserId = subject.UserId, Name = "finished", IsCompleted = true,
+                    CreatedAt = now, UpdatedAt = now
+                },
+                new UserPasskeyEntity
+                {
+                    Id = Guid.CreateVersion7(), UserId = subject.UserId, Name = "abandoned", IsCompleted = false,
+                    CreatedAt = now, UpdatedAt = now
+                });
+
+            db.DeviceHistories.Add(new UserDeviceHistoryEntity
+            {
+                UserId = subject.UserId, MachineId = $"card-{Guid.NewGuid():N}"[..32], LastLoginTime = now.AddDays(1),
+                LastKnownIP = "203.0.113.7", RegionAddress = "test", AppId = "card",
+                DeviceType = Argon.Entities.DeviceTypeKind.WindowsDesktop
+            });
+
+            var level = await db.UserLevels.FirstOrDefaultAsync(l => l.UserId == subject.UserId, ct);
+            if (level is null)
+                db.UserLevels.Add(level = new UserLevelEntity { UserId = subject.UserId, CreatedAt = now });
+            level.CurrentLevel   = 4;
+            level.CurrentCycleXp = 12;
+            level.TotalXpAllTime = 4242;
+            level.LastXpAward    = now;
+            level.UpdatedAt      = now;
+
+            db.AutoDeleteSettings.Add(new UserAutoDeleteSettingEntity
+            {
+                Id = Guid.CreateVersion7(), UserId = subject.UserId, Enabled = true, Months = 18,
+                CreatedAt = now, UpdatedAt = now
+            });
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var card = await admin.GetUserCard(subject.UserId, ct);
+
+        await using var rows = await NewDbAsync(ct);
+
+        var stats     = await rows.UserDailyStats.Where(s => s.UserId == subject.UserId).ToListAsync(ct);
+        var logins    = await rows.DeviceHistories.Where(d => d.UserId == subject.UserId).ToListAsync(ct);
+        var storedLvl = await rows.UserLevels.SingleAsync(l => l.UserId == subject.UserId, ct);
+        var expectedSpaces = new Dictionary<Guid, (int Members, int Channels)>();
+        foreach (var space in new[] { spaceA, spaceB })
+            expectedSpaces[space] = (
+                await rows.UsersToServerRelations.CountAsync(m => m.SpaceId == space && !m.IsDeleted, ct),
+                await rows.Channels.CountAsync(c => c.SpaceId == space, ct));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(card.account.blockedUsersCount, Is.EqualTo(1));
+            Assert.That(card.account.directMessagesCount, Is.EqualTo(0));
+            Assert.That(card.account.conversationsCount, Is.EqualTo(0));
+            Assert.That(card.account.lastLoginAt,
+                Is.EqualTo(logins.Where(d => d.LastLoginTime != null).Max(d => d.LastLoginTime)));
+            Assert.That(card.passkeyCount, Is.EqualTo(1), "only a finished passkey counts");
+            Assert.That(card.friendCount, Is.EqualTo(2), "friendships are counted from the account's own side");
+
+            Assert.That(card.stats.totalTimeInVoiceSeconds, Is.EqualTo(stats.Sum(s => s.TimeInVoiceSeconds)));
+            Assert.That(card.stats.totalCallsMade, Is.EqualTo(stats.Sum(s => s.CallsMade)));
+            Assert.That(card.stats.totalMessagesSent, Is.EqualTo(stats.Sum(s => s.MessagesSent)));
+            Assert.That(card.stats.totalXpEarned, Is.EqualTo(stats.Sum(s => s.XpEarned)));
+            Assert.That(card.stats.totalMessagesSent, Is.GreaterThanOrEqualTo(50), "both seeded days are summed");
+
+            Assert.That(card.level.currentLevel, Is.EqualTo(storedLvl.CurrentLevel));
+            Assert.That(card.level.currentCycleXp, Is.EqualTo(storedLvl.CurrentCycleXp));
+            Assert.That(card.level.totalXpAllTime, Is.EqualTo(storedLvl.TotalXpAllTime));
+            Assert.That(card.autoDeleteSettings?.enabled, Is.True);
+            Assert.That(card.autoDeleteSettings?.months, Is.EqualTo(18));
+
+            Assert.That(card.spaces.Values.Select(s => s.spaceId), Is.EquivalentTo(new[] { spaceA, spaceB }));
+            foreach (var space in card.spaces.Values)
+            {
+                Assert.That(space.name, Is.EqualTo(space.spaceId == spaceA ? "Card A" : "Card B"));
+                Assert.That(space.memberCount, Is.EqualTo(expectedSpaces[space.spaceId].Members).And.EqualTo(2));
+                Assert.That(space.channelCount, Is.EqualTo(expectedSpaces[space.spaceId].Channels));
+                Assert.That(space.isOwner, Is.False);
+            }
+
+            Assert.That(card.recentMessages.Values.Select(m => (m.spaceId, m.spaceName, m.channelId, m.channelName, m.text)),
+                Is.EquivalentTo(new[]
+                {
+                    (spaceA, "Card A", channelA, "card-a", "written in A"),
+                    (spaceB, "Card B", channelB, "card-b", "written in B")
+                }));
+
+            Assert.That(card.redeemedCoupons.Size, Is.EqualTo(0));
+            Assert.That(card.teams.Size, Is.EqualTo(0));
+            Assert.That(card.bots.Size, Is.EqualTo(0));
+            Assert.That(card.premiumInfo, Is.Null);
+            Assert.That(card.isBot, Is.False);
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task BoxTemplates_ListTheirContentsAndGuardThem(CancellationToken ct = default)
+    {
+        var userId = await RegisterUserAsync(ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+
+        async Task<Guid> CreateAsync(string templateId, ItemScenarioKind kind, params Guid[] contents)
+        {
+            var created = await admin.CreateItemTemplate(new CreateItemTemplateInput(templateId, true, false, false, null,
+                kind, new IonArray<string>(contents.Select(id => id.ToString()).ToList())), ct);
+            Assert.That(created.success, Is.True, created.error);
+            return created.itemId!.Value;
+        }
+
+        var first  = await CreateAsync($"inner_a_{suffix}", ItemScenarioKind.None);
+        var second = await CreateAsync($"inner_b_{suffix}", ItemScenarioKind.None);
+        var single = await CreateAsync($"box_one_{suffix}", ItemScenarioKind.QualifierBox, first);
+        var multi  = await CreateAsync($"box_two_{suffix}", ItemScenarioKind.QualifierBox, first, second);
+
+        var expectedSingle = new[] { (first, $"inner_a_{suffix}") };
+        var expectedMulti  = new[] { (first, $"inner_a_{suffix}"), (second, $"inner_b_{suffix}") };
+
+        var templates = (await admin.GetItemTemplates(ct)).templates.Values.ToDictionary(t => t.itemId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(templates[first].scenarioType, Is.EqualTo(ItemScenarioKind.None));
+            Assert.That(templates[first].boxContents.Size, Is.EqualTo(0));
+            Assert.That(templates[single].scenarioType, Is.EqualTo(ItemScenarioKind.QualifierBox));
+            Assert.That(templates[single].boxContents.Values.Select(c => (c.itemId, c.templateId)), Is.EqualTo(expectedSingle));
+            Assert.That(templates[multi].scenarioType, Is.EqualTo(ItemScenarioKind.QualifierBox));
+            Assert.That(templates[multi].boxContents.Values.Select(c => (c.itemId, c.templateId)), Is.EquivalentTo(expectedMulti));
+        });
+
+        foreach (var template in new[] { first, single, multi })
+            Assert.That((await admin.GrantItem(userId, template, ct)).success, Is.True);
+
+        var items = (await admin.GetUserCard(userId, ct)).items.Values.ToDictionary(i => i.templateId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(items[$"inner_a_{suffix}"].isBox, Is.False);
+            Assert.That(items[$"inner_a_{suffix}"].boxContents.Size, Is.EqualTo(0));
+            Assert.That(items[$"box_one_{suffix}"].isBox, Is.True);
+            Assert.That(items[$"box_one_{suffix}"].boxContents.Values.Select(c => (c.itemId, c.templateId)), Is.EqualTo(expectedSingle));
+            Assert.That(items[$"box_two_{suffix}"].isBox, Is.True);
+            Assert.That(items[$"box_two_{suffix}"].boxContents.Values.Select(c => (c.itemId, c.templateId)), Is.EquivalentTo(expectedMulti));
+        });
+
+        var sameSingle = await admin.CreateItemTemplate(new CreateItemTemplateInput($"dup_one_{suffix}", true, false, false, null,
+            ItemScenarioKind.QualifierBox, new IonArray<string>([first.ToString()])), ct);
+        var sameMulti = await admin.CreateItemTemplate(new CreateItemTemplateInput($"dup_two_{suffix}", true, false, false, null,
+            ItemScenarioKind.QualifierBox, new IonArray<string>([second.ToString(), first.ToString()])), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sameSingle.success, Is.False, "a box holding the same single item already exists");
+            Assert.That(sameSingle.error, Does.Contain(single.ToString()));
+            Assert.That(sameMulti.success, Is.False, "the same contents in another order are the same box");
+            Assert.That(sameMulti.error, Does.Contain(multi.ToString()));
+        });
+
+        var otherSingle = await CreateAsync($"box_other_{suffix}", ItemScenarioKind.QualifierBox, second);
+
+        var firstWhileBoxed  = await admin.DeleteItemTemplate(first, ct);
+        var secondWhileBoxed = await admin.DeleteItemTemplate(second, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstWhileBoxed.success, Is.False);
+            Assert.That(firstWhileBoxed.error, Does.Contain("used in other box templates"));
+            Assert.That(secondWhileBoxed.success, Is.False);
+            Assert.That(secondWhileBoxed.error, Does.Contain("used in other box templates"));
+        });
+
+        foreach (var box in new[] { single, multi, otherSingle })
+            Assert.That((await admin.DeleteItemTemplate(box, ct)).success, Is.True);
+
+        Assert.That((await admin.DeleteItemTemplate(first, ct)).success, Is.True, "no box holds it any more");
+        Assert.That((await admin.DeleteItemTemplate(second, ct)).success, Is.True, "no box holds it any more");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task GetUserDevices_CountsEveryAccountOnEachDeviceAndOnlyLiveBans(CancellationToken ct = default)
+    {
+        var subject  = await RegisterUserAsync(ct);
+        var neighbor = await RegisterUserAsync(ct);
+
+        var now    = DateTimeOffset.UtcNow;
+        var shared = Guid.NewGuid();
+        var own    = Guid.NewGuid();
+        var lapsed = Guid.NewGuid();
+
+        await using (var db = await NewDbAsync(ct))
+        {
+            foreach (var (device, proven) in new[] { (shared, now), (own, now.AddHours(-1)), (lapsed, now.AddHours(-2)) })
+            {
+                db.DeviceKeys.Add(new DeviceKeyEntity
+                {
+                    Id = Guid.CreateVersion7(), DeviceId = device, Thumbprint = $"{device:N}", PublicKey = "key",
+                    Platform = DevicePlatform.WINDOWS, ClientName = $"client-{device:N}"[..16], EnrolledAt = now.AddDays(-1),
+                    LastProvenAt = proven, CreatedAt = now, UpdatedAt = now
+                });
+                db.DeviceObservations.Add(new DeviceObservationEntity
+                {
+                    Id = Guid.CreateVersion7(), UserId = subject, DeviceId = device, Components = "1;mg:abc",
+                    FirstSeenAt = now, LastSeenAt = now, Logins = 1, CreatedAt = now, UpdatedAt = now
+                });
+            }
+
+            db.DeviceObservations.Add(new DeviceObservationEntity
+            {
+                Id = Guid.CreateVersion7(), UserId = neighbor, DeviceId = shared, Components = "1;mg:abc",
+                FirstSeenAt = now, LastSeenAt = now, Logins = 1, CreatedAt = now, UpdatedAt = now
+            });
+
+            db.DeviceBans.AddRange(
+                new DeviceBanEntity { Id = Guid.CreateVersion7(), DeviceId = shared, Reason = "live", CreatedAt = now, UpdatedAt = now },
+                new DeviceBanEntity
+                {
+                    Id = Guid.CreateVersion7(), DeviceId = lapsed, Reason = "lapsed", ExpiresAt = now.AddDays(-1),
+                    CreatedAt = now, UpdatedAt = now
+                });
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var seeded  = new[] { shared, own, lapsed };
+        var devices = (await admin.GetUserDevices(subject, ct)).devices.Values.Where(d => seeded.Contains(d.deviceId)).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(devices.Select(d => d.deviceId), Is.EqualTo(seeded), "most recently proven first");
+            Assert.That(devices.Select(d => d.linkedAccounts), Is.EqualTo(new[] { 2, 1, 1 }));
+            Assert.That(devices.Select(d => d.isBanned), Is.EqualTo(new[] { true, false, false }));
+            Assert.That(devices.Select(d => d.platform), Is.All.EqualTo((int)DevicePlatform.WINDOWS));
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task GetBotCard_AndGetSpaceCard_AgreeOnTheInstallAndItsEntitlement(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var guest = await CreateSessionAsync(ct);
+
+        var quiet = await CreateSpaceAsync(owner, "Bot quiet", ct);
+        var busy  = await CreateSpaceAsync(owner, "Bot busy", ct);
+        await JoinSpaceAsync(owner, guest, busy, ct);
+
+        var (appId, teamId, botUserId) = await SeedBotAsync(owner.UserId, ct);
+
+        foreach (var space in new[] { quiet, busy })
+        {
+            var installed = await owner.Client.ForService<IBotManagementInteraction>(FactoryAsp.Services)
+               .InstallBot(space, appId, ct);
+            Assert.That(installed, Is.InstanceOf<SuccessInstallBot>(), $"{(installed as FailedInstallBot)?.error}");
+        }
+
+        const ulong widened = (ulong)(ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages | ArgonEntitlement.BanMember);
+
+        ulong required;
+        await using (var db = await NewDbAsync(ct))
+        {
+            required = (ulong)(await db.BotEntities.SingleAsync(b => b.AppId == appId, ct)).RequiredEntitlements;
+
+            // The busy space granted the bot more than it asked for, which is what "pending approval" reports.
+            var archetype = await db.Archetypes
+               .Where(a => a.SpaceId == busy && a.IsLocked && db.MemberArchetypes.Any(ma => ma.ArchetypeId == a.Id
+                    && db.UsersToServerRelations.Any(m => m.Id == ma.SpaceMemberId && m.UserId == botUserId)))
+               .SingleAsync(ct);
+            archetype.Entitlement = (ArgonEntitlement)widened;
+            await db.SaveChangesAsync(ct);
+        }
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var bot    = await admin.GetBotCard(appId, ct);
+        var spaces = bot.installedSpaces.Values.ToDictionary(s => s.spaceId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(bot.currentSpaceCount, Is.EqualTo(2));
+            Assert.That(spaces.Keys, Is.EquivalentTo(new[] { quiet, busy }));
+            Assert.That(spaces[quiet].name, Is.EqualTo("Bot quiet"));
+            Assert.That(spaces[quiet].memberCount, Is.EqualTo(2), "the owner and the bot");
+            Assert.That((ulong)spaces[quiet].grantedEntitlements, Is.EqualTo(required));
+            Assert.That(spaces[quiet].pendingApproval, Is.False);
+            Assert.That(spaces[busy].memberCount, Is.EqualTo(3), "the owner, the guest and the bot");
+            Assert.That((ulong)spaces[busy].grantedEntitlements, Is.EqualTo(widened));
+            Assert.That(spaces[busy].pendingApproval, Is.True);
+            Assert.That(bot.team.teamId, Is.EqualTo(teamId));
+            Assert.That(bot.team.memberCount, Is.EqualTo(0), "the card reads the team without its members");
+            Assert.That(bot.team.appCount, Is.EqualTo(1), "the bot itself, which the card loaded");
+            Assert.That(bot.creator.userId, Is.EqualTo(owner.UserId));
+        });
+
+        var busyCard  = await admin.GetSpaceCard(busy, ct);
+        var quietCard = await admin.GetSpaceCard(quiet, ct);
+        var busyBot   = busyCard.installedBots.Values.Single();
+        var quietBot  = quietCard.installedBots.Values.Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(busyCard.botCount, Is.EqualTo(1));
+            Assert.That(busyBot.appId, Is.EqualTo(appId));
+            Assert.That(busyBot.username, Is.EqualTo(bot.username));
+            Assert.That((ulong)busyBot.grantedEntitlements, Is.EqualTo(widened));
+            Assert.That(busyBot.pendingApproval, Is.True);
+            Assert.That((ulong)quietBot.grantedEntitlements, Is.EqualTo(required));
+            Assert.That(quietBot.pendingApproval, Is.False);
+            Assert.That(busyCard.memberCount, Is.EqualTo(3));
+            Assert.That(busyCard.archetypes.Values.Where(a => a.name == "Bot: Admin Card Bot").Select(a => (a.isLocked, a.memberCount)),
+                Is.EqualTo(new[] { (true, 1) }), "the bot's own archetype, held by the bot alone");
+        });
+
+        var ownerCard = await admin.GetUserCard(owner.UserId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ownerCard.teams.Values.Select(t => t.teamId), Does.Contain(teamId));
+            Assert.That(ownerCard.bots.Values.Select(b => (b.appId, b.teamId, b.username)),
+                Does.Contain((appId, teamId, bot.username)));
+            Assert.That(ownerCard.spaces.Values.Where(s => s.spaceId == busy).Select(s => (s.isOwner, s.memberCount)),
+                Is.EqualTo(new[] { (true, 3) }));
+        });
     }
 
     // ── Bots and teams ──────────────────────────────────────────────────────────────────────────
@@ -1945,5 +2331,85 @@ public class AdminConsoleTests : TestBase
         await GetGrainFactory()
            .GetGrain<IAccountDeletionQueueGrain>(IAccountDeletionQueueGrain.SingletonId)
            .ReconcileAsync(candidates);
+    }
+
+    private static async Task<Guid> CreateSpaceAsync(TestUserSession owner, string name, CancellationToken ct)
+    {
+        var result = await owner.Users.CreateSpace(new CreateServerRequest(name, "Admin console fixture", string.Empty), ct);
+
+        if (result is not SuccessCreateSpace success)
+            throw new InvalidOperationException($"could not create the space '{name}': {(result as FailedCreateSpace)?.error}");
+
+        return success.space.spaceId;
+    }
+
+    private static async Task<Guid> CreateTextChannelAsync(TestUserSession owner, Guid spaceId, string name, CancellationToken ct)
+    {
+        await owner.Channels.CreateChannel(spaceId, Guid.Empty,
+            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Admin console fixture", null), ct);
+
+        var channels = await owner.Servers.GetChannels(spaceId, ct);
+
+        return channels.Values.FirstOrDefault(c => c.channel.name == name)?.channel.channelId
+            ?? throw new InvalidOperationException($"could not find the channel '{name}' just created in {spaceId}");
+    }
+
+    private static async Task JoinSpaceAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
+    {
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var joined = await guest.Users.JoinToSpace(code, ct);
+
+        if (joined is not SuccessJoin)
+            throw new InvalidOperationException($"the guest could not join {spaceId}: {(joined as FailedJoin)?.error}");
+    }
+
+    /// <summary>A published bot in a team <paramref name="ownerId"/> owns, seeded the way <c>PresenceBotTests</c> does.</summary>
+    private async Task<(Guid AppId, Guid TeamId, Guid BotUserId)> SeedBotAsync(Guid ownerId, CancellationToken ct)
+    {
+        var botUserId = Guid.NewGuid();
+        var appId     = Guid.NewGuid();
+        var teamId    = Guid.NewGuid();
+
+        await using var db = await NewDbAsync(ct);
+
+        db.Users.Add(new UserEntity
+        {
+            Id          = botUserId,
+            Username    = $"abot_{botUserId:N}"[..32],
+            DisplayName = "Admin Card Bot",
+            Email       = $"abot_{botUserId:N}@test.local",
+            AgreeTOS    = true,
+            DateOfBirth = new DateOnly(2000, 1, 1)
+        });
+
+        db.TeamEntities.Add(new DevTeamEntity { TeamId = teamId, OwnerId = ownerId, Name = "Admin Card Team" });
+        db.MemberTeamEntities.Add(new DevTeamMemberEntity
+        {
+            TeamId = teamId, UserId = ownerId, JoinedAt = DateTime.UtcNow, IsOwner = true
+        });
+
+        db.BotEntities.Add(new BotEntity
+        {
+            AppId            = appId,
+            TeamId           = teamId,
+            Name             = "Admin Card Bot",
+            ClientId         = Guid.NewGuid().ToString("N"),
+            ClientSecret     = Guid.NewGuid().ToString("N"),
+            AppType          = DevAppType.Bot,
+            BotToken         = Guid.NewGuid().ToString("N"),
+            BotAsUserId      = botUserId,
+            LifecycleState   = BotLifecycleState.Published,
+            MaxSpaces        = 10,
+            RequiredScopes   = [],
+            AllowedRedirects = []
+        });
+
+        await db.SaveChangesAsync(ct);
+
+        // The space card finds a bot by this column, so it is set here as a second write: the user and
+        // the bot point at each other, and one SaveChanges cannot order that cycle.
+        await db.Users.Where(u => u.Id == botUserId).ExecuteUpdateAsync(s => s.SetProperty(u => u.BotEntityId, appId), ct);
+
+        return (appId, teamId, botUserId);
     }
 }

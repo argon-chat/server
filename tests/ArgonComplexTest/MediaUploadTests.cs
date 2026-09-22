@@ -3,10 +3,15 @@ namespace ArgonComplexTest;
 using System.Net;
 using System.Net.Sockets;
 using Argon.Api.Grains.Interfaces;
+using Argon.Entities;
+using Argon.Features.EF;
 using Argon.Features.Storage;
 using ArgonComplexTest.Infrastructure;
 using ArgonContracts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Options;
 
@@ -395,6 +400,161 @@ public class MediaUploadTests : TestBase
                 "the owner's own release stopped working, so nothing is ever collectable again");
         });
     }
+
+    /// <summary>
+    /// A reference count moves in one statement: concurrent retains all land, a release returns what it
+    /// wrote, and a counter that is missing or collected is refused rather than invented.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_reference_count_moves_atomically_and_only_on_a_live_counter(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var factory   = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+        var counter   = scope.ServiceProvider.GetRequiredService<IReferenceCountService>();
+        var live      = Guid.NewGuid();
+        var collected = Guid.NewGuid();
+
+        await using (var db = await factory.CreateDbContextAsync(ct))
+        {
+            db.FileCounters.Add(new FileCounterEntity { Id = live, RefCount = 1 });
+            db.FileCounters.Add(new FileCounterEntity { Id = collected, RefCount = 0 });
+            await db.SaveChangesAsync(ct);
+
+            db.FileCounters.Remove(await db.FileCounters.FirstAsync(c => c.Id == collected, ct));
+            await db.SaveChangesAsync(ct);
+        }
+
+        await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => counter.IncrementAsync(live, 1, ct)));
+
+        var afterRelease = await counter.DecrementAsync(live, 2, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterRelease, Is.EqualTo(15), "a concurrent retain was lost, or the release returned a stale count");
+            Assert.ThrowsAsync<KeyNotFoundException>(() => counter.IncrementAsync(Guid.NewGuid(), 1, ct));
+            Assert.ThrowsAsync<KeyNotFoundException>(() => counter.IncrementAsync(collected, 1, ct),
+                "a counter the collector soft-deleted came back to life");
+        });
+    }
+
+    // ── garbage collection ──────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The collector deletes expired blobs and unreferenced files, and only while it holds its lease.
+    /// </summary>
+    /// <remarks>
+    /// Every media replica runs <see cref="FileGcService"/>; the lease is what keeps them from sweeping
+    /// the same batch at once. The host's own collector runs alongside this test and takes the same
+    /// lease, so a pass here may find the work already done — the assertions are about the rows either
+    /// way, never about which pass did it.
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task The_collector_sweeps_only_under_its_lease(CancellationToken ct = default)
+    {
+        var gc    = FactoryAsp.Services.GetServices<IHostedService>().OfType<FileGcService>().Single();
+        var owner = Guid.NewGuid();
+
+        FileEntity NewFile(bool finalized) => new()
+        {
+            Id = Guid.CreateVersion7(), OwnerId = owner, Purpose = FilePurpose.Avatar, S3Key = $"gc-test/{Guid.NewGuid():N}",
+            BucketName = "gc-test", Finalized = finalized
+        };
+
+        FileBlobEntity NewBlob(FileEntity file, DateTimeOffset expiresAt) => new()
+        {
+            Id = Guid.CreateVersion7(), FileId = file.Id, OwnerId = owner, Purpose = file.Purpose, SizeLimit = 1024,
+            ExpiresAt = expiresAt
+        };
+
+        var expired  = new[] { NewFile(false), NewFile(false) };
+        var pending  = NewFile(false);
+        var orphan   = NewFile(true);
+        var retained = NewFile(true);
+
+        await using (var db = await NewDbAsync(ct))
+        {
+            db.Files.AddRange([..expired, pending, orphan, retained]);
+            db.FileBlobs.AddRange([..expired.Select(f => NewBlob(f, DateTimeOffset.UtcNow.AddHours(-1))),
+                NewBlob(pending, DateTimeOffset.UtcNow.AddHours(1))]);
+            db.FileCounters.AddRange(
+                new FileCounterEntity { Id = orphan.Id, RefCount = 0 },
+                new FileCounterEntity { Id = retained.Id, RefCount = 1 });
+            await db.SaveChangesAsync(ct);
+
+            // Past the grace period, which is measured from the counter's last change.
+            await db.FileCounters
+               .Where(c => c.Id == orphan.Id || c.Id == retained.Id)
+               .ExecuteUpdateAsync(s => s.SetProperty(c => c.UpdatedAt, DateTimeOffset.UtcNow.AddDays(-1)), ct);
+        }
+
+        await using (var holder = await NewDbAsync(ct))
+        {
+            await holder.Database.OpenConnectionAsync(ct);
+
+            SchemaReconcileLease? lease;
+            while ((lease = await SchemaReconcileLease.TryAcquireAsync(holder.Database.GetDbConnection(),
+                       NullLogger.Instance, "gc-test", TimeSpan.FromMinutes(2), FileGcService.LockTable, ct)) is null)
+                await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+
+            await using (lease)
+            {
+                await gc.SweepExpiredBlobsAsync(ct);
+                await gc.SweepOrphanFilesAsync(ct);
+
+                Assert.That(await DeletedAsync([..expired, orphan], ct), Is.All.False,
+                    "a replica without the lease collected anyway, so every replica sweeps the same batch");
+            }
+        }
+
+        // The expired-blob pass takes a hundred at a time in no particular order; other fixtures' leftovers
+        // can stand in front of these.
+        for (var pass = 0; pass < 10 && (await DeletedAsync([..expired, orphan], ct)).Contains(false); pass++)
+        {
+            await gc.SweepExpiredBlobsAsync(ct);
+            await gc.SweepOrphanFilesAsync(ct);
+        }
+
+        await using var check = await NewDbAsync(ct);
+
+        var blobs = await check.FileBlobs.IgnoreQueryFilters()
+           .Where(b => b.OwnerId == owner)
+           .ToDictionaryAsync(b => b.FileId, b => b.IsDeleted, ct);
+        var counters = await check.FileCounters.IgnoreQueryFilters()
+           .Where(c => c.Id == orphan.Id || c.Id == retained.Id)
+           .ToDictionaryAsync(c => c.Id, c => c.IsDeleted, ct);
+
+        var collected = await DeletedAsync([..expired, orphan], ct);
+        var kept      = await DeletedAsync([pending, retained], ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(collected, Is.All.True, "expired blobs' files and the orphan are collected");
+            Assert.That(kept, Is.All.False, "a live upload and a referenced file are kept");
+            Assert.That(expired.Select(f => blobs[f.Id]), Is.All.True);
+            Assert.That(blobs[pending.Id], Is.False);
+            Assert.That(counters[orphan.Id], Is.True);
+            Assert.That(counters[retained.Id], Is.False);
+        });
+    }
+
+    /// <summary>Whether each file's row has been collected, in the order given.</summary>
+    private async Task<bool[]> DeletedAsync(FileEntity[] files, CancellationToken ct)
+    {
+        await using var db = await NewDbAsync(ct);
+
+        var ids     = files.Select(f => f.Id).ToList();
+        var deleted = await db.Files.IgnoreQueryFilters()
+           .Where(f => ids.Contains(f.Id))
+           .ToDictionaryAsync(f => f.Id, f => f.IsDeleted, ct);
+
+        return files.Select(f => deleted[f.Id]).ToArray();
+    }
+
+    private async Task<ApplicationDbContext> NewDbAsync(CancellationToken ct)
+        => await FactoryAsp.Services
+           .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+           .CreateDbContextAsync(ct);
 
     // ── addressing ──────────────────────────────────────────────────────────────────────────────
 

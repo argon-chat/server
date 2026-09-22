@@ -2,6 +2,7 @@ namespace ArgonComplexTest.Tests;
 
 using ArgonContracts;
 using ion.runtime;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -377,5 +378,67 @@ public class SpaceAndChannelTests : TestBase
            .BatchGetReactions(spaceId, channelId, new IonArray<long>([messageId]), ct);
 
         Assert.That(batch.Values.SelectMany(e => e.reactions.Values), Is.Empty);
+    }
+
+    /// <summary>
+    /// The reaction flush writes every dirty message in one statement, a cleared set included.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task Reactions_on_several_messages_reach_the_database_in_one_flush(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId   = await NewSpaceAsync(ct);
+        var channelId = await CreateTextChannelAsync(spaceId, $"flush-{Guid.NewGuid():N}"[..20], ct);
+        var channels  = GetChannelService(scope.ServiceProvider);
+
+        var first  = await channels.SendMessage(spaceId, channelId, "one", NoEntities, Random.Shared.NextInt64(), null, ct);
+        var second = await channels.SendMessage(spaceId, channelId, "two", NoEntities, Random.Shared.NextInt64(), null, ct);
+
+        await channels.AddReaction(spaceId, channelId, first, "👍", ct);
+        await channels.AddReaction(spaceId, channelId, second, "🔥", ct);
+
+        var stored = await PollStoredReactionsAsync(spaceId, channelId, [first, second],
+            r => r[first] is { Count: > 0 } && r[second] is { Count: > 0 }, ct);
+
+        await channels.RemoveReaction(spaceId, channelId, first, "👍", ct);
+
+        var cleared = await PollStoredReactionsAsync(spaceId, channelId, [first, second],
+            r => r[first] is null or { Count: 0 }, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored[first]!.Select(r => r.Emoji), Is.EqualTo(new[] { "👍" }));
+            Assert.That(stored[second]!.Select(r => r.Emoji), Is.EqualTo(new[] { "🔥" }));
+            Assert.That(cleared[first], Is.Null.Or.Empty, "the removed reaction was never written back");
+            Assert.That(cleared[second]!.Select(r => r.Emoji), Is.EqualTo(new[] { "🔥" }),
+                "flushing one message's reactions disturbed another's");
+        });
+    }
+
+    private async Task<Dictionary<long, List<Argon.Entities.MessageReactionData>?>> PollStoredReactionsAsync(
+        Guid spaceId, Guid channelId, long[] messageIds,
+        Func<Dictionary<long, List<Argon.Entities.MessageReactionData>?>, bool> accept, CancellationToken ct)
+    {
+        var factory  = FactoryAsp.Services.GetRequiredService<IDbContextFactory<Argon.Entities.ApplicationDbContext>>();
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(20);
+
+        while (true)
+        {
+            await using (var db = await factory.CreateDbContextAsync(ct))
+            {
+                var rows = await db.Messages
+                   .AsNoTracking()
+                   .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && messageIds.Contains(m.MessageId))
+                   .Select(m => new { m.MessageId, m.Reactions })
+                   .ToListAsync(ct);
+
+                var stored = rows.ToDictionary(r => r.MessageId, r => r.Reactions);
+
+                if (accept(stored) || DateTimeOffset.UtcNow >= deadline)
+                    return stored;
+            }
+
+            await Task.Delay(250, ct);
+        }
     }
 }

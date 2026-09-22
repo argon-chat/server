@@ -36,7 +36,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         // Search by name
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var byName = await db.Spaces
-           .FirstOrDefaultAsync(s => !s.IsDeleted && s.Name.ToLower() == normalizedQuery, ct);
+           .FirstOrDefaultAsync(s => !s.IsDeleted && s.NormalizedName == normalizedQuery, ct);
 
         if (byName is not null)
         {
@@ -55,6 +55,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var space = await db.Spaces
+           .AsNoTracking()
            .Include(s => s.Channels.Where(c => !c.IsDeleted))
            .Include(s => s.ChannelGroups.Where(g => !g.IsDeleted))
            .Include(s => s.Archetypes.Where(a => !a.IsDeleted))
@@ -118,51 +119,59 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
             archetypeMemberCounts.GetValueOrDefault(a.Id, 0)
         )).ToList();
 
-        // Installed bots
+        // Installed bots, each with the locked archetype its install created
         var botMembers = await db.UsersToServerRelations
+           .AsNoTracking()
            .Where(sm => sm.SpaceId == spaceId && !sm.IsDeleted)
            .Join(db.Users.Where(u => u.BotEntityId != null),
                 sm => sm.UserId, u => u.Id, (sm, u) => new { sm, u })
            .Join(db.BotEntities,
                 x => x.u.BotEntityId, b => b.AppId, (x, b) => new { x.sm, x.u, b })
+           .Select(x => new
+            {
+                x.b.AppId,
+                x.b.Name,
+                x.u.Username,
+                x.u.AvatarFileId,
+                x.b.IsVerified,
+                x.b.RequiredEntitlements,
+                Granted = db.Archetypes
+                   .Where(a => a.SpaceId == spaceId && a.IsLocked && !a.IsDeleted)
+                   .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == x.sm.Id),
+                        a => a.Id, ma => ma.ArchetypeId, (a, _) => (ArgonEntitlement?)a.Entitlement)
+                   .FirstOrDefault()
+            })
            .ToListAsync(ct);
 
-        var installedBots = new List<AdminSpaceBotInfo>();
-        foreach (var bm in botMembers)
-        {
-            var botArchetype = await db.Archetypes
-               .Where(a => a.SpaceId == spaceId && a.IsLocked && !a.IsDeleted)
-               .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == bm.sm.Id),
-                    a => a.Id, ma => ma.ArchetypeId, (a, _) => a)
-               .FirstOrDefaultAsync(ct);
-
-            installedBots.Add(new AdminSpaceBotInfo(
-                bm.b.AppId,
-                bm.b.Name,
-                bm.u.Username,
-                bm.u.AvatarFileId,
-                bm.b.IsVerified,
-                (ArgonEntitlement)(ulong)(botArchetype?.Entitlement ?? ArgonEntitlement.None),
-                botArchetype is not null && (ulong)botArchetype.Entitlement != (ulong)bm.b.RequiredEntitlements
-            ));
-        }
+        var installedBots = botMembers.Select(bm => new AdminSpaceBotInfo(
+            bm.AppId,
+            bm.Name,
+            bm.Username,
+            bm.AvatarFileId,
+            bm.IsVerified,
+            (ArgonEntitlement)(ulong)(bm.Granted ?? ArgonEntitlement.None),
+            bm.Granted is { } granted && (ulong)granted != (ulong)bm.RequiredEntitlements
+        )).ToList();
 
         // Recent invites (last 10)
         var invites = await db.Invites
+           .AsNoTracking()
            .Where(i => i.SpaceId == spaceId)
            .OrderByDescending(i => i.CreatedAt)
            .Take(10)
+           .Select(i => new
+            {
+                i.Id,
+                i.CreatorId,
+                i.ExpireAt,
+                Issuer = db.Users.Where(u => u.Id == i.CreatorId).Select(u => u.Username).FirstOrDefault()
+            })
            .ToListAsync(ct);
-
-        var issuerIds = invites.Select(i => i.CreatorId).Distinct().ToList();
-        var issuerNames = await db.Users
-           .Where(u => issuerIds.Contains(u.Id))
-           .ToDictionaryAsync(u => u.Id, u => u.Username, ct);
 
         var recentInvites = invites.Select(i => new AdminInviteInfo(
             i.Id.ToString(),
             i.CreatorId,
-            issuerNames.GetValueOrDefault(i.CreatorId, "Unknown"),
+            i.Issuer ?? "Unknown",
             i.ExpireAt.UtcDateTime,
             0
         )).ToList();
@@ -209,6 +218,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
            .CountAsync(sm => sm.SpaceId == spaceId && !sm.IsDeleted, ct);
 
         var memberEntities = await db.UsersToServerRelations
+           .AsNoTracking()
            .Where(sm => sm.SpaceId == spaceId && !sm.IsDeleted)
            .OrderBy(sm => sm.CreatedAt)
            .Skip(offset)
@@ -256,17 +266,19 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
                 return new AdminBotSearchResult(true, MapBotSummary(bot));
         }
 
-        // Search by bot username or name
-        var byName = await db.BotEntities
-           .Include(b => b.BotAsUser)
-           .Include(b => b.Team)
-           .FirstOrDefaultAsync(b =>
-                b.BotAsUser.NormalizedUsername == normalizedQuery ||
-                b.Name.ToLower() == normalizedQuery, ct);
+        // Username, then name: two indexed lookups rather than one OR across Users and DevApps.
+        var byName = await FindBotAsync(b => b.BotAsUser.NormalizedUsername == normalizedQuery)
+                     ?? await FindBotAsync(b => b.NormalizedName == normalizedQuery);
 
         return byName is not null
             ? new AdminBotSearchResult(true, MapBotSummary(byName))
             : new AdminBotSearchResult(false, null);
+
+        Task<BotEntity?> FindBotAsync(System.Linq.Expressions.Expression<Func<BotEntity, bool>> predicate)
+            => db.BotEntities
+               .Include(b => b.BotAsUser)
+               .Include(b => b.Team)
+               .FirstOrDefaultAsync(predicate, ct);
     }
 
     public async Task<AdminBotCard?> GetBotCardAsync(Guid appId, CancellationToken ct = default)
@@ -274,6 +286,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var bot = await db.BotEntities
+           .AsNoTracking()
            .Include(b => b.BotAsUser)
            .Include(b => b.Team).ThenInclude(t => t.Owner)
            .FirstOrDefaultAsync(b => b.AppId == appId, ct);
@@ -281,33 +294,40 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         if (bot is null)
             return null;
 
-        // Installed spaces
-        var botMemberships = await db.UsersToServerRelations
-           .Where(sm => sm.UserId == bot.BotAsUserId && !sm.IsDeleted)
-           .Include(sm => sm.Space)
-           .ToListAsync(ct);
+        var memberships = db.UsersToServerRelations.Where(sm => sm.UserId == bot.BotAsUserId && !sm.IsDeleted);
 
-        var installedSpaces = new List<AdminBotSpaceInfo>();
-        foreach (var sm in botMemberships)
-        {
-            var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == sm.SpaceId && !x.IsDeleted, ct);
+        var installedCount = await memberships.CountAsync(ct);
 
-            // Check archetype for entitlements
-            var botArchetype = await db.Archetypes
-               .Where(a => a.SpaceId == sm.SpaceId && a.IsLocked && !a.IsDeleted)
-               .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == sm.Id),
-                    a => a.Id, ma => ma.ArchetypeId, (a, _) => a)
-               .FirstOrDefaultAsync(ct);
+        // A bot can sit in thousands of spaces, and every row here costs a member count, so the card
+        // lists the latest installs; the total above stays exact.
+        const int shown = 100;
 
-            installedSpaces.Add(new AdminBotSpaceInfo(
+        var installedRows = await memberships
+           .AsNoTracking()
+           .OrderByDescending(sm => sm.CreatedAt)
+           .Take(shown)
+           .Select(sm => new
+            {
                 sm.SpaceId,
                 sm.Space.Name,
                 sm.Space.AvatarFileId,
-                memberCount,
-                (ArgonEntitlement)(ulong)(botArchetype?.Entitlement ?? ArgonEntitlement.None),
-                botArchetype is not null && (ulong)botArchetype.Entitlement != (ulong)bot.RequiredEntitlements
-            ));
-        }
+                Members = db.UsersToServerRelations.Count(x => x.SpaceId == sm.SpaceId && !x.IsDeleted),
+                Granted = db.Archetypes
+                   .Where(a => a.SpaceId == sm.SpaceId && a.IsLocked && !a.IsDeleted)
+                   .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == sm.Id),
+                        a => a.Id, ma => ma.ArchetypeId, (a, _) => (ArgonEntitlement?)a.Entitlement)
+                   .FirstOrDefault()
+            })
+           .ToListAsync(ct);
+
+        var installedSpaces = installedRows.Select(sm => new AdminBotSpaceInfo(
+            sm.SpaceId,
+            sm.Name,
+            sm.AvatarFileId,
+            sm.Members,
+            (ArgonEntitlement)(ulong)(sm.Granted ?? ArgonEntitlement.None),
+            sm.Granted is { } granted && (ulong)granted != (ulong)bot.RequiredEntitlements
+        )).ToList();
 
         // Commands
         var commands = await db.BotCommands
@@ -340,7 +360,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
             bot.IsInternalApp,
             (AdminBotLifecycleState)(int)bot.LifecycleState,
             bot.MaxSpaces,
-            botMemberships.Count,
+            installedCount,
             (ArgonEntitlement)(ulong)bot.RequiredEntitlements,
             new IonArray<string>(bot.RequiredScopes),
             bot.CreatedAt.UtcDateTime,
@@ -413,7 +433,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         var byName = await db.TeamEntities
            .Include(t => t.Members)
            .Include(t => t.Applications)
-           .FirstOrDefaultAsync(t => !t.IsDeleted && t.Name.ToLower() == normalizedQuery, ct);
+           .FirstOrDefaultAsync(t => !t.IsDeleted && t.NormalizedName == normalizedQuery, ct);
 
         return byName is not null
             ? new AdminTeamSearchResult(true, MapTeamSummary(byName))
@@ -425,6 +445,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var team = await db.TeamEntities
+           .AsNoTracking()
            .Include(t => t.Owner)
            .Include(t => t.Members).ThenInclude(m => m.User)
            .Include(t => t.Applications)
@@ -495,12 +516,12 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
                 return new InternalAppSearchResult(new IonArray<InternalAppInfo>([MapInternalApp(byId)]));
         }
 
-        // Search by name, clientId, or bot username
+        // Substring match, so a scan of DevApps; the table holds only developer-registered apps.
         var byNameOrClient = await db.AppEntities
            .AsNoTracking()
            .Include(a => a.Team)
            .Where(a => a.IsInternalApp && !a.IsDeleted &&
-                       (a.Name.ToLower().Contains(normalizedQuery) ||
+                       (a.NormalizedName.Contains(normalizedQuery) ||
                         a.ClientId.ToLower().Contains(normalizedQuery)))
            .Take(20)
            .ToListAsync(ct);

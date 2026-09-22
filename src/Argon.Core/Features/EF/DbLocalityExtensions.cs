@@ -273,6 +273,56 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
         EndStatement(builder);
     }
 
+    protected override void PrimaryKeyConstraint(AddPrimaryKeyOperation operation, IModel? model, MigrationCommandListBuilder builder)
+    {
+        base.PrimaryKeyConstraint(operation, model, builder);
+
+        if (EntityTypesOf(model, operation.Table, operation.Schema).Any(e => e.IsHashShardedKey()))
+            builder.Append(" USING HASH");
+    }
+
+    protected override void IndexOptions(MigrationOperation operation, IModel? model, MigrationCommandListBuilder builder)
+    {
+        // Cockroach wants it straight after the column list, before INCLUDE and WHERE.
+        if (operation[CockroachHashSharding.IndexAnnotation] is true)
+            builder.Append(" USING HASH");
+
+        base.IndexOptions(operation, model, builder);
+    }
+
+    protected override void Generate(AlterTableOperation operation, IModel? model, MigrationCommandListBuilder builder)
+    {
+        base.Generate(operation, model, builder);
+
+        var sharded = operation[CockroachHashSharding.KeyAnnotation] is true;
+        if (sharded == operation.OldTable[CockroachHashSharding.KeyAnnotation] is true)
+            return;
+
+        var key = EntityTypesOf(model, operation.Name, operation.Schema).Select(e => e.FindPrimaryKey()).FirstOrDefault(k => k is not null)
+                  ?? throw new InvalidOperationException(
+                      $"Cannot change the sharding of {operation.Name}'s primary key: the target model has no primary key for it.");
+
+        var store   = StoreObjectIdentifier.Table(operation.Name, operation.Schema);
+        var columns = string.Join(", ", key.Properties.Select(p => DelimitIdentifier(p.GetColumnName(store)!)));
+
+        // Same columns, so Cockroach keeps the constraint name and adds no unique index for the old key.
+        builder
+           .Append("ALTER TABLE ")
+           .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name, operation.Schema))
+           .Append(" ALTER PRIMARY KEY USING COLUMNS (")
+           .Append(columns)
+           .Append(")")
+           .Append(sharded ? " USING HASH" : "")
+           .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+
+        EndStatement(builder, suppressTransaction: true);
+    }
+
+    private static IEnumerable<IEntityType> EntityTypesOf(IModel? model, string table, string? schema)
+        => (model?.GetEntityTypes() ?? []).Where(e =>
+            string.Equals(e.GetTableName(), table, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(e.GetSchema() ?? "", schema ?? "", StringComparison.OrdinalIgnoreCase));
+
     private static bool HasAnnotation<T>(
         IModel? model,
         string key,

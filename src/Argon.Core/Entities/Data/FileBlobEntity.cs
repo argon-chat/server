@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Argon.Features.Storage;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -13,7 +14,10 @@ public record FileBlobEntity : ArgonEntity, IEntityTypeConfiguration<FileBlobEnt
 
     public void Configure(EntityTypeBuilder<FileBlobEntity> builder)
     {
-        builder.HasIndex(x => x.FileId);
+        builder.HasHashShardedKey();
+
+        // FileId is minted with the blob, so it is as time-ordered as the key.
+        builder.HasIndex(x => x.FileId).IsHashSharded();
 
         // Partial index for the GC sweep (ExpiresAt < now LIMIT n). Remove() is a soft delete,
         // so expired rows pile up under IsDeleted = true forever; a plain ExpiresAt index puts
@@ -21,7 +25,8 @@ public record FileBlobEntity : ArgonEntity, IEntityTypeConfiguration<FileBlobEnt
         // Only live rows live in this index, so the sweep reads at most `n` entries.
         builder.HasIndex(x => x.ExpiresAt)
            .HasFilter("\"IsDeleted\" = false")
-           .IsCreatedConcurrently();
+           .IsCreatedConcurrently()
+           .IsHashSharded();
         builder.Property(x => x.Purpose).HasConversion<int>();
     }
 }

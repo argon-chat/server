@@ -54,10 +54,12 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
     public void Configure(EntityTypeBuilder<ArgonItemEntity> builder)
     {
         builder.HasKey(x => x.Id);
-        builder.HasIndex(x => x.TemplateId);
-        builder.HasIndex(x => x.OwnerId);
         builder.Property(x => x.TemplateId).HasMaxLength(255);
-        builder.HasIndex(x => x.IsReference);
+
+        // Reference items are the few templates the admin console and inventory list; nothing asks
+        // for a TemplateId across every owner's copies.
+        builder.HasIndex(x => x.TemplateId).HasFilter("\"IsReference\" = true");
+
         builder.HasIndex(x => new
         {
             x.OwnerId,
@@ -68,17 +70,6 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
         {
             x.OwnerId,
             x.IsAffectBadge
-        });
-
-        builder.HasIndex(x => new
-        {
-            x.Id,
-            x.OwnerId
-        });
-
-        builder.HasIndex(x => new {
-            x.Id,
-            x.IsReference
         });
 
         builder.HasOne(i => i.Scenario)

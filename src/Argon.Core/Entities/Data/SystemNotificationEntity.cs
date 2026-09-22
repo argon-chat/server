@@ -1,5 +1,6 @@
 namespace Argon.Core.Entities.Data;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record SystemNotificationEntity : IEntityTypeConfiguration<SystemNotificationEntity>
@@ -19,6 +20,7 @@ public record SystemNotificationEntity : IEntityTypeConfiguration<SystemNotifica
         builder.ToTable("SystemNotifications");
 
         builder.HasKey(x => x.Id);
+        builder.HasHashShardedKey();
 
         builder.Property(x => x.UserId).IsRequired();
         builder.Property(x => x.Type).HasMaxLength(64).IsRequired();

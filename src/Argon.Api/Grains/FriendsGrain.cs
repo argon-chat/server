@@ -139,26 +139,23 @@ public class FriendsGrain(
         {
             logger.LogInformation("Auto-accepting reverse friend request: {User}<->{Target}", me, target);
 
-            await ExecuteInTransactionAsync(ctx, async () =>
+            ctx.FriendRequest.Remove(reverse);
+
+            ctx.Friends.Add(new FriendshipEntity
             {
-                ctx.FriendRequest.Remove(reverse);
+                UserId    = me,
+                FriendId  = target.Value,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
 
-                ctx.Friends.Add(new FriendshipEntity
-                {
-                    UserId    = me,
-                    FriendId  = target.Value,
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
+            ctx.Friends.Add(new FriendshipEntity
+            {
+                UserId    = target.Value,
+                FriendId  = me,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
 
-                ctx.Friends.Add(new FriendshipEntity
-                {
-                    UserId    = target.Value,
-                    FriendId  = me,
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
-
-                await ctx.SaveChangesAsync(ct);
-            }, ct);
+            await ctx.SaveChangesAsync(ct);
 
             var ts = DateTimeOffset.UtcNow.UtcDateTime;
 
@@ -269,28 +266,25 @@ public class FriendsGrain(
             return;
         }
 
-        await ExecuteInTransactionAsync(ctx, async () =>
+        logger.LogInformation("Creating friendships entries for {User} and {From}", me, fromUserId);
+
+        ctx.FriendRequest.Remove(request);
+
+        ctx.Friends.Add(new FriendshipEntity
         {
-            logger.LogInformation("Creating friendships entries for {User} and {From}", me, fromUserId);
+            UserId    = me,
+            FriendId  = fromUserId,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
 
-            ctx.FriendRequest.Remove(request);
+        ctx.Friends.Add(new FriendshipEntity
+        {
+            UserId    = fromUserId,
+            FriendId  = me,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
 
-            ctx.Friends.Add(new FriendshipEntity
-            {
-                UserId    = me,
-                FriendId  = fromUserId,
-                CreatedAt = DateTimeOffset.UtcNow
-            });
-
-            ctx.Friends.Add(new FriendshipEntity
-            {
-                UserId    = fromUserId,
-                FriendId  = me,
-                CreatedAt = DateTimeOffset.UtcNow
-            });
-
-            await ctx.SaveChangesAsync(ct);
-        }, ct);
+        await ctx.SaveChangesAsync(ct);
 
         await systemNotification.CreateAsync(fromUserId, SystemNotificationType.FriendRequestAccepted, me, "Friend request accepted", null, ct: ct);
 
@@ -391,13 +385,14 @@ public class FriendsGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        try
         {
-            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
-
-            try
+            var strategy = ctx.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
             {
+                ctx.ChangeTracker.Clear();
+                await using var tx = await ctx.Database.BeginTransactionAsync(ct);
+
                 const string friendshipTable = FriendshipEntity.TableName;
                 const string reqTable        = FriendRequestEntity.TableName;
 
@@ -460,15 +455,15 @@ public class FriendsGrain(
                 }
 
                 await tx.CommitAsync(ct);
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to block user {User} -> {Blocked}", meUserId, userId);
+            throw;
+        }
 
-                await NotifyAsync(meUserId, new UserBlockedEvent(userId));
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to block user {User} -> {Blocked}", meUserId, userId);
-                throw;
-            }
-        });
+        await NotifyAsync(meUserId, new UserBlockedEvent(userId));
     }
 
     public async Task UnblockUserAsync(Guid userId, CancellationToken ct = default)
@@ -567,20 +562,6 @@ public class FriendsGrain(
         await NotifyAsync(meUserId, new UserUnignoredEvent(userId));
 
         logger.LogInformation("Stopped ignoring user: {User} -> {Ignored}", meUserId, userId);
-    }
-
-    private async static Task ExecuteInTransactionAsync(
-        ApplicationDbContext ctx,
-        Func<Task> action,
-        CancellationToken ct)
-    {
-        var strategy = ctx.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction = await ctx.Database.BeginTransactionAsync(ct);
-            await action();
-            await transaction.CommitAsync(ct);
-        });
     }
 
     private async static Task<Guid?> FindUserByUsernameAsync(ApplicationDbContext ctx, string username, CancellationToken ct)

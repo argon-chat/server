@@ -61,7 +61,7 @@ public class EntitlementChecker(IPermissionCache permissionCache) : IEntitlement
         if (member is null)
             return false;
 
-        var channel = await permissionCache.GetChannelWithOverwritesAsync(channelId, ct);
+        var channel = await permissionCache.GetChannelWithOverwritesAsync(spaceId, channelId, ct);
         if (channel is null)
             return false;
 

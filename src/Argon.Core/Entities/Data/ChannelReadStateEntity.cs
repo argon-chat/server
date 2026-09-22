@@ -25,8 +25,5 @@ public record ChannelReadStateEntity : IEntityTypeConfiguration<ChannelReadState
 
         builder.HasIndex(x => new { x.UserId, x.SpaceId })
             .HasDatabaseName("ix_channel_read_states_user_space");
-
-        builder.HasIndex(x => x.UserId)
-            .HasDatabaseName("ix_channel_read_states_user");
     }
 }

@@ -131,4 +131,13 @@ public interface IUserPresenceGrain : IGrainWithGuidKey
     /// </remarks>
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
     ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast);
+
+    /// <summary>Stops announcing this user to a space they are no longer a member of.</summary>
+    /// <remarks>
+    /// The activation keeps the user's spaces in memory for its fan-outs; a join reaches it through
+    /// the seeded <see cref="AggregateAndBroadcastStatusAsync(Guid[],CancellationToken)"/>, a departure
+    /// through this. Anything missed is corrected by the periodic reload.
+    /// </remarks>
+    [Alias(nameof(ForgetSpaceAsync))]
+    ValueTask ForgetSpaceAsync(Guid spaceId);
 }

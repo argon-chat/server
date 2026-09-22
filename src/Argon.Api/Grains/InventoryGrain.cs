@@ -245,94 +245,95 @@ public class InventoryGrain(
         await using var ctx    = await context.CreateDbContextAsync(ct);
         var             userId = this.GetUserId();
 
-        var strategy = ctx.Database.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        try
         {
-            await using var trx = await ctx.Database.BeginTransactionAsync(ct);
-
-            try
+            var used = await ctx.Database.CreateExecutionStrategy().ExecuteAsync<UsedItem?>(async () =>
             {
+                ctx.ChangeTracker.Clear();
+                await using var trx = await ctx.Database.BeginTransactionAsync(ct);
+
                 var usableItem = await ctx.Set<ArgonItemEntity>()
                    .Include(i => i.Scenario)
                    .FirstOrDefaultAsync(i => i.Id == itemId && i.OwnerId == userId, cancellationToken: ct);
 
-                if (usableItem is null) return false;
-                if (!usableItem.IsUsable) return false;
-                if (usableItem.Scenario is null) return false;
+                if (usableItem is null) return null;
+                if (!usableItem.IsUsable) return null;
+                if (usableItem.Scenario is null) return null;
 
                 List<Guid> grantedItemIds;
 
                 switch (usableItem.Scenario)
                 {
-                    case PremiumScenario premium:
+                    case PremiumScenario:
                     {
                         ctx.Remove(usableItem);
-                        await ctx.SaveChangesAsync(ct);
-                        await trx.CommitAsync(ct);
-
-                        var tier = premium.PlanId switch
-                        {
-                            "ultima_annual" => Argon.Entities.UltimaTier.Annual,
-                            _               => Argon.Entities.UltimaTier.Monthly
-                        };
-
-                        await GrainFactory.GetGrain<IUltimaGrain>(userId)
-                           .ActivateSubscriptionAsync(tier, premium.DurationDays, null, usableItem.Id, ct);
-
-                        return true;
+                        grantedItemIds = [];
+                        break;
                     }
                     case QualifierBox qualifierBox:
                     {
-                        var itemId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct);
-                        if (itemId is null)
-                        {
-                            await trx.RollbackAsync(ct);
-                            return false;
-                        }
+                        var grantedId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct);
+                        if (grantedId is null)
+                            return null;
 
-                        grantedItemIds = [itemId.Value];
+                        grantedItemIds = [grantedId.Value];
                         break;
                     }
                     case MultipleQualifierBox multipleQualifierBox:
                     {
                         grantedItemIds = await UseMultipleQualifierBox(ctx, multipleQualifierBox, userId, usableItem, ct);
                         if (grantedItemIds.Count == 0)
-                        {
-                            await trx.RollbackAsync(ct);
-                            return false;
-                        }
+                            return null;
 
                         break;
                     }
                     default:
-                        await trx.RollbackAsync(ct);
-                        return false;
+                        return null;
                 }
 
                 await ctx.SaveChangesAsync(ct);
                 await trx.CommitAsync(ct);
 
-                foreach (var grantedId in grantedItemIds)
-                {
-                    await EnsureUnreadAsync(ctx, userId, grantedId, usableItem.TemplateId, ct);
-                }
+                return new UsedItem(usableItem.Id, usableItem.TemplateId, usableItem.Scenario as PremiumScenario, grantedItemIds);
+            });
 
-                foreach (var grantedId in grantedItemIds)
+            if (used is null)
+                return false;
+
+            if (used.Premium is { } premium)
+            {
+                var tier = premium.PlanId switch
                 {
-                    await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {usableItem.TemplateId}", null, ct: ct);
-                }
+                    "ultima_annual" => Argon.Entities.UltimaTier.Annual,
+                    _               => Argon.Entities.UltimaTier.Monthly
+                };
+
+                await GrainFactory.GetGrain<IUltimaGrain>(userId)
+                   .ActivateSubscriptionAsync(tier, premium.DurationDays, null, used.ItemId, ct);
 
                 return true;
             }
-            catch (Exception e)
+
+            foreach (var grantedId in used.GrantedItemIds)
             {
-                logger.LogCritical(e, "failed use item");
-                await trx.RollbackAsync(ct);
-                return false;
+                await EnsureUnreadAsync(ctx, userId, grantedId, used.TemplateId, ct);
             }
-        });
+
+            foreach (var grantedId in used.GrantedItemIds)
+            {
+                await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {used.TemplateId}", null, ct: ct);
+            }
+
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "failed use item");
+            return false;
+        }
     }
+
+    private sealed record UsedItem(Guid ItemId, string TemplateId, PremiumScenario? Premium, List<Guid> GrantedItemIds);
 
     private async Task<Guid?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem,
         CancellationToken ct = default)

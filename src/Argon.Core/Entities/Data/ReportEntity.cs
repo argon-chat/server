@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using ArgonContracts;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -60,17 +61,15 @@ public record ReportEntity : ArgonEntity, IEntityTypeConfiguration<ReportEntity>
 
     public void Configure(EntityTypeBuilder<ReportEntity> builder)
     {
-        builder.HasIndex(x => x.ReporterId);
-        builder.HasIndex(x => x.TargetId);
-        builder.HasIndex(x => x.Status);
-        builder.HasIndex(x => x.Category);
-        builder.HasIndex(x => x.CreatedAt);
+        builder.HasHashShardedKey();
+
+        // ReporterId lookups use idx_reports_dedup's prefix; trust scoring asks by (TargetId, Status).
+        builder.HasIndex(x => new { x.TargetId, x.Status });
+        builder.HasIndex(x => x.CreatedAt).IsHashSharded();
         builder.HasIndex(x => x.CaseId);
         builder.HasIndex(x => x.PriorityScore).HasDatabaseName("idx_reports_priority");
         builder.HasIndex(x => new { x.ReporterId, x.TargetId, x.Category })
            .HasDatabaseName("idx_reports_dedup");
-        builder.HasIndex(x => new { x.ReporterId, x.TargetId })
-           .HasDatabaseName("idx_reports_per_target");
 
         builder.HasOne(x => x.Reporter)
            .WithMany()

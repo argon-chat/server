@@ -4,26 +4,41 @@ using Argon.Core.Entities.Data;
 using Argon.Entities;
 using Grains.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Orleans.Concurrency;
 using System.Collections.Frozen;
+using System.ComponentModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
 /// <summary>
 /// Singleton grain for feature flag evaluation.
-/// Caches all flags and overrides, evaluates by context.
+/// Evaluates by context over one snapshot of all flags and overrides, shared through the cache.
 /// </summary>
+/// <remarks>
+/// The snapshot lives in <see cref="HybridCache"/> rather than in each activation, so a write drops it
+/// for every activation on this silo at once and for other silos when their local copy lapses.
+/// </remarks>
 [StatelessWorker]
 public sealed class FeatureFlagGrain(
     IDbContextFactory<ApplicationDbContext> contextFactory,
+    HybridCache cache,
     ILogger<FeatureFlagGrain> logger) : Grain, IFeatureFlagGrain
 {
-    private FrozenDictionary<string, FeatureFlagEntity> _flags = FrozenDictionary<string, FeatureFlagEntity>.Empty;
-    private FrozenDictionary<string, List<FeatureFlagOverrideEntity>> _overridesByFlag = FrozenDictionary<string, List<FeatureFlagOverrideEntity>>.Empty;
-    private DateTime _cacheExpiry = DateTime.MinValue;
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    private const string SnapshotKey = "feature-flags:snapshot";
+
+    private static readonly HybridCacheEntryOptions SnapshotOptions = new()
+    {
+        Expiration           = TimeSpan.FromMinutes(2),
+        LocalCacheExpiration = TimeSpan.FromSeconds(15)
+    };
+
+    // The lookups are built once per snapshot instance, not per evaluation.
+    private FeatureFlagSnapshot? _snapshot;
+    private FrozenDictionary<string, FeatureFlagRow> _flags = FrozenDictionary<string, FeatureFlagRow>.Empty;
+    private FrozenDictionary<string, FeatureFlagOverrideRow[]> _overridesByFlag = FrozenDictionary<string, FeatureFlagOverrideRow[]>.Empty;
 
     public async ValueTask<FeatureFlagResult> EvaluateAsync(string flagId, FeatureFlagEvaluationContext context)
     {
@@ -62,10 +77,7 @@ public sealed class FeatureFlagGrain(
     }
 
     public ValueTask InvalidateCacheAsync()
-    {
-        _cacheExpiry = DateTime.MinValue;
-        return ValueTask.CompletedTask;
-    }
+        => cache.RemoveAsync(SnapshotKey);
 
     public async ValueTask<string?> FindFlagIdByUssdCodeAsync(string code)
     {
@@ -123,8 +135,8 @@ public sealed class FeatureFlagGrain(
 
         await ctx.SaveChangesAsync();
 
-        // Refresh this activation's cache so the returned evaluation reflects the new override.
-        _cacheExpiry = DateTime.MinValue;
+        // Drop the shared snapshot so the returned evaluation reflects the new override.
+        await cache.RemoveAsync(SnapshotKey);
         await EnsureCacheLoadedAsync();
 
         return EvaluateFlag(flagId, FeatureFlagEvaluationContext.ForUser(userId));
@@ -205,7 +217,7 @@ public sealed class FeatureFlagGrain(
         });
 
         await ctx.SaveChangesAsync();
-        _cacheExpiry = DateTime.MinValue;
+        await cache.RemoveAsync(SnapshotKey);
 
         logger.LogInformation("Created feature flag {FlagId}", input.FlagId);
         return FeatureFlagOpResult.Ok(input.FlagId);
@@ -235,7 +247,7 @@ public sealed class FeatureFlagGrain(
         flag.ExpiresAt          = input.ExpiresAt;
 
         await ctx.SaveChangesAsync();
-        _cacheExpiry = DateTime.MinValue;
+        await cache.RemoveAsync(SnapshotKey);
 
         logger.LogInformation("Updated feature flag {FlagId}", input.FlagId);
         return FeatureFlagOpResult.Ok(input.FlagId);
@@ -254,7 +266,7 @@ public sealed class FeatureFlagGrain(
         flag.UssdActivationCode = null; // release the USSD code so it can be reused
 
         await ctx.SaveChangesAsync();
-        _cacheExpiry = DateTime.MinValue;
+        await cache.RemoveAsync(SnapshotKey);
 
         logger.LogInformation("Deleted feature flag {FlagId}", flagId);
         return FeatureFlagOpResult.Ok(flagId);
@@ -298,7 +310,7 @@ public sealed class FeatureFlagGrain(
         }
 
         await ctx.SaveChangesAsync();
-        _cacheExpiry = DateTime.MinValue;
+        await cache.RemoveAsync(SnapshotKey);
 
         return FeatureFlagOpResult.Ok(input.FlagId);
     }
@@ -315,7 +327,7 @@ public sealed class FeatureFlagGrain(
         existing.DeletedAt = DateTimeOffset.UtcNow;
 
         await ctx.SaveChangesAsync();
-        _cacheExpiry = DateTime.MinValue;
+        await cache.RemoveAsync(SnapshotKey);
 
         return FeatureFlagOpResult.Ok(existing.FeatureFlagId);
     }
@@ -367,8 +379,8 @@ public sealed class FeatureFlagGrain(
     }
 
     private FeatureFlagResult EvaluateWithOverrides(
-        FeatureFlagEntity flag,
-        List<FeatureFlagOverrideEntity> overrides,
+        FeatureFlagRow flag,
+        FeatureFlagOverrideRow[] overrides,
         FeatureFlagEvaluationContext context)
     {
         // Find applicable overrides by priority
@@ -397,10 +409,10 @@ public sealed class FeatureFlagGrain(
     }
 
     private (bool Enabled, FeatureFlagScope Scope) ResolveEnabled(
-        FeatureFlagEntity flag,
-        FeatureFlagOverrideEntity? userOverride,
-        FeatureFlagOverrideEntity? countryOverride,
-        FeatureFlagOverrideEntity? clientOverride,
+        FeatureFlagRow flag,
+        FeatureFlagOverrideRow? userOverride,
+        FeatureFlagOverrideRow? countryOverride,
+        FeatureFlagOverrideRow? clientOverride,
         FeatureFlagEvaluationContext context)
     {
         // User-level override (highest priority)
@@ -419,7 +431,7 @@ public sealed class FeatureFlagGrain(
         return (EvaluateGlobalDefault(flag, context), FeatureFlagScope.Global);
     }
 
-    private static bool EvaluateGlobalDefault(FeatureFlagEntity flag, FeatureFlagEvaluationContext context)
+    private static bool EvaluateGlobalDefault(FeatureFlagRow flag, FeatureFlagEvaluationContext context)
     {
         if (!flag.RolloutPercentage.HasValue)
             return flag.DefaultEnabled;
@@ -434,11 +446,11 @@ public sealed class FeatureFlagGrain(
     }
 
     private string? ResolveVariant(
-        FeatureFlagEntity flag,
+        FeatureFlagRow flag,
         FeatureFlagEvaluationContext context,
-        FeatureFlagOverrideEntity? userOverride,
-        FeatureFlagOverrideEntity? countryOverride,
-        FeatureFlagOverrideEntity? clientOverride)
+        FeatureFlagOverrideRow? userOverride,
+        FeatureFlagOverrideRow? countryOverride,
+        FeatureFlagOverrideRow? clientOverride)
     {
         // Check for forced variants in priority order
         if (!string.IsNullOrEmpty(userOverride?.ForcedVariant))
@@ -457,7 +469,7 @@ public sealed class FeatureFlagGrain(
         return AssignVariant(flag, context.UserId);
     }
 
-    private string? AssignVariant(FeatureFlagEntity flag, Guid? userId)
+    private string? AssignVariant(FeatureFlagRow flag, Guid? userId)
     {
         try
         {
@@ -500,31 +512,62 @@ public sealed class FeatureFlagGrain(
 
     private async Task EnsureCacheLoadedAsync()
     {
-        if (DateTime.UtcNow < _cacheExpiry)
+        var snapshot = await cache.GetOrCreateAsync(SnapshotKey, contextFactory,
+            static async (factory, ct) =>
+            {
+                await using var ctx = await factory.CreateDbContextAsync(ct);
+
+                var flags = await ctx.FeatureFlags
+                    .AsNoTracking()
+                    .Where(f => !f.IsDeleted)
+                    .Select(f => new FeatureFlagRow(f.Id, f.DefaultEnabled, f.RolloutPercentage, f.Variants, f.ExpiresAt))
+                    .ToArrayAsync(ct);
+
+                var overrides = await ctx.FeatureFlagOverrides
+                    .AsNoTracking()
+                    .Where(o => !o.IsDeleted)
+                    .Select(o => new FeatureFlagOverrideRow(o.FeatureFlagId, o.Scope, o.TargetId, o.Enabled, o.ForcedVariant))
+                    .ToArrayAsync(ct);
+
+                return new FeatureFlagSnapshot(flags, overrides);
+            },
+            SnapshotOptions);
+
+        if (ReferenceEquals(snapshot, _snapshot))
             return;
 
-        await using var ctx = await contextFactory.CreateDbContextAsync();
-
-        var flags = await ctx.FeatureFlags
-            .AsNoTracking()
-            .Where(f => !f.IsDeleted)
-            .ToListAsync();
-
-        var overrides = await ctx.FeatureFlagOverrides
-            .AsNoTracking()
-            .Where(o => !o.IsDeleted)
-            .ToListAsync();
-
-        _flags = flags.ToFrozenDictionary(f => f.Id);
-        _overridesByFlag = overrides
+        _flags = snapshot.Flags.ToFrozenDictionary(f => f.Id);
+        _overridesByFlag = snapshot.Overrides
             .GroupBy(o => o.FeatureFlagId)
             .ToFrozenDictionary(
                 g => g.Key,
-                g => g.OrderByDescending(o => o.Scope).ToList());
+                g => g.OrderByDescending(o => o.Scope).ToArray());
 
-        _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
+        _snapshot = snapshot;
 
         logger.LogDebug("Feature flags cache loaded: {FlagCount} flags, {OverrideCount} overrides",
-            _flags.Count, overrides.Count);
+            _flags.Count, snapshot.Overrides.Length);
     }
 }
+
+// Immutable so an L1 hit returns the same instance, which is what lets an activation skip rebuilding
+// its lookups until the snapshot actually changes.
+
+[ImmutableObject(true)]
+public sealed record FeatureFlagSnapshot(FeatureFlagRow[] Flags, FeatureFlagOverrideRow[] Overrides);
+
+[ImmutableObject(true)]
+public sealed record FeatureFlagRow(
+    string Id,
+    bool DefaultEnabled,
+    int? RolloutPercentage,
+    string? Variants,
+    DateTimeOffset? ExpiresAt);
+
+[ImmutableObject(true)]
+public sealed record FeatureFlagOverrideRow(
+    string FeatureFlagId,
+    FeatureFlagScope Scope,
+    string TargetId,
+    bool? Enabled,
+    string? ForcedVariant);

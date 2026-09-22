@@ -43,8 +43,6 @@ public record UserLevelEntity : IEntityTypeConfiguration<UserLevelEntity>
     {
         builder.HasKey(x => x.UserId);
         
-        builder.HasIndex(x => x.CurrentLevel);
-        builder.HasIndex(x => x.CanClaimMedal);
         builder.HasIndex(x => x.TotalXpAllTime);
     }
 }

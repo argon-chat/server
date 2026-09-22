@@ -63,10 +63,7 @@ public class ConversationEntity : IEntityTypeConfiguration<ConversationEntity>
             .HasDatabaseName("ix_conversations_participants")
             .IsUnique();
 
-        // Index for participant lookups (find all conversations for a user)
-        b.HasIndex(x => x.Participant1Id)
-            .HasDatabaseName("ix_conversations_participant1");
-
+        // Participant1Id lookups use the unique index above.
         b.HasIndex(x => x.Participant2Id)
             .HasDatabaseName("ix_conversations_participant2");
     }

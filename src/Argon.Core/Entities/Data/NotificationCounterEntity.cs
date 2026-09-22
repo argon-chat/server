@@ -1,5 +1,6 @@
 namespace Argon.Core.Entities.Data;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record NotificationCounterEntity : IEntityTypeConfiguration<NotificationCounterEntity>
@@ -20,11 +21,9 @@ public record NotificationCounterEntity : IEntityTypeConfiguration<NotificationC
         builder.Property(x => x.Count).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
 
-        builder.HasIndex(x => x.UserId)
-            .HasDatabaseName("ix_notification_counters_user_id");
-
         builder.HasIndex(x => x.UpdatedAt)
-            .HasDatabaseName("ix_notification_counters_updated_at");
+            .HasDatabaseName("ix_notification_counters_updated_at")
+            .IsHashSharded();
     }
 }
 

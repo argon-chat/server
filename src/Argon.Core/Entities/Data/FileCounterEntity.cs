@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record FileCounterEntity : ArgonEntity, IEntityTypeConfiguration<FileCounterEntity>
@@ -9,5 +10,6 @@ public record FileCounterEntity : ArgonEntity, IEntityTypeConfiguration<FileCoun
     public void Configure(EntityTypeBuilder<FileCounterEntity> builder)
     {
         // Id == FileId (1:1 relation with FileEntity)
+        builder.HasHashShardedKey();
     }
 }

@@ -447,4 +447,171 @@ public class ChannelModerationTests : TestBase
             Assert.That(target.voiceChannelName, Is.Null);
         });
     }
+
+    // ── Reading and posting: channel permissions ────────────────────────────────────────────────
+
+    private IArchetypeInteraction ArchetypesOf(TestUserSession session)
+        => session.Client.ForService<IArchetypeInteraction>(FactoryAsp.Services);
+
+    private static async Task<Archetype> EveryoneAsync(IArchetypeInteraction archetypes, Guid spaceId, CancellationToken ct)
+        => (await archetypes.GetServerArchetypes(spaceId, ct)).Values.First(a => a.isDefault);
+
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task QueryMessages_FromSomeoneOutsideTheSpace_AnswersNothing(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var stranger  = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "members-only", ChannelType.Text, ct);
+
+        await owner.Channels.SendMessage(spaceId, channelId, "not for strangers", NoEntities, NextRandomId(), null, ct);
+
+        // The same read from someone entitled to it, so an empty answer below is a refusal rather than
+        // an empty channel.
+        Assert.That((await owner.Channels.QueryMessages(spaceId, channelId, null, 50, ct)).Values, Is.Not.Empty);
+
+        var leaked = await stranger.Channels.QueryMessages(spaceId, channelId, null, 50, ct);
+        Assert.That(leaked.Values, Is.Empty, "a channel id was enough to read a space the caller is not in");
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task SendMessage_FromSomeoneOutsideTheSpace_IsRefused(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var stranger  = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "members-only", ChannelType.Text, ct);
+
+        Assert.That(async () =>
+                await stranger.Channels.SendMessage(spaceId, channelId, "drive-by", NoEntities, NextRandomId(), null, ct),
+            Throws.Exception, "someone outside the space posted into it");
+
+        var messages = await owner.Channels.QueryMessages(spaceId, channelId, null, 50, ct);
+        Assert.That(messages.Values.Any(m => m.sender == stranger.UserId), Is.False);
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task SendMessage_AfterSendMessagesIsDeniedOnTheChannel_IsRefused(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var guest     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "announcements", ChannelType.Text, ct);
+
+        await JoinAsync(owner, guest, spaceId, ct);
+
+        // Posting first puts the guest's access in the permission cache, so the refusal below also
+        // proves the overwrite edit dropped it.
+        await guest.Channels.SendMessage(spaceId, channelId, "before", NoEntities, NextRandomId(), null, ct);
+
+        var archetypes = ArchetypesOf(owner);
+        var everyone   = await EveryoneAsync(archetypes, spaceId, ct);
+
+        await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, everyone.id,
+            deny: ArgonEntitlement.SendMessages, allow: ArgonEntitlement.None, ct);
+
+        Assert.That(async () =>
+                await guest.Channels.SendMessage(spaceId, channelId, "after", NoEntities, NextRandomId(), null, ct),
+            Throws.Exception, "a member denied SendMessages on the channel still posted");
+
+        Assert.That(async () =>
+                await owner.Channels.SendMessage(spaceId, channelId, "the owner still can", NoEntities, NextRandomId(), null, ct),
+            Throws.Nothing);
+
+        var messages = await owner.Channels.QueryMessages(spaceId, channelId, null, 50, ct);
+        Assert.That(messages.Values.Count(m => m.sender == guest.UserId), Is.EqualTo(1));
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task QueryMessages_AfterReadHistoryIsDeniedOnTheChannel_AnswersNothing(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var guest     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "no-scrollback", ChannelType.Text, ct);
+
+        await JoinAsync(owner, guest, spaceId, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "history", NoEntities, NextRandomId(), null, ct);
+
+        Assert.That((await guest.Channels.QueryMessages(spaceId, channelId, null, 50, ct)).Values, Is.Not.Empty,
+            "a member should read the channel before the deny, or the rest of this test proves nothing");
+
+        var archetypes = ArchetypesOf(owner);
+        var everyone   = await EveryoneAsync(archetypes, spaceId, ct);
+
+        await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, everyone.id,
+            deny: ArgonEntitlement.ReadHistory, allow: ArgonEntitlement.None, ct);
+
+        Assert.That((await guest.Channels.QueryMessages(spaceId, channelId, null, 50, ct)).Values, Is.Empty,
+            "a member denied ReadHistory still read the channel");
+        Assert.That((await owner.Channels.QueryMessages(spaceId, channelId, null, 50, ct)).Values, Is.Not.Empty);
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task SendMessage_FollowsTheSendersArchetypes_AsTheyAreGrantedAndRevoked(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var guest     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "speakers-only", ChannelType.Text, ct);
+
+        await JoinAsync(owner, guest, spaceId, ct);
+        await guest.Channels.SendMessage(spaceId, channelId, "while everyone may", NoEntities, NextRandomId(), null, ct);
+
+        var archetypes = ArchetypesOf(owner);
+        var everyone   = await EveryoneAsync(archetypes, spaceId, ct);
+
+        // Taken off the role everybody holds, then handed back through one the guest is given and
+        // loses. Every step is a write the cached permission of an active sender has to follow.
+        await archetypes.UpdateArchetype(spaceId,
+            everyone with { entitlement = everyone.entitlement & ~ArgonEntitlement.SendMessages }, ct);
+
+        Assert.That(async () =>
+                await guest.Channels.SendMessage(spaceId, channelId, "after the edit", NoEntities, NextRandomId(), null, ct),
+            Throws.Exception, "an archetype edit did not reach a member who had already posted");
+
+        var speakers = await archetypes.CreateArchetype(spaceId, "speakers", ct);
+        await archetypes.UpdateArchetype(spaceId,
+            speakers with { entitlement = ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages }, ct);
+
+        var memberId = (await owner.Servers.GetMembers(spaceId, ct)).Values
+           .First(m => m.member.userId == guest.UserId).member.memberId;
+
+        Assert.That(await archetypes.SetArchetypeToMember(spaceId, memberId, speakers.id, true, ct), Is.True);
+
+        Assert.That(async () =>
+                await guest.Channels.SendMessage(spaceId, channelId, "granted", NoEntities, NextRandomId(), null, ct),
+            Throws.Nothing, "a granted archetype did not reach a member who had just been refused");
+
+        Assert.That(await archetypes.SetArchetypeToMember(spaceId, memberId, speakers.id, false, ct), Is.True);
+
+        Assert.That(async () =>
+                await guest.Channels.SendMessage(spaceId, channelId, "revoked", NoEntities, NextRandomId(), null, ct),
+            Throws.Exception, "a revoked archetype still let the member post");
+
+        var messages = await owner.Channels.QueryMessages(spaceId, channelId, null, 50, ct);
+        Assert.That(messages.Values.Where(m => m.sender == guest.UserId).Select(m => m.text),
+            Is.EquivalentTo(new[] { "while everyone may", "granted" }));
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task QueryMessages_WithALimitBelowOne_StillAnswersOneMessage(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "clamped", ChannelType.Text, ct);
+
+        await owner.Channels.SendMessage(spaceId, channelId, "one", NoEntities, NextRandomId(), null, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "two", NoEntities, NextRandomId(), null, ct);
+
+        // The limit comes from the client; it is clamped rather than handed to the database as is.
+        var zero     = await owner.Channels.QueryMessages(spaceId, channelId, null, 0, ct);
+        var negative = await owner.Channels.QueryMessages(spaceId, channelId, null, -5, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(zero.Values, Has.Count.EqualTo(1));
+            Assert.That(negative.Values, Has.Count.EqualTo(1));
+        });
+    }
 }

@@ -40,6 +40,16 @@ public class UserPresenceGrain(
     /// </remarks>
     private const int FriendFanOutConcurrency = 16;
 
+    /// <summary>
+    /// The spaces this user is in, kept for the fan-outs instead of read on each one. Joins arrive as
+    /// seeds and departures through <see cref="ForgetSpaceAsync"/>; the reload covers anything missed.
+    /// </summary>
+    private HashSet<Guid>? mySpaces;
+
+    private DateTimeOffset mySpacesLoadedAt;
+
+    private static readonly TimeSpan MySpacesReload = TimeSpan.FromMinutes(5);
+
     /// <inheritdoc cref="IUserPresenceGrain.AggregateAndBroadcastStatusAsync(CancellationToken)"/>
     public ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default)
         => AggregateAndBroadcastStatusAsync([], ct);
@@ -48,6 +58,9 @@ public class UserPresenceGrain(
     public async ValueTask AggregateAndBroadcastStatusAsync(Guid[] seedSpaces, CancellationToken ct = default)
     {
         var userId = this.GetPrimaryKey();
+
+        // A seed is a space this user has just joined.
+        mySpaces?.UnionWith(seedSpaces);
 
         // The fold, here rather than at the caller, and re-run rather than read: this turn is about to
         // publish, so the value it publishes has to be the one the index says right now. A caller that
@@ -235,18 +248,32 @@ public class UserPresenceGrain(
     /// grain on purpose. <c>UserGrain</c> is a <c>[StatelessWorker]</c> whose activation pool is sized
     /// by the core count, and its presence members forward <em>into</em> this grain — so a call the
     /// other way could find every worker in the pool already blocked on this activation, which on a
-    /// two-core box is two of them. One indexed read per fan-out is the cheaper half of that trade.
+    /// two-core box is two of them. The read is held in <see cref="mySpaces"/> rather than repeated on
+    /// every fan-out.
     /// </remarks>
-    private async Task<List<Guid>> GetMyServersIdsAsync(CancellationToken ct = default)
+    private async Task<IReadOnlyCollection<Guid>> GetMyServersIdsAsync(CancellationToken ct = default)
     {
+        if (mySpaces is not null && DateTimeOffset.UtcNow - mySpacesLoadedAt < MySpacesReload)
+            return mySpaces;
+
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        return await ctx.Users
+        var spaceIds = await ctx.UsersToServerRelations
            .AsNoTracking()
-           .Include(user => user.ServerMembers)
-           .Where(u => u.Id == this.GetPrimaryKey())
-           .SelectMany(x => x.ServerMembers)
+           .Where(x => x.UserId == this.GetPrimaryKey())
            .Select(x => x.SpaceId)
            .ToListAsync(ct);
+
+        mySpaces         = spaceIds.ToHashSet();
+        mySpacesLoadedAt = DateTimeOffset.UtcNow;
+
+        return mySpaces;
+    }
+
+    /// <inheritdoc cref="IUserPresenceGrain.ForgetSpaceAsync"/>
+    public ValueTask ForgetSpaceAsync(Guid spaceId)
+    {
+        mySpaces?.Remove(spaceId);
+        return ValueTask.CompletedTask;
     }
 }

@@ -28,7 +28,6 @@ public record SpaceBoostEntity : ArgonEntity, IEntityTypeConfiguration<SpaceBoos
         builder.Property(x => x.UserId).IsRequired();
         builder.Property(x => x.Source).IsRequired();
 
-        builder.HasIndex(x => x.UserId);
         builder.HasIndex(x => x.SpaceId);
         builder.HasIndex(x => new { x.UserId, x.SpaceId });
         builder.HasIndex(x => x.SubscriptionId);

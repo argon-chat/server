@@ -15,6 +15,26 @@ public class HybridPermissionCache(
         Flags                = HybridCacheEntryFlags.DisableCompression
     };
 
+    /// <summary>
+    /// For the two reads behind every channel access check, which sit on the send, reaction and
+    /// drawing paths. Shorter than the base entry: the tags are the real invalidation, this bounds a
+    /// lost one.
+    /// </summary>
+    private static readonly HybridCacheEntryOptions AccessOptions = new()
+    {
+        Expiration           = TimeSpan.FromMinutes(2),
+        LocalCacheExpiration = TimeSpan.FromSeconds(30),
+        Flags                = HybridCacheEntryFlags.DisableCompression
+    };
+
+    /// <summary>
+    /// Every permission entry of a space also carries the space read tag. Joins, leaves, bot installs
+    /// and channel overwrite edits signal that tag and not the permission ones, and a revoked right
+    /// must not outlive them.
+    /// </summary>
+    private static string[] MemberTags(Guid spaceId, Guid userId)
+        => [$"perm:space:{spaceId}", $"perm:member:{spaceId}:{userId}", ISpaceReadCache.SpaceTag(spaceId)];
+
     public async Task<ArgonEntitlement> GetBasePermissionsAsync(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await cache.GetOrCreateAsync(
             $"perm:base:{spaceId}:{userId}",
@@ -30,28 +50,72 @@ public class HybridPermissionCache(
                 return entitlements.Aggregate(ArgonEntitlement.None, (a, b) => a | b);
             },
             options: CacheOptions,
-            tags: [$"perm:space:{spaceId}", $"perm:member:{spaceId}:{userId}"],
+            tags: MemberTags(spaceId, userId),
             cancellationToken: ct
         );
 
     public async Task<SpaceMemberEntity?> GetMemberWithArchetypesAsync(Guid spaceId, Guid userId, CancellationToken ct = default)
     {
-        await using var db = await ctx.CreateDbContextAsync(ct);
-        return await db.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == spaceId && x.UserId == userId)
-           .Include(x => x.SpaceMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
-           .FirstOrDefaultAsync(ct);
+        var grant = await cache.GetOrCreateAsync(
+            $"perm:grant:{spaceId}:{userId}",
+            (ctx, spaceId, userId),
+            static async (state, cancel) =>
+            {
+                await using var db = await state.ctx.CreateDbContextAsync(cancel);
+
+                // One round trip: a member holds a handful of archetypes, so the split the global
+                // setting would make buys nothing here.
+                var member = await db.UsersToServerRelations
+                   .AsNoTracking()
+                   .Where(x => x.SpaceId == state.spaceId && x.UserId == state.userId)
+                   .Select(x => new
+                    {
+                        x.Id,
+                        Archetypes = x.SpaceMemberArchetypes
+                           .Select(a => new CachedArchetypeGrant(a.ArchetypeId, a.Archetype.Entitlement))
+                           .ToList()
+                    })
+                   .AsSingleQuery()
+                   .FirstOrDefaultAsync(cancel);
+
+                return new CachedMemberGrant(member?.Id, member?.Archetypes.ToArray() ?? []);
+            },
+            AccessOptions,
+            MemberTags(spaceId, userId),
+            ct);
+
+        return grant.AsEntity(spaceId, userId);
     }
 
-    public async Task<ChannelEntity?> GetChannelWithOverwritesAsync(Guid channelId, CancellationToken ct = default)
+    public async Task<ChannelEntity?> GetChannelWithOverwritesAsync(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {
-        await using var db = await ctx.CreateDbContextAsync(ct);
-        return await db.Channels
-           .AsNoTracking()
-           .Include(c => c.EntitlementOverwrites)
-           .FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        var channel = await cache.GetOrCreateAsync(
+            $"perm:channel:{spaceId}:{channelId}",
+            (ctx, spaceId, channelId),
+            static async (state, cancel) =>
+            {
+                await using var db = await state.ctx.CreateDbContextAsync(cancel);
+
+                var row = await db.Channels
+                   .AsNoTracking()
+                   .Where(c => c.Id == state.channelId && c.SpaceId == state.spaceId)
+                   .Select(c => new
+                    {
+                        c.Id,
+                        Overwrites = c.EntitlementOverwrites
+                           .Select(o => new CachedChannelOverwrite(o.Scope, o.ArchetypeId, o.SpaceMemberId, o.Allow, o.Deny))
+                           .ToList()
+                    })
+                   .AsSingleQuery()
+                   .FirstOrDefaultAsync(cancel);
+
+                return new CachedChannelGrant(row is not null, row?.Overwrites.ToArray() ?? []);
+            },
+            AccessOptions,
+            [$"perm:space:{spaceId}", $"perm:channel:{channelId}", ISpaceReadCache.SpaceTag(spaceId)],
+            ct);
+
+        return channel.AsEntity(spaceId, channelId);
     }
 
     public async Task InvalidateMemberAsync(Guid spaceId, Guid userId)
@@ -143,10 +207,66 @@ public interface IPermissionCache
 
     Task<ArgonEntitlement> GetBasePermissionsAsync(Guid spaceId, Guid userId, CancellationToken ct = default);
     Task<SpaceMemberEntity?> GetMemberWithArchetypesAsync(Guid spaceId, Guid userId, CancellationToken ct = default);
-    Task<ChannelEntity?> GetChannelWithOverwritesAsync(Guid channelId, CancellationToken ct = default);
+    Task<ChannelEntity?> GetChannelWithOverwritesAsync(Guid spaceId, Guid channelId, CancellationToken ct = default);
 
     Task InvalidateMemberAsync(Guid spaceId, Guid userId);
     Task InvalidateSpaceAsync(Guid spaceId);
     Task SignalMemberInvalidationAsync(Guid spaceId, Guid userId, CancellationToken ct = default);
     Task SignalSpaceInvalidationAsync(Guid spaceId, CancellationToken ct = default);
+}
+
+// Flat projections rather than the EF graphs: the navigations are cyclic, which the cache serializer
+// refuses. Immutable so an L1 hit hands back the same instance instead of deserializing it again.
+
+[ImmutableObject(true)]
+public sealed record CachedArchetypeGrant(Guid ArchetypeId, ArgonEntitlement Entitlement);
+
+[ImmutableObject(true)]
+public sealed record CachedMemberGrant(Guid? MemberId, CachedArchetypeGrant[] Archetypes)
+{
+    public SpaceMemberEntity? AsEntity(Guid spaceId, Guid userId)
+        => MemberId is not { } memberId
+            ? null
+            : new SpaceMemberEntity
+            {
+                Id      = memberId,
+                SpaceId = spaceId,
+                UserId  = userId,
+                SpaceMemberArchetypes = Archetypes.Select(a => new SpaceMemberArchetypeEntity
+                {
+                    SpaceMemberId = memberId,
+                    ArchetypeId   = a.ArchetypeId,
+                    Archetype     = new ArchetypeEntity { Id = a.ArchetypeId, SpaceId = spaceId, Entitlement = a.Entitlement }
+                }).ToList()
+            };
+}
+
+[ImmutableObject(true)]
+public sealed record CachedChannelOverwrite(
+    IArchetypeScope Scope,
+    Guid? ArchetypeId,
+    Guid? SpaceMemberId,
+    ArgonEntitlement Allow,
+    ArgonEntitlement Deny);
+
+[ImmutableObject(true)]
+public sealed record CachedChannelGrant(bool Exists, CachedChannelOverwrite[] Overwrites)
+{
+    public ChannelEntity? AsEntity(Guid spaceId, Guid channelId)
+        => !Exists
+            ? null
+            : new ChannelEntity
+            {
+                Id      = channelId,
+                SpaceId = spaceId,
+                EntitlementOverwrites = Overwrites.Select(o => new ChannelEntitlementOverwriteEntity
+                {
+                    ChannelId     = channelId,
+                    Scope         = o.Scope,
+                    ArchetypeId   = o.ArchetypeId,
+                    SpaceMemberId = o.SpaceMemberId,
+                    Allow         = o.Allow,
+                    Deny          = o.Deny
+                }).ToList()
+            };
 }

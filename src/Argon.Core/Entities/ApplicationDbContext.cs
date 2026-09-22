@@ -73,7 +73,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserIgnoreEntity>    UserIgnorelist => Set<UserIgnoreEntity>();
 
     // Which machines an account has signed in from, and which machines are barred. See
-    // DeviceIdentityService for how a login is attributed to one.
+    // DeviceIdentityGrain for how a login is attributed to one.
     public DbSet<DeviceObservationEntity> DeviceObservations => Set<DeviceObservationEntity>();
     public DbSet<DeviceBanEntity>         DeviceBans         => Set<DeviceBanEntity>();
     public DbSet<DeviceKeyEntity>         DeviceKeys         => Set<DeviceKeyEntity>();
@@ -368,14 +368,9 @@ public static class ArgonTablePlacement
         // (ChannelGrain:1298) and as an INSERT..SELECT above that (ReadStateService:170). Written
         // once; read per message.
         //
-        // What this costs, written down so nobody has to rediscover it: SpaceGrain.AddMemberAsync
-        // commits the member row at :178 and then GrantDefaultArchetypeTo commits the archetype row
-        // at ServerRepository:79 — two transactions for one join, so two commit-waits where one
-        // would do. Space creation already gets this right, wrapping four SaveChanges in a single
-        // transaction (ServerRepository:22–52) and paying one wait. Folding the join's two writes
-        // into one transaction halves the cost of this line and is worth doing. It is not a reason
-        // to keep the table regional: regional puts every permission check in the product behind a
-        // WAN read the moment a second region exists.
+        // A join commits the member row and its default archetype in one SaveChanges, so one
+        // commit-wait. That is not a reason to keep the table regional: regional puts every
+        // permission check in the product behind a WAN read the moment a second region exists.
         modelBuilder.Entity<SpaceMemberEntity>().PlacementGlobal();
 
         // Restored, and it is the coldest row in this file. The entity is a pure junction — primary
@@ -399,7 +394,7 @@ public static class ArgonTablePlacement
         // call per checkbox), and deleted when the overwrite is removed (:355). Per row that is a
         // moderator configuring a channel, so single digits, and there is no automated writer at
         // all. Read on every channel access evaluation: cached alongside the channel itself in the
-        // space read cache, and read uncached by HybridPermissionCache.GetChannelWithOverwritesAsync.
+        // space read cache, and by HybridPermissionCache.GetChannelWithOverwritesAsync.
         //
         // Borderline, and it went up because the argument that keeps ArchetypeEntity up is the same
         // one: a mask edited by a moderator and read by every evaluation. Erring the other way meant

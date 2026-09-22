@@ -70,9 +70,10 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        var now = DateTimeOffset.UtcNow;
+
         await ExecuteInTransactionAsync(ctx, async () =>
         {
-            var now = DateTimeOffset.UtcNow;
             var conversationId = ConversationEntity.GenerateConversationId(Me, peerId);
 
             var record = await ctx.UserConversations
@@ -100,9 +101,9 @@ public class UserChatGrain(
             }
 
             await ctx.SaveChangesAsync(ct);
-
-            await NotifyAsync(Me, new ChatPinnedEvent(peerId, now.UtcDateTime));
         }, ct);
+
+        await NotifyAsync(Me, new ChatPinnedEvent(peerId, now.UtcDateTime));
     }
 
     public async Task UnpinChatAsync(Guid peerId, CancellationToken ct = default)
@@ -274,76 +275,81 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var strategy = ctx.Database.CreateExecutionStrategy();
+        var now         = DateTimeOffset.UtcNow;
+        var previewText = text?.Length > 200 ? text[..200] : text;
 
-        return await strategy.ExecuteAsync(async () =>
+        DirectMessageV2Entity  message;
+        DirectMessageV2Entity? inserted = null;
+
+        try
         {
-            await using var transaction = await ctx.Database.BeginTransactionAsync(ct);
-
-            try
-            {
-                var now = DateTimeOffset.UtcNow;
-
-                // Create message in new table
-                var message = new DirectMessageV2Entity
+            // MessageId comes back from the insert, so a commit that failed ambiguously is checked for
+            // by that id instead of being retried into a second copy of the message.
+            message = await ctx.Database.CreateExecutionStrategy().ExecuteInTransactionAsync(
+                async token =>
                 {
-                    ConversationId = conversation.Id,
-                    SenderId = senderId,
-                    Text = text ?? "",
-                    Entities = entities ?? [],
-                    CreatedAt = now,
-                    CreatorId = senderId,
-                    ReplyTo = replyTo
-                };
+                    ctx.ChangeTracker.Clear();
 
-                ctx.DirectMessages.Add(message);
-                await ctx.SaveChangesAsync(ct);
+                    var entity = new DirectMessageV2Entity
+                    {
+                        ConversationId = conversation.Id,
+                        SenderId = senderId,
+                        Text = text ?? "",
+                        Entities = entities ?? [],
+                        CreatedAt = now,
+                        CreatorId = senderId,
+                        ReplyTo = replyTo
+                    };
 
-                var messageId = message.MessageId;
-                var previewText = text?.Length > 200 ? text[..200] : text;
+                    ctx.DirectMessages.Add(entity);
 
-                // Update conversation metadata
-                conversation.LastMessageAt = now;
-                conversation.LastMessageText = previewText;
-                conversation.LastMessageSenderId = senderId;
-                ctx.Conversations.Update(conversation);
+                    // Update conversation metadata
+                    conversation.LastMessageAt = now;
+                    conversation.LastMessageText = previewText;
+                    conversation.LastMessageSenderId = senderId;
+                    ctx.Conversations.Update(conversation);
 
-                // Update sender's chat (no unread increment)
-                await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, ct);
+                    // Update sender's chat (no unread increment)
+                    await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, token);
 
-                // An ignored sender still gets through — the chat stays honest on both sides — but
-                // they do not raise the receiver's unread count.
-                var ignoredByReceiver = await ctx.UserIgnorelist
-                    .AnyAsync(x => x.UserId == receiverId && x.IgnoredId == senderId, ct);
+                    // An ignored sender still gets through — the chat stays honest on both sides — but
+                    // they do not raise the receiver's unread count.
+                    var ignoredByReceiver = await ctx.UserIgnorelist
+                        .AnyAsync(x => x.UserId == receiverId && x.IgnoredId == senderId, token);
 
-                // Update receiver's chat (increment unread unless they ignore the sender)
-                await UpdateUserConversationAsync(ctx, receiverId, senderId, conversation, previewText, now, !ignoredByReceiver, ct);
+                    // Update receiver's chat (increment unread unless they ignore the sender)
+                    await UpdateUserConversationAsync(ctx, receiverId, senderId, conversation, previewText, now, !ignoredByReceiver, token);
 
-                await ctx.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
+                    await ctx.SaveChangesAsync(token);
 
-                var messageDto = message.ToDto(receiverId);
+                    inserted = entity;
+                    return entity;
+                },
+                token => ctx.DirectMessages
+                    .AsNoTracking()
+                    .AnyAsync(m => m.ConversationId == conversation.Id && m.MessageId == inserted!.MessageId, token),
+                ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send direct message from {SenderId} to {ReceiverId}", senderId, receiverId);
+            throw;
+        }
 
-                var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
+        var messageDto = message.ToDto(receiverId);
 
-                await NotifyAsync(senderId, dmEvent);
-                await NotifyAsync(receiverId, dmEvent);
+        var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
 
-                logger.LogInformation("DirectMessage sent: MessageId={MessageId}, ConversationId={ConversationId}",
-                    messageId, conversation.Id);
+        await NotifyAsync(senderId, dmEvent);
+        await NotifyAsync(receiverId, dmEvent);
 
-                var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(senderId);
-                _ = statsGrain.IncrementMessagesAsync();
+        logger.LogInformation("DirectMessage sent: MessageId={MessageId}, ConversationId={ConversationId}",
+            message.MessageId, conversation.Id);
 
-                return messageId;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to send direct message from {SenderId} to {ReceiverId}", senderId, receiverId);
-                await transaction.RollbackAsync(ct);
-                throw;
-            }
-        });
+        var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(senderId);
+        _ = statsGrain.IncrementMessagesAsync();
+
+        return message.MessageId;
     }
 
     public async Task<List<DirectMessage>> QueryDirectMessagesAsync(
@@ -489,6 +495,7 @@ public class UserChatGrain(
         var strategy = ctx.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
+            ctx.ChangeTracker.Clear();
             await using var transaction = await ctx.Database.BeginTransactionAsync(ct);
             await action();
             await transaction.CommitAsync(ct);

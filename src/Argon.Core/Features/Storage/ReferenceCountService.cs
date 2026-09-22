@@ -9,58 +9,36 @@ public interface IReferenceCountService
 
 public class ReferenceCountService(IDbContextFactory<ApplicationDbContext> dbFactory) : IReferenceCountService
 {
-    public async Task<long> IncrementAsync(Guid fileId, long increment = 1, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var strategy = db.Database.CreateExecutionStrategy();
+    public Task<long> IncrementAsync(Guid fileId, long increment = 1, CancellationToken ct = default)
+        => AddAsync(fileId, increment, ct);
 
-        return await strategy.ExecuteAsync(async (cancellation) =>
-        {
-            await using var tx = await db.Database.BeginTransactionAsync(cancellation);
-
-            var counter = await db.FileCounters
-                .FromSqlRaw("SELECT * FROM \"FileCounters\" WHERE \"Id\" = {0} FOR UPDATE", fileId)
-                .FirstOrDefaultAsync(cancellation);
-
-            if (counter is null)
-                throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
-
-            counter.RefCount += increment;
-            counter.UpdatedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(cancellation);
-            await tx.CommitAsync(cancellation);
-            return counter.RefCount;
-        }, ct);
-    }
-
-    public async Task<long> DecrementAsync(Guid fileId, long decrement = 1, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var strategy = db.Database.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async (cancellation) =>
-        {
-            await using var tx = await db.Database.BeginTransactionAsync(cancellation);
-
-            var counter = await db.FileCounters
-                .FromSqlRaw("SELECT * FROM \"FileCounters\" WHERE \"Id\" = {0} FOR UPDATE", fileId)
-                .FirstOrDefaultAsync(cancellation);
-
-            if (counter is null)
-                throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
-
-            counter.RefCount -= decrement;
-            counter.UpdatedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(cancellation);
-            await tx.CommitAsync(cancellation);
-            return counter.RefCount;
-        }, ct);
-    }
+    public Task<long> DecrementAsync(Guid fileId, long decrement = 1, CancellationToken ct = default)
+        => AddAsync(fileId, -decrement, ct);
 
     public async Task<long?> GetRefCountAsync(Guid fileId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var counter = await db.FileCounters.FindAsync([fileId], ct);
         return counter?.RefCount;
+    }
+
+    // One implicit transaction, which CockroachDB retries server-side on contention.
+    private async Task<long> AddAsync(Guid fileId, long delta, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var updated = await db.Database
+           .SqlQuery<long>($"""
+                UPDATE "FileCounters"
+                SET "RefCount" = "RefCount" + {delta}, "UpdatedAt" = now()
+                WHERE "Id" = {fileId} AND "IsDeleted" = false
+                RETURNING "RefCount" AS "Value"
+                """)
+           .ToListAsync(ct);
+
+        if (updated.Count == 0)
+            throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
+
+        return updated[0];
     }
 }

@@ -258,7 +258,7 @@ public class FileStorageGrain(
     /// <c>AccountPeripheralTests.Releasing_a_file_twice_leaves_its_reference_count_at_zero</c> —
     /// <c>AccountDeletionGrain</c> released the avatar by id and then walked every file the account
     /// owns, the avatar included.) It is a compensation rather than a guard because the count is only
-    /// knowable after the fact: <c>ReferenceCountService</c> takes the row <c>FOR UPDATE</c> and
+    /// knowable after the fact: <c>ReferenceCountService</c> updates the row in one statement and
     /// returns what it wrote, so reading first and deciding after would be the race this is meant to
     /// survive. The compensation puts back exactly the one reference this call took — not the whole
     /// overshoot — so concurrent releases each undo their own and the row converges on zero instead of

@@ -302,6 +302,26 @@ public class EntitlementEvaluatorTests
     }
 
     [Test]
+    public void HasAccessTo_DenyForARoleTheMemberDoesNotHold_LeavesThemAlone()
+    {
+        var everyone = Archetype(ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages, name: "everyone");
+        var member   = Member(everyone);
+        var channel  = Channel(ArchetypeOverwrite(Guid.NewGuid(), deny: ArgonEntitlement.SendMessages));
+
+        Assert.That(EntitlementEvaluator.HasAccessTo(member, channel, ArgonEntitlement.SendMessages), Is.True);
+    }
+
+    [Test]
+    public void HasAccessTo_DenyForTheMembersOwnRole_Refuses()
+    {
+        var muted   = Archetype(ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages, name: "muted");
+        var member  = Member(muted);
+        var channel = Channel(ArchetypeOverwrite(muted.Id, deny: ArgonEntitlement.SendMessages));
+
+        Assert.That(EntitlementEvaluator.HasAccessTo(member, channel, ArgonEntitlement.SendMessages), Is.False);
+    }
+
+    [Test]
     public void HasAccessTo_ChannelWithoutRelevantOverwrites_FallsBackToBasePermissions()
     {
         var role    = Archetype(ArgonEntitlement.ViewChannel);

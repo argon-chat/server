@@ -14,6 +14,7 @@ using Core.Services;
 using Features.Logic;
 using Features.Repositories;
 using ion.runtime;
+using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.GrainDirectory;
 using Persistence.States;
 using Services.L1L2;
@@ -27,6 +28,7 @@ public class SpaceGrain(
     IServerRepository serverRepository,
     IUserPresenceService userPresence,
     IArchetypeAgent archetypeAgent,
+    IPermissionCache permissionCache,
     IEntitlementChecker entitlementChecker,
     ISystemMessageService systemMessageService,
     AppHubServer appHubServer,
@@ -60,7 +62,9 @@ public class SpaceGrain(
             return ServerCreationError.BAD_MODEL;
         var creatorId = this.GetUserId();
 
-        await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId);
+        if (await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId) is null)
+            return ServerCreationError.LIMIT_REACHED;
+
         await UserJoined(creatorId);
         return await GetSpaceBase();
     }
@@ -120,6 +124,7 @@ public class SpaceGrain(
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
 
         await ctx.SaveChangesAsync();
+        await Invalidate();
 
         var spaceBase = new ArgonSpaceBase(server.Id, server.Name, server.Description!, server.AvatarFileId, server.TopBannedFileId,
             server.BoostCount, server.BoostLevel, server.IsVerified, server.IsOfficial, server.HideBoostStrip, server.InviteImageFileId,
@@ -208,6 +213,7 @@ public class SpaceGrain(
             return;
 
         await Invalidate();
+        await grainFactory.GetGrain<IUserPresenceGrain>(userId).ForgetSpaceAsync(spaceId);
         await Fire(new LeavedFromServerUser(spaceId, userId));
     }
 
@@ -223,6 +229,7 @@ public class SpaceGrain(
         var spaceId = this.GetPrimaryKey();
 
         await Invalidate();
+        await grainFactory.GetGrain<IUserPresenceGrain>(userId).ForgetSpaceAsync(spaceId);
         await Fire(new LeavedFromServerUser(spaceId, userId));
 
         logger.LogInformation(
@@ -242,16 +249,16 @@ public class SpaceGrain(
             return false;
 
         var member = ArgonId.New();
-        await ctx.UsersToServerRelations.AddAsync(new SpaceMemberEntity
+        ctx.UsersToServerRelations.Add(new SpaceMemberEntity
         {
             Id                = member,
             SpaceId           = spaceId,
             UserId            = userId,
             JoinedViaInviteId = joinedViaInviteId
         });
+        await serverRepository.GrantDefaultArchetypeTo(ctx, spaceId, member);
         await ctx.SaveChangesAsync();
 
-        await serverRepository.GrantDefaultArchetypeTo(ctx, spaceId, member);
         await Invalidate();
         await UserJoined(userId);
 
@@ -295,6 +302,7 @@ public class SpaceGrain(
         var space = await ctx.Spaces.FirstAsync(x => x.Id == spaceId);
         space.HideBoostStrip = hidden;
         await ctx.SaveChangesAsync();
+        await Invalidate();
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
             space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
@@ -334,58 +342,67 @@ public class SpaceGrain(
     {
         var spaceId = this.GetPrimaryKey();
 
+        // Counted by SpaceReadGrain over its cached roster, instead of reading every member id here.
+        var headcount = grainFactory.GetGrain<ISpaceReadGrain>(spaceId).GetHeadcount();
+
         await using var ctx = await context.CreateDbContextAsync();
 
         var space = await ctx.Spaces
            .AsNoTracking()
-           .Select(x => new { x.Id, x.BoostCount, x.BoostLevel, x.CreatedAt })
-           .FirstAsync(x => x.Id == spaceId);
+           .Where(x => x.Id == spaceId)
+           .Select(x => new { x.BoostCount, x.BoostLevel, x.CreatedAt, ChannelCount = x.Channels.Count() })
+           .FirstAsync();
 
-        var memberIds = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == spaceId)
-           .Select(x => x.UserId)
-           .ToListAsync();
+        var counts = await headcount;
 
-        var channelCount = await ctx.Channels
-           .AsNoTracking()
-           .CountAsync(x => x.SpaceId == spaceId);
-
-        var statuses    = await userPresence.BatchGetAggregatedStatusAsync(memberIds);
-        var onlineCount = statuses.Count(kv => kv.Value != UserStatus.Offline);
-
-        return new SpaceStats(memberIds.Count, onlineCount, channelCount, space.BoostCount, space.BoostLevel, space.CreatedAt.UtcDateTime);
+        return new SpaceStats(counts.Members, counts.Online, space.ChannelCount, space.BoostCount, space.BoostLevel,
+            space.CreatedAt.UtcDateTime);
     }
+
+    /// <summary>
+    /// The space half of an invite preview. Short, and dropped with the space read cache; the rename
+    /// paths do not signal that, so this bounds how long an old name can show on an invite sheet.
+    /// </summary>
+    private static readonly HybridCacheEntryOptions InvitePreviewOptions = new()
+    {
+        Expiration           = TimeSpan.FromSeconds(30),
+        LocalCacheExpiration = TimeSpan.FromSeconds(30)
+    };
 
     public async Task<InvitePreview> GetInvitePreview()
     {
-        var spaceId = this.GetPrimaryKey();
+        var spaceId   = this.GetPrimaryKey();
+        var headcount = grainFactory.GetGrain<ISpaceReadGrain>(spaceId).GetHeadcount();
 
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var space = await ctx.Spaces
-           .AsNoTracking()
-           .Select(x => new
+        // Resolved here rather than injected so the constructor stays as it is.
+        var preview = await ServiceProvider.GetRequiredService<HybridCache>().GetOrCreateAsync(
+            $"space:invite-preview:{spaceId}", (context, spaceId),
+            static async (state, ct) =>
             {
-                x.Id, x.Name, x.Description, x.AvatarFileId, x.TopBannedFileId,
-                x.InviteImageFileId, x.IsVerified, x.IsOfficial, x.IsCommunity
-            })
-           .FirstAsync(x => x.Id == spaceId);
+                await using var ctx = await state.context.CreateDbContextAsync(ct);
 
-        var memberIds = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == spaceId)
-           .Select(x => x.UserId)
-           .ToListAsync();
+                var space = await ctx.Spaces
+                   .AsNoTracking()
+                   .Where(x => x.Id == state.spaceId)
+                   .Select(x => new
+                    {
+                        x.Id, x.Name, x.Description, x.AvatarFileId, x.TopBannedFileId,
+                        x.InviteImageFileId, x.IsVerified, x.IsOfficial, x.IsCommunity
+                    })
+                   .FirstAsync(ct);
 
-        var statuses    = await userPresence.BatchGetAggregatedStatusAsync(memberIds);
-        var onlineCount = statuses.Count(kv => kv.Value != UserStatus.Offline);
+                // The room a voice link points at is a property of the invite, not of the space, so it
+                // is stitched on by the caller that resolved the code (UserInteractionImpl.PreviewInvite).
+                return new InvitePreview(space.Id, space.Name, space.Description ?? "", space.AvatarFileId,
+                    space.TopBannedFileId, space.InviteImageFileId, space.IsVerified, space.IsOfficial, 0, 0, null, null,
+                    space.IsCommunity);
+            },
+            InvitePreviewOptions, [ISpaceReadCache.SpaceTag(spaceId)]);
 
-        // The room a voice link points at is a property of the invite, not of the space, so it is
-        // stitched on by the caller that resolved the code (UserInteractionImpl.PreviewInvite).
-        return new InvitePreview(space.Id, space.Name, space.Description ?? "", space.AvatarFileId, space.TopBannedFileId,
-            space.InviteImageFileId, space.IsVerified, space.IsOfficial, memberIds.Count, onlineCount, null, null,
-            space.IsCommunity);
+        // The counts stay live: presence is what an invite sheet is most often asked to show.
+        var counts = await headcount;
+
+        return preview with { memberCount = counts.Members, onlineCount = counts.Online };
     }
 
     public Task DoUserUpdatedAsync(ArgonUser user)
@@ -409,30 +426,28 @@ public class SpaceGrain(
 
     public async Task<ArgonUserProfile> PrefetchProfile(Guid userId)
     {
-        var caller = this.GetUserId();
-
+        // Guests never registered, so there is no "in Argon since" to show for them.
         if (IsGuestUserId(userId))
-            // Guests never registered, so there is no "in Argon since" to show for them.
-            return new ArgonUserProfile(userId, null, null, null, null, "Guest User", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
+            return PlaceholderProfile(userId, "Guest User");
 
-        await using var ctx     = await context.CreateDbContextAsync();
-        List<Guid>      userIds = [userId, caller];
-        var targetMember = await ctx.Spaces
-           .IgnoreQueryFilters()
+        var spaceId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // The membership in this space, filters on, as PrefetchProfiles reads it: the roles on the card
+        // are the ones held here, and a member who left is answered with the placeholder.
+        var targetMember = await ctx.UsersToServerRelations
            .AsNoTracking()
-           .SelectMany(server => server.Users)
-           .Where(member => userIds.Contains(member.UserId))
-           .Include(serverMember => serverMember.User)
+           .Where(member => member.SpaceId == spaceId && member.UserId == userId)
+           .Include(member => member.User)
            .ThenInclude(user => user.Profile)
-           .Include(serverMember => serverMember.SpaceMemberArchetypes)
-           .FirstOrDefaultAsync(x => x.UserId == userId);
+           .Include(member => member.SpaceMemberArchetypes)
+           .FirstOrDefaultAsync();
 
-        if (targetMember is null)
-            return new ArgonUserProfile(userId, null, null, null, null, "Deleted Account", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
+        if (targetMember?.User?.Profile is not { } profile)
+            return PlaceholderProfile(userId, "Deleted Account");
 
-        return targetMember.User.Profile.ToDto() with
+        return profile.ToDto() with
         {
             archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto()))
         };
@@ -445,11 +460,11 @@ public class SpaceGrain(
     /// <para>One entry per requested id, in the order asked — a caller pairs the two up by position
     /// or by <c>userId</c>, whichever it finds easier — with the same placeholders
     /// <see cref="PrefetchProfile"/> uses for an id there is nothing to say about.</para>
-    /// <para>Two things it is stricter about than its single-member counterpart. It is scoped to
-    /// this space, because the archetypes on a profile are the roles the member holds <em>here</em>
-    /// and a member of several spaces holds a different set in each; and it answers only about
-    /// current members, because a departure is a soft delete and a membership that has ended is not
-    /// a membership.</para>
+    /// <para>Scoped to this space, because the archetypes on a profile are the roles the member holds
+    /// <em>here</em> and a member of several spaces holds a different set in each; and it answers only
+    /// about current members, because a departure is a soft delete and a membership that has ended is
+    /// not a membership. Stricter than its single-member counterpart in one way: the caller has to be
+    /// a member too.</para>
     /// </remarks>
     public async Task<List<ArgonUserProfile>> PrefetchProfiles(List<Guid> userIds)
     {
@@ -1542,6 +1557,10 @@ public class SpaceGrain(
         // Update the locked archetype to match bot's current required entitlements
         archetype.Entitlement = bot.RequiredEntitlements;
         await ctx.SaveChangesAsync();
+
+        await archetypeAgent.DoUpdatedAsync(archetype);
+        await permissionCache.SignalSpaceInvalidationAsync(spaceId);
+        await Invalidate();
 
         // Refetch full entity for DTO mapping
         var fullArchetype = await ctx.Set<ArchetypeEntity>()

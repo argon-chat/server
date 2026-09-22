@@ -32,8 +32,7 @@ public record UltimaSubscriptionEntity : ArgonEntity, IEntityTypeConfiguration<U
         builder.Property(x => x.StartsAt).IsRequired();
         builder.Property(x => x.ExpiresAt).IsRequired();
 
-        builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.Status);
+        builder.HasIndex(x => new { x.UserId, x.Status });
         builder.HasIndex(x => x.XsollaSubscriptionId).IsUnique()
            .HasFilter("\"XsollaSubscriptionId\" IS NOT NULL");
 

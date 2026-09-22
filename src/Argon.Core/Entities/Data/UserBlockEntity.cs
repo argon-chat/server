@@ -33,7 +33,8 @@ public record UserBlockEntity : IMapper<UserBlockEntity, UserBlock>, IEntityType
            .HasDefaultValueSql("now()")
            .ValueGeneratedOnAdd();
 
-        builder.HasIndex(x => x.UserId)
-           .HasDatabaseName("idx_user_blocks_user");
+        // The key covers lookups by UserId; this is the other direction.
+        builder.HasIndex(x => x.BlockedId)
+           .HasDatabaseName("idx_user_blocks_blocked");
     }
 }

@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using ArgonContracts;
 using ConsoleContracts;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -71,6 +72,6 @@ public record ReportCaseEntity : ArgonEntity, IEntityTypeConfiguration<ReportCas
         builder.HasIndex(x => new { x.IsOpen, x.PriorityScore }).HasDatabaseName("idx_report_cases_queue");
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.TargetId);
-        builder.HasIndex(x => x.LastReportedAt);
+        builder.HasIndex(x => x.LastReportedAt).IsHashSharded();
     }
 }

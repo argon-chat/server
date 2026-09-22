@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Argon.Features.Storage;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,7 +17,7 @@ public record ContentViolationEntity : ArgonEntity, IEntityTypeConfiguration<Con
     public void Configure(EntityTypeBuilder<ContentViolationEntity> builder)
     {
         builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.CreatedAt);
+        builder.HasIndex(x => x.CreatedAt).IsHashSharded();
 
         builder.HasOne(x => x.User)
            .WithMany()

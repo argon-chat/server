@@ -39,7 +39,8 @@ public record UserIgnoreEntity : IMapper<UserIgnoreEntity, UserIgnore>, IEntityT
            .HasDefaultValueSql("now()")
            .ValueGeneratedOnAdd();
 
-        builder.HasIndex(x => x.UserId)
-           .HasDatabaseName("idx_user_ignores_user");
+        // The key covers lookups by UserId; this is the other direction.
+        builder.HasIndex(x => x.IgnoredId)
+           .HasDatabaseName("idx_user_ignores_ignored");
     }
 }

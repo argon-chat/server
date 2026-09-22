@@ -1,14 +1,17 @@
 namespace Argon.Entities;
 
 using ion.runtime;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper<SpaceEntity, ArgonSpace>
+public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper<SpaceEntity, ArgonSpace>, IEntityTypeConfiguration<SpaceEntity>
 {
     public static readonly Guid DefaultSystemSpace
         = Guid.Parse("11111111-0000-1111-1111-111111111111");
 
     [MaxLength(64)]
     public string Name { get; set; } = string.Empty;
+    /// <summary>lower(Name), computed by the database, so an exact-name search can use an index.</summary>
+    public string NormalizedName { get; private set; } = null!;
     [MaxLength(1024)]
     public string? Description { get; set; } = string.Empty;
     [MaxLength(128)]
@@ -42,4 +45,14 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
         => new(self.Id, self.Name, self.Description ?? "", self.AvatarFileId, self.TopBannedFileId,
             IonArray<ArgonChannel>.Empty, IonArray<SpaceMember>.Empty, IonArray<Archetype>.Empty,
             self.IsVerified, self.IsOfficial, self.HideBoostStrip, self.InviteImageFileId, self.IsCommunity);
+
+    public void Configure(EntityTypeBuilder<SpaceEntity> builder)
+    {
+        builder.Property(x => x.NormalizedName)
+           .HasColumnType("text")
+           .HasComputedColumnSql("lower(\"Name\")", stored: true)
+           .ValueGeneratedOnAddOrUpdate();
+
+        builder.HasIndex(x => x.NormalizedName);
+    }
 }

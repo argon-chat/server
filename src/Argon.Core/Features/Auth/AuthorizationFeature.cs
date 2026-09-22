@@ -35,12 +35,6 @@ public static class AuthorizationFeature
         // most expensive part of reading a cookie.
         builder.Services.AddSingleton<DeviceMatcher>();
 
-        // The matcher and the verifier stay on every role: one holds a weight table and the other
-        // reads a cache, and neither touches the database. Only the service that writes device rows
-        // needs one.
-        if (withDatabase)
-            builder.Services.AddScoped<DeviceIdentityService>();
-
         builder.Services.AddScoped<DeviceProofVerifier>();
 
         // One verifier per platform. Anything not registered here falls back to the unattested

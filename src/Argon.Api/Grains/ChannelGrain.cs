@@ -937,7 +937,16 @@ public class ChannelGrain(
 
     public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)
     {
-        var messages = await messagesLayout.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        // ViewChannel as well: nothing implies it from ReadHistory, and a channel hidden by overwrites
+        // must not be readable through its history. A refusal reads as an empty channel.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel)
+         || !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ReadHistory))
+            return [];
+
+        var messages = await messagesLayout.QueryMessages(_self.SpaceId, channelId, @from, limit);
         await ResolveAttachmentUrls(messages);
         return messages;
     }
@@ -952,6 +961,10 @@ public class ChannelGrain(
         var sw = Stopwatch.StartNew();
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
+
+        // Before the cap, so a caller who may not post cannot use up the channel's allowance.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.SendMessages))
+            throw new UnauthorizedAccessException("No permission to send messages in this channel");
 
         EnforceChannelCap();
 
@@ -1409,12 +1422,13 @@ WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
 
             if (entities is null or { Count: 0 }) return;
 
-            var userMentions = entities.OfType<MessageEntityMention>().ToList();
-            foreach (var mention in userMentions)
-            {
-                if (mention.userId == senderId) continue;
-                await readStateService.IncrementMentionsAsync(mention.userId, this.GetPrimaryKey(), _self.SpaceId, 1);
-            }
+            var mentionedUsers = entities.OfType<MessageEntityMention>()
+               .Select(m => m.userId)
+               .Where(u => u != senderId)
+               .ToList();
+
+            if (mentionedUsers.Count > 0)
+                await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), mentionedUsers);
 
             var hasEveryoneMention = entities.OfType<MessageEntityMentionEveryone>().Any();
             var roleMentions = entities.OfType<MessageEntityMentionRole>().ToList();
@@ -2009,21 +2023,32 @@ WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
         var toFlush = _dirtyReactions.ToList();
         _dirtyReactions.Clear();
 
-        await using var ctx = await context.CreateDbContextAsync();
-        var channelId = this.GetPrimaryKey();
+        var messageIds = new List<long>(toFlush.Count);
+        var payloads   = new List<string?>(toFlush.Count);
 
         foreach (var messageId in toFlush)
         {
             if (!_reactionCache.TryGetValue(messageId, out var reactions))
                 continue;
 
-            var json = reactions.Count == 0
+            messageIds.Add(messageId);
+            payloads.Add(reactions.Count == 0
                 ? null
-                : Newtonsoft.Json.JsonConvert.SerializeObject(reactions);
-
-            await ctx.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE \"Messages\" SET \"Reactions\" = {json}::jsonb WHERE \"SpaceId\" = {SpaceId} AND \"ChannelId\" = {channelId} AND \"MessageId\" = {messageId}");
+                : Newtonsoft.Json.JsonConvert.SerializeObject(reactions));
         }
+
+        if (messageIds.Count == 0)
+            return;
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var channelId = this.GetPrimaryKey();
+
+        await ctx.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "Messages" AS m
+            SET "Reactions" = v.reactions::jsonb
+            FROM unnest({messageIds.ToArray()}, {payloads.ToArray()}) AS v(id, reactions)
+            WHERE m."SpaceId" = {SpaceId} AND m."ChannelId" = {channelId} AND m."MessageId" = v.id
+            """);
     }
 }
 

@@ -92,9 +92,11 @@ public static class DatabaseFeature
            .ConfigureWarnings(w => w.Ignore(RelationalEventId.AmbientTransactionWarning))
            .AddInterceptors(new TimeStampAndSoftDeleteInterceptor());
 
+        options.UseArgonSchemaAnnotations();
+
         // The multiregional generator appends CockroachDB-only clauses to CREATE TABLE / CREATE
         // DATABASE. On vanilla PostgreSQL we keep Npgsql's stock generator, which simply ignores
-        // the "Regional:*" / "Job:Expiration" annotations the model carries.
+        // the "Regional:*" / "Job:Expiration" / "Cockroach:*" annotations the model carries.
         if (providerKind is DatabaseProviderKind.CockroachDb)
             options.UseMultiregionalCompatibility();
     }

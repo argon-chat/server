@@ -1,5 +1,6 @@
 namespace Argon.Core.Entities.Data;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -34,13 +35,9 @@ public record UserDailyStatsEntity : IEntityTypeConfiguration<UserDailyStatsEnti
 
     public void Configure(EntityTypeBuilder<UserDailyStatsEntity> builder)
     {
+        // The key already serves per-user reads in either date order.
         builder.HasKey(x => new { x.UserId, x.Date });
-        
-        builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.Date);
-        
-        // Composite index for efficient user+date range queries
-        builder.HasIndex(x => new { x.UserId, x.Date })
-            .IsDescending(false, true);
+
+        builder.HasIndex(x => x.Date).IsHashSharded();
     }
 }

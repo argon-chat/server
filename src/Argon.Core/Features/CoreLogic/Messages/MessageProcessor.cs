@@ -63,9 +63,14 @@ public class PgSqlMessagesLayout(
     ISnowflakeService snowflake,
     ILogger<PgSqlMessagesLayout> logger) : IMessagesLayout
 {
+    public const int MaxQueryLimit = 100;
+
     public async Task<List<ArgonMessageEntity>> QueryMessages(Guid spaceId, Guid channelId, long? fromMessageId = null, int limit = 50,
         CancellationToken ct = default)
     {
+        // The limit arrives from the client unchecked.
+        limit = Math.Clamp(limit, 1, MaxQueryLimit);
+
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         // IsDeleted is filtered here rather than by the global query filter: that filter only covers
@@ -73,12 +78,14 @@ public class PgSqlMessagesLayout(
         // deleted message would otherwise keep being served.
         if (fromMessageId.HasValue)
             return await ctx.Messages
+               .AsNoTracking()
                .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId < fromMessageId.Value && !m.IsDeleted)
                .OrderByDescending(m => m.MessageId)
                .Take(limit)
                .ToListAsync(cancellationToken: ct);
 
         return await ctx.Messages
+           .AsNoTracking()
            .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && !m.IsDeleted)
            .OrderByDescending(m => m.MessageId)
            .Take(limit)

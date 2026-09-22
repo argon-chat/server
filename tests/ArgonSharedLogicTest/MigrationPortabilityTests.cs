@@ -59,7 +59,7 @@ public class MigrationPortabilityTests
     private static readonly string[] CockroachClauses =
     [
         "LOCALITY GLOBAL", "LOCALITY REGIONAL", "SET LOCALITY", "PRIMARY REGION", "SURVIVE REGION",
-        "SURVIVE ZONE", "AS OF SYSTEM TIME", "INVERTED INDEX", "SPLIT AT",
+        "SURVIVE ZONE", "AS OF SYSTEM TIME", "INVERTED INDEX", "SPLIT AT", "USING HASH", "ALTER PRIMARY KEY",
         "ttl_expiration_expression", "ttl_job_cron", "ttl_expire_after", "ttl_automatic_column",
         "ttl_select_batch_size", "ttl_delete_batch_size", "ttl_delete_rate_limit", "ttl_pause",
         "ttl = 'on'", "RESET (ttl"

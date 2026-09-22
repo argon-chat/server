@@ -291,6 +291,80 @@ public class SpaceTests : TestBase
             "the member is gone from the roster, so the announcement removed them after all");
     }
 
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task CreateSpace_PastTheOwnershipLimit_IsRefused(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+
+        for (var i = 0; i < Argon.Features.Repositories.ServerRepository.MaxOwnedSpacesPerUser; i++)
+        {
+            var created = await owner.Users.CreateSpace(new CreateServerRequest($"Owned {i}", "", string.Empty), ct);
+            Assert.That(created, Is.InstanceOf<SuccessCreateSpace>(), $"space {i}: {(created as FailedCreateSpace)?.error}");
+        }
+
+        var refused = await owner.Users.CreateSpace(new CreateServerRequest("One too many", "", string.Empty), ct);
+
+        Assert.That((refused as FailedCreateSpace)?.error, Is.EqualTo(CreateSpaceError.LIMIT_REACHED));
+    }
+
+    /// <summary>
+    /// The count and the insert are one serializable transaction, so creations racing for the last
+    /// free slots cannot all see room and overshoot the limit.
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task Concurrent_creations_stop_at_the_ownership_limit(CancellationToken ct = default)
+    {
+        const int limit = Argon.Features.Repositories.ServerRepository.MaxOwnedSpacesPerUser;
+
+        var owner = await CreateSessionAsync(ct);
+
+        for (var i = 0; i < limit - 3; i++)
+            Assert.That(await owner.Users.CreateSpace(new CreateServerRequest($"Owned {i}", "", string.Empty), ct),
+                Is.InstanceOf<SuccessCreateSpace>());
+
+        var racing = await Task.WhenAll(Enumerable.Range(0, 6)
+           .Select(i => owner.Users.CreateSpace(new CreateServerRequest($"Racing {i}", "", string.Empty), ct)));
+
+        var factory = FactoryAsp.Services.GetRequiredService<IDbContextFactory<Argon.Entities.ApplicationDbContext>>();
+        await using var db = await factory.CreateDbContextAsync(ct);
+
+        var owned = await db.Spaces.CountAsync(s => s.CreatorId == owner.UserId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(racing.OfType<SuccessCreateSpace>().Count(), Is.EqualTo(3));
+            Assert.That(racing.OfType<FailedCreateSpace>().Select(f => f.error), Is.All.EqualTo(CreateSpaceError.LIMIT_REACHED));
+            Assert.That(owned, Is.EqualTo(limit));
+        });
+    }
+
+    /// <summary>
+    /// A join writes the membership and its default archetype in one commit; both have to be there.
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task JoinToSpace_GrantsTheDefaultArchetypeWithTheMembership(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var created = await owner.Users.CreateSpace(new CreateServerRequest("Grant Space", "", string.Empty), ct);
+        var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+
+        Assert.That(await member.Users.JoinToSpace(invite, ct), Is.InstanceOf<SuccessJoin>());
+
+        var factory = FactoryAsp.Services.GetRequiredService<IDbContextFactory<Argon.Entities.ApplicationDbContext>>();
+        await using var db = await factory.CreateDbContextAsync(ct);
+
+        var granted = await db.MemberArchetypes
+           .AsNoTracking()
+           .Where(g => g.ServerMember.SpaceId == spaceId && g.ServerMember.UserId == member.UserId)
+           .Select(g => g.Archetype.IsDefault)
+           .ToListAsync(ct);
+
+        Assert.That(granted, Is.EqualTo(new[] { true }), "the joined member should hold exactly the space's default archetype");
+    }
+
     private async Task<string> CreateRawInviteAsync(Guid spaceId, Guid creatorId, DateTimeOffset expireAt, CancellationToken ct)
     {
         var factory = FactoryAsp.Services.GetRequiredService<IDbContextFactory<Argon.Entities.ApplicationDbContext>>();

@@ -1,5 +1,7 @@
 namespace Argon.Features.Storage;
 
+using Argon.Features.Clustering;
+using Argon.Features.EF;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -8,13 +10,25 @@ using Microsoft.Extensions.Logging;
 ///     - Every 5 minutes: deletes expired upload blobs + their S3 objects
 ///     - Every hour: deletes finalized files with ref_count ≤ 0 (1-hour grace period)
 /// </summary>
+/// <remarks>
+///     Every media replica runs this loop, so each sweep first takes the <see cref="LockTable"/> lease — the
+///     one <see cref="SchemaReconcileLease"/> the TTL sweeper also uses — and a replica that does not get it
+///     skips the sweep instead of deleting the same batch as the others.
+/// </remarks>
 public class FileGcService(
     IServiceScopeFactory scopeFactory,
     IS3StorageService s3,
     IOptions<FileLimitsOptions> limitsOptions,
     IOptions<Argon.Features.Logic.FileGcOptions> gcOptions,
+    RoleDescriptor role,
     ILogger<FileGcService> logger) : BackgroundService
 {
+    /// <summary>The lease row that makes one replica the collector for the whole database.</summary>
+    public const string LockTable = "__FileGcLock";
+
+    /// <summary>Longer than a sweep of a full batch, S3 round trips included.</summary>
+    private static readonly TimeSpan LeaseLifetime = TimeSpan.FromMinutes(5);
+
     private TimeSpan BlobSweepInterval   => gcOptions.Value.BlobSweepInterval;
     private TimeSpan OrphanSweepInterval => gcOptions.Value.OrphanSweepInterval;
     private TimeSpan OrphanGracePeriod   => gcOptions.Value.OrphanGracePeriod;
@@ -51,14 +65,17 @@ public class FileGcService(
         }
     }
 
-    private async Task SweepExpiredBlobsAsync(CancellationToken ct)
+    /// <summary>One pass over expired upload blobs, as the loop runs it; nothing happens without the lease.</summary>
+    public async Task SweepExpiredBlobsAsync(CancellationToken ct)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileGC.SweepExpiredBlobs");
         var sw = Stopwatch.StartNew();
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
-            .CreateDbContext();
-        await using var _ = db;
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+            .CreateDbContextAsync(ct);
+
+        await using var lease = await TryAcquireLeaseAsync(db, ct);
+        if (lease is null) return;
 
         var now = DateTimeOffset.UtcNow;
         var expiredBlobs = await db.FileBlobs
@@ -70,10 +87,14 @@ public class FileGcService(
 
         logger.LogInformation("FileGC: sweeping {Count} expired blobs", expiredBlobs.Count);
 
+        var fileIds = expiredBlobs.Select(b => b.FileId).Distinct().ToList();
+        var files = await db.Files
+            .Where(f => fileIds.Contains(f.Id))
+            .ToDictionaryAsync(f => f.Id, ct);
+
         foreach (var blob in expiredBlobs)
         {
-            var file = await db.Files.FindAsync([blob.FileId], ct);
-            if (file is not null)
+            if (files.Remove(blob.FileId, out var file))
             {
                 try
                 {
@@ -88,6 +109,9 @@ public class FileGcService(
             db.FileBlobs.Remove(blob);
         }
 
+        // The S3 deletes are idempotent; the rows are not written by a replica whose lease has moved on.
+        if (!await lease.TryRenewAsync(ct)) return;
+
         await db.SaveChangesAsync(ct);
         sw.Stop();
         StorageInstruments.GcBlobsSwept.Add(expiredBlobs.Count);
@@ -95,14 +119,17 @@ public class FileGcService(
         logger.LogInformation("FileGC: cleaned {Count} expired blobs in {ElapsedMs}ms", expiredBlobs.Count, sw.Elapsed.TotalMilliseconds);
     }
 
-    private async Task SweepOrphanFilesAsync(CancellationToken ct)
+    /// <summary>One pass over finalized files nothing references any more; nothing happens without the lease.</summary>
+    public async Task SweepOrphanFilesAsync(CancellationToken ct)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileGC.SweepOrphanFiles");
         var sw = Stopwatch.StartNew();
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
-            .CreateDbContext();
-        await using var _ = db;
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+            .CreateDbContextAsync(ct);
+
+        await using var lease = await TryAcquireLeaseAsync(db, ct);
+        if (lease is null) return;
 
         var cutoff = DateTimeOffset.UtcNow - OrphanGracePeriod;
 
@@ -133,10 +160,22 @@ public class FileGcService(
             db.Files.Remove(orphan.File);
         }
 
+        if (!await lease.TryRenewAsync(ct)) return;
+
         await db.SaveChangesAsync(ct);
         sw.Stop();
         StorageInstruments.GcOrphansSwept.Add(orphanFiles.Count);
         StorageInstruments.GcSweepDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("sweep_type", "orphans"));
         logger.LogInformation("FileGC: cleaned {Count} orphan files in {ElapsedMs}ms", orphanFiles.Count, sw.Elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>The sweep lease, or null while another replica holds it.</summary>
+    /// <remarks>The connection is pinned so the lease is taken, renewed and released on the sweep's own session.</remarks>
+    private async Task<SchemaReconcileLease?> TryAcquireLeaseAsync(ApplicationDbContext db, CancellationToken ct)
+    {
+        await db.Database.OpenConnectionAsync(ct);
+
+        return await SchemaReconcileLease.TryAcquireAsync(
+            db.Database.GetDbConnection(), logger, role.Id.Value, LeaseLifetime, LockTable, ct);
     }
 }

@@ -101,10 +101,27 @@ public sealed class SpaceReadGrain(
         LocalCacheExpiration = TimeSpan.FromSeconds(1)
     };
 
-    public async Task<List<MemberPresence>> GetPresence()
+    public Task<List<MemberPresence>> GetPresence()
+        => CachedPresenceAsync(this.GetPrimaryKey());
+
+    /// <summary>
+    /// Counted off the presence entry rather than off the database, so the header and the invite
+    /// sheet cannot disagree with the member list about who is here.
+    /// </summary>
+    public async Task<SpaceHeadcount> GetHeadcount()
     {
-        var spaceId = this.GetPrimaryKey();
-        var roster  = await CachedRosterAsync(spaceId);
+        var presence = await CachedPresenceAsync(this.GetPrimaryKey());
+
+        return new SpaceHeadcount
+        {
+            Members = presence.Count,
+            Online  = presence.Count(p => p.status != UserStatus.Offline)
+        };
+    }
+
+    private async Task<List<MemberPresence>> CachedPresenceAsync(Guid spaceId)
+    {
+        var roster = await CachedRosterAsync(spaceId);
 
         return await cache.GetOrCreateAsync($"space:presence:{spaceId}",
             (userPresence, roster.Value),
@@ -332,15 +349,48 @@ public sealed class SpaceReadGrain(
             {
                 await using var db = await state.context.CreateDbContextAsync(ct);
 
+                // Only the columns the roster is built from, not the whole user row. BotEntity was never
+                // loaded here, so VERIFIED stays unset exactly as before.
                 var rows = await db.UsersToServerRelations
                    .AsNoTracking()
                    .AsSplitQuery()
-                   .Include(x => x.User)
                    .Where(x => x.SpaceId == state.spaceId)
-                   .Include(x => x.SpaceMemberArchetypes)
+                   .Select(x => new
+                    {
+                        x.Id,
+                        x.UserId,
+                        x.CreatedAt,
+                        x.User.Username,
+                        x.User.DisplayName,
+                        x.User.AvatarFileId,
+                        x.User.BotEntityId,
+                        x.User.LockdownReason,
+                        x.User.HasActiveUltima,
+                        UserDeleted = x.User.IsDeleted,
+                        Archetypes = x.SpaceMemberArchetypes
+                           .Select(a => new SpaceMemberArchetype(a.SpaceMemberId, a.ArchetypeId))
+                           .ToList()
+                    })
                    .ToListAsync(ct);
 
-                return Version(rows.Select(x => x.ToDto()).ToList());
+                return Version(rows.Select(x => new SpaceMember(
+                    x.UserId,
+                    state.spaceId,
+                    x.CreatedAt.UtcDateTime,
+                    x.Id,
+                    UserEntity.Map(new UserEntity
+                    {
+                        Id              = x.UserId,
+                        Email           = string.Empty,
+                        Username        = x.Username,
+                        DisplayName     = x.DisplayName,
+                        AvatarFileId    = x.AvatarFileId,
+                        BotEntityId     = x.BotEntityId,
+                        LockdownReason  = x.LockdownReason,
+                        HasActiveUltima = x.HasActiveUltima,
+                        IsDeleted       = x.UserDeleted
+                    }),
+                    new IonArray<SpaceMemberArchetype>(x.Archetypes))).ToList());
             },
             CacheOptions, [ISpaceReadCache.SpaceTag(spaceId)]);
 

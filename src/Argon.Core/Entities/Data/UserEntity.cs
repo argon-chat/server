@@ -129,5 +129,10 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
 
         builder.HasIndex(x => x.NormalizedEmail).IsUnique();
         builder.HasIndex(x => x.NormalizedUsername).IsUnique();
+
+        // Phone-change checks and the admin lookup ask by number. text, as before: a length limit
+        // here would be a column type change.
+        builder.Property(x => x.PhoneNumber).HasColumnType("text");
+        builder.HasIndex(x => x.PhoneNumber).HasFilter("\"PhoneNumber\" IS NOT NULL");
     }
 }

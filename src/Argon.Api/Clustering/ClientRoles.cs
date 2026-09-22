@@ -16,7 +16,6 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<SentryTunnelFeature>();
         features.Add<ServerTimingFeature>();
         features.Add<MessagePipeFeature>();
-        features.Add<DatabaseFeature>();
         features.Add<KestrelFeature>();
         features.Add<ForwardedHeadersFeature>();
         features.Add<RoutingFeature>();

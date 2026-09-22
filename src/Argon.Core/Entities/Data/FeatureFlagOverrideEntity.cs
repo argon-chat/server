@@ -52,7 +52,6 @@ public record FeatureFlagOverrideEntity : ArgonEntity, IEntityTypeConfiguration<
 
         builder.HasIndex(x => new { x.FeatureFlagId, x.Scope, x.TargetId }).IsUnique();
         builder.HasIndex(x => x.TargetId);
-        builder.HasIndex(x => x.Scope);
 
         builder.HasOne(x => x.FeatureFlag)
            .WithMany(x => x.Overrides)
