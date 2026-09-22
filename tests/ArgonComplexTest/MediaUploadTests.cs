@@ -278,6 +278,49 @@ public class MediaUploadTests : TestBase
         });
     }
 
+    /// <summary>
+    /// A stored file's address redirects to the key it was stored under, from the cache as well.
+    /// </summary>
+    /// <remarks>
+    /// An attachment rather than an avatar: avatars are stored under their bare id, which is also the
+    /// fallback for a file the lookup cannot find, so they cannot tell the two apart.
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task A_file_address_redirects_to_the_object_key_the_file_was_stored_under(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        SetAuthToken(await RegisterAndGetTokenAsync(ct));
+
+        var spaceId   = await CreateSpaceAndGetIdAsync(ct);
+        var channelId = await CreateTextChannelAsync(spaceId, ct: ct);
+        var channels  = GetChannelService(scope.ServiceProvider);
+        var ticket    = await Begin(() => channels.BeginUploadAttachment(spaceId, channelId, ct));
+
+        await Upload(ticket, Png);
+
+        var attachment = await channels.CompleteUploadAttachment(spaceId, channelId, ticket.blobId, ct);
+        var stored     = await GetGrainFactory().GetGrain<IFileStorageGrain>(await CurrentUserId(scope, ct))
+           .GetFileInfoAsync(attachment.fileId, ct);
+
+        using var client = FactoryAsp.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var first  = await client.GetAsync($"{CdnOptions.FilePath}/{attachment.fileId}", ct);
+        using var cached = await client.GetAsync($"{CdnOptions.FilePath}/{attachment.fileId}", ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored?.S3Key, Is.Not.Null.And.Not.EqualTo(attachment.fileId.ToString()),
+                "premise: the attachment is stored under a key of its own");
+            Assert.That(first.Headers.Location?.AbsolutePath, Does.EndWith($"/{stored!.S3Key}"),
+                "the redirect points somewhere other than the object the file was stored under");
+            Assert.That(cached.Headers.Location, Is.EqualTo(first.Headers.Location));
+        });
+    }
+
     // ── reference counts ────────────────────────────────────────────────────────────────────────
 
     /// <summary>

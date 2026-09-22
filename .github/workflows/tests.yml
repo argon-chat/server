@@ -6,8 +6,8 @@ name: Tests
 #
 # The integration suite is sharded: `shards` runner jobs, each running one slice of the fixtures in
 # a container stack of its own (see the notes in scipts/run-tests.ps1 and scipts/test-shards.ps1).
-# Coverage is collected per shard and merged by the `coverage` job, which is where the threshold is
-# applied — no single job sees the whole picture.
+# Coverage is collected per shard and merged by the `coverage` job, which is where the threshold and
+# the ratchet against the default branch are applied — no single job sees the whole picture.
 on:
   workflow_call:
     inputs:
@@ -23,6 +23,17 @@ on:
         description: 'Minimum line coverage %. 0 disables the gate.'
         type: number
         default: 0
+      ratchet:
+        description: >-
+          Also fail when line coverage is lower than the baseline the default branch publishes (the
+          newest one from a commit this run contains). No baseline yet is a warning, not a failure.
+          The caller has to grant `actions: read`: the baseline is another run's artifact.
+        type: boolean
+        default: false
+      ratchetTolerance:
+        description: 'Percentage points of line coverage a run may lose against the baseline. Run-to-run noise is about 0.05.'
+        type: number
+        default: 0.1
       shards:
         description: >-
           How many concurrent shards the integration suite is split into. Must match a partition
@@ -179,6 +190,32 @@ jobs:
       - name: Merge coverage and apply the threshold
         shell: pwsh
         run: ./scipts/run-tests.ps1 -MergeCoverageFrom shard-coverage -Threshold ${{ inputs.threshold }}
+
+      # Only a run whose every shard passed has a number worth comparing or keeping: a red shard
+      # leaves coverage short (a cancelled master run once recorded 20%).
+      - name: Record line coverage
+        if: needs.test.result == 'success'
+        shell: pwsh
+        run: ./scipts/coverage-ratchet.ps1 -SummaryOut artifacts/coverage/coverage-summary.json
+
+      - name: Publish the coverage baseline
+        if: needs.test.result == 'success' && github.ref_name == github.event.repository.default_branch
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-baseline-${{ inputs.database }}
+          path: artifacts/coverage/coverage-summary.json
+          if-no-files-found: error
+
+      - name: Compare line coverage with the default branch
+        if: needs.test.result == 'success' && inputs.ratchet
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          ./scipts/coverage-ratchet.ps1
+          -BaselineArtifact coverage-baseline-${{ inputs.database }}
+          -Branch '${{ github.event.repository.default_branch }}'
+          -Tolerance ${{ inputs.ratchetTolerance }}
 
       - name: Upload coverage report
         if: always()

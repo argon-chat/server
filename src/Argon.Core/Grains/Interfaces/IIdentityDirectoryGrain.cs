@@ -44,6 +44,10 @@ public record OperatorAppAccessInfo(
 /// flow needs to know about the human: which account is signing in, and whether that account is also
 /// an operator.
 /// </para>
+/// <para>
+/// It also answers the account questions the Ion layer asks on every request — existence, lockdown,
+/// reach — so the roles that serve Ion need no database of their own. Callers cache those answers.
+/// </para>
 /// </remarks>
 [Alias("Argon.Grains.Interfaces.IIdentityDirectoryGrain")]
 public interface IIdentityDirectoryGrain : IGrainWithGuidKey
@@ -74,4 +78,29 @@ public interface IIdentityDirectoryGrain : IGrainWithGuidKey
     /// </remarks>
     [Alias(nameof(GetOperatorHasAnyAppAccessAsync))]
     Task<bool> GetOperatorHasAnyAppAccessAsync(Guid operatorId, CancellationToken ct = default);
+
+    /// <summary>Whether a live, non-erased account exists under this id.</summary>
+    [Alias(nameof(UserExistsAsync))]
+    Task<bool> UserExistsAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// The account's lockdown as the Ion request gate caches it; <see cref="LockdownReason.NONE"/> when
+    /// there is no account.
+    /// </summary>
+    [Alias(nameof(GetLockdownAsync))]
+    Task<LockdownSnapshot> GetLockdownAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Whether <paramref name="callerId"/> has any standing reason to know <paramref name="targetId"/>.
+    /// See <c>SocialReach</c>.
+    /// </summary>
+    [Alias(nameof(CanReachAsync))]
+    Task<bool> CanReachAsync(Guid callerId, Guid targetId, CancellationToken ct = default);
+
+    /// <summary>The managed instance a verified email domain signs in on, or null for the official one.</summary>
+    [Alias(nameof(ResolveTenantInstanceAsync))]
+    Task<string?> ResolveTenantInstanceAsync(string domain, CancellationToken ct = default);
 }
+
+/// <summary>What the Ion request gate caches about an account's lockdown.</summary>
+public sealed record LockdownSnapshot(LockdownReason Reason, DateTimeOffset? ExpiresAt);

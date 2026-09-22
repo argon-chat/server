@@ -10,8 +10,6 @@ public class IdentityInteraction(
     ClassicJwtFlow flow,
     IArgonCacheDatabase cache,
     DeviceProofVerifier deviceProofs,
-    DeviceIdentityService devices,
-    IDbContextFactory<ApplicationDbContext> context,
     IHttpContextAccessor http,
     IOptions<WebSessionOptions> webSession,
     IQrLoginService qrLogin) : IIdentityInteraction
@@ -248,6 +246,21 @@ public class IdentityInteraction(
         }
     }
 
+    // A device that cannot be resolved reads as none, as it did when this was a query here: an unbound
+    // session refreshes without it, and a bound one is refused below.
+    private async Task<Guid?> ProvenDeviceAsync(Guid userId, DeviceProof proof, CancellationToken ct)
+    {
+        try
+        {
+            return await this.GetGrain<IDeviceIdentityGrain>(Guid.Empty).ResolveByKeyAsync(userId, proof.PublicKey, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not resolve a device key for {UserId}", userId);
+            return null;
+        }
+    }
+
     public async Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default)
     {
         // A browser has no refresh token to pass: for the web client it is in a cookie the page
@@ -302,7 +315,7 @@ public class IdentityInteraction(
             // machine is first recorded, since there is no enrolment call to make. Checked before
             // revocation because it is the cheaper of the two and refuses the same requests.
             var proof        = await VerifiedProofAsync(ct);
-            var provenDevice = proof is null ? null : await devices.ResolveByKeyAsync(userId, proof, ct);
+            var provenDevice = proof is null ? null : await ProvenDeviceAsync(userId, proof, ct);
 
             // A token bound to a hardware key is only good where that key is: the proof has to be
             // there, has to verify, and has to come from the key the token names — a valid proof

@@ -197,14 +197,10 @@ public class UserInteractionImpl(
     /// sharing a space, being friends, a request in either direction, or a conversation that
     /// exists. A pending request counts because the target has to be able to see who is asking.</para>
     /// </remarks>
-    private async Task<bool> CanReachAsync(Guid callerId, Guid targetId, CancellationToken ct)
-    {
+    private Task<bool> CanReachAsync(Guid callerId, Guid targetId, CancellationToken ct)
         // One definition, shared with the report system: what is enough standing to look someone
         // up is exactly enough standing to report them. See SocialReach.
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        return await Argon.Api.Features.CoreLogic.Social.SocialReach.CanReachAsync(ctx, callerId, targetId, ct);
-    }
+        => this.GetGrain<IIdentityDirectoryGrain>(Guid.Empty).CanReachAsync(callerId, targetId, ct);
 
     public async Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default)
     {

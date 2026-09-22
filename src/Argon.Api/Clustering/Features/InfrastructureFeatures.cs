@@ -168,7 +168,8 @@ public sealed class DatabaseFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
     {
-        ctx.Builder.AddPooledDatabase<ApplicationDbContext>(ctx.Options<DatabaseOptions>());
+        // Named per role so the CockroachDB console attributes load to the role that caused it.
+        ctx.Builder.AddPooledDatabase<ApplicationDbContext>(ctx.Options<DatabaseOptions>(), $"argon-{ctx.Role.Id.Value}");
 
         ctx.Services.AddDependencyCheck<DatabaseHealthCheck>(DependencyNames.Database);
     }

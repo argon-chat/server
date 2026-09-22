@@ -559,6 +559,39 @@ public class AccountConsoleTests : TestBase
         });
     }
 
+    /// <summary>
+    /// The console's account gate asks the directory grain, and an erased account reads as gone there.
+    /// </summary>
+    /// <remarks>
+    /// The <c>account</c> role holds no database, so <c>AccountConsoleAuthInterceptor</c> cannot query
+    /// the row itself: when it did, the query threw on every call there and the gate failed open.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task The_console_account_gate_reads_an_erased_account_as_gone(CancellationToken ct = default)
+    {
+        var session   = await CreateSessionAsync(ct);
+        var directory = GetGrainFactory().GetGrain<IIdentityDirectoryGrain>(Guid.Empty);
+
+        var live = await directory.UserExistsAsync(session.UserId, ct);
+
+        await using (var db = await AccountSeed.NewDbAsync(ct))
+            await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ExecuteUpdateAsync(
+                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters(db.Users)
+                   .Where(u => u.Id == session.UserId),
+                set => set.SetProperty(u => u.IsDeleted, true).SetProperty(u => u.DeletedAt, DateTimeOffset.UtcNow),
+                ct);
+
+        var erased = await directory.UserExistsAsync(session.UserId, ct);
+        var nobody = await directory.UserExistsAsync(Guid.NewGuid(), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(live, Is.True);
+            Assert.That(erased, Is.False, "an erased account still reads as live to the console gate");
+            Assert.That(nobody, Is.False);
+        });
+    }
+
     // ── Auto-deletion: the operator queue ───────────────────────────────────────────────────────
 
     /// <summary>

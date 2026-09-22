@@ -35,7 +35,6 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<CdnFeature>();
         features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();
-        features.Add<EmailJournalFeature>();
 
         features.Add<PresenceFeature>();
         features.Add<CaptchaFeature>();
@@ -62,7 +61,6 @@ public sealed class BotApiRole : IArgonRole
         features.Add<RegionRegistryFeature>();
         features.Add<SentryFeature>();
         features.Add<ServerTimingFeature>();
-        features.Add<DatabaseFeature>();
 
         features.Add<KestrelFeature>();
         features.Add<ForwardedHeadersFeature>();

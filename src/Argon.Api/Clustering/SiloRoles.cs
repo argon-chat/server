@@ -66,45 +66,20 @@ public sealed class CoreRole : IArgonRole
         features.Add<SfuFeature>();
         features.Add<KlipyFeature>();
         features.Add<LinkPreviewFeature>();
-
-        // Every grain that raises an event needs the bus. Publishing goes through the backplane, so
-        // this brings no listening socket with it — the client endpoint is entrypoint's business.
         features.Add<RealtimeBusFeature>();
-
-        // SecurityGrain and AuthorizationGrain do the password and device work themselves.
         features.Add<ArgonAuthorizationFeature>();
-
-        // ChannelGrain and SavedGifsGrain take IS3StorageService directly rather than going through
-        // IFileStorageGrain, so the S3 client lands here whatever role owns the storage grain. That
-        // is a leak worth closing at the call sites, not a decision about where media belongs.
         features.Add<FileStorageFeature>();
-
-        // OperatorAuthChallengeGrain lives here and resolves IVaultPkiService inside the method that
-        // checks a staff certificate — out of a scope it opens itself, so nothing in its constructor
-        // names it and the fixture that walks hosted grains' constructors had nothing to see. Only
-        // the admin console required this feature, and the admin role hosts no grains: the service
-        // was registered in the one process that never called it, and the step-up answered 500 on the
-        // silo the moment a smart card was presented.
         features.Add<OperatorAuthFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
     {
         registry.AddToRef<SpaceGrain>();
-
-        // The read side of a space, hosted beside the write side so a cache miss is a local call.
-        // It is a stateless worker, so this is a pool per silo rather than a single activation.
         registry.AddToRef<SpaceReadGrain>();
 
         registry.AddToRef<ChannelGrain>();
         registry.AddToRef<UserGrain>();
         registry.AddToRef<UserSessionGrain>();
-
-        // One activation per user, and the only thing allowed to fold or to announce that user's
-        // presence. It has to be here rather than anywhere else because the sessions that drive it and
-        // the spaces it publishes to are here: everything it does is a Redis round trip and a hub
-        // publish, so a role boundary between it and UserSessionGrain would put a network hop on every
-        // heartbeat that changes anything. See IUserPresenceGrain for why it is not a stateless worker.
         registry.AddToRef<UserPresenceGrain>();
         registry.AddToRef<BotGatewayGrain>();
         registry.AddToRef<ServerInviteGrain>();
@@ -119,26 +94,13 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<AuthorizationGrain>();
         registry.AddToRef<SecurityGrain>();
         registry.AddToRef<FeatureFlagGrain>();
-
-        // Space RBAC — archetypes, channel permission overwrites, member assignment — keyed by
-        // spaceId. "Entitlement" here is the permission bitmask, not anything paid, and it was on
-        // commerce for no better reason than the word. Beside SpaceGrain it shares the key, and the
-        // client's login burst stops crossing a role boundary for it.
         registry.AddToRef<EntitlementGrain>();
-
         registry.AddToRef<OperatorAuthChallengeGrain>();
-
-        // The operator console's staff administration: operators, their certificates and per-app
-        // access, and the audit log. Here because the Vault PKI client that signs and revokes staff
-        // certificates is here (OperatorAuthFeature, above) — the console's role holds no connection
-        // and no PKI of its own. It is a handful of calls an hour and never on the hot path.
         registry.AddToRef<AdminOperatorsGrain>();
         registry.AddToRef<AppsManagementGrain>();
-
-        // The read side the identity server asks about people — which account is signing in, and
-        // whether it is also an operator. Beside DevTeamsGrain, which answers the same questions
-        // about applications, so an OAuth authorization does not cross a role boundary twice.
         registry.AddToRef<IdentityDirectoryGrain>();
+        registry.AddToRef<DeviceIdentityGrain>();
+        registry.AddToRef<FileDirectoryGrain>();
         registry.AddToRef<DevTeamsGrain>();
         registry.AddToRef<BotCommandsGrain>();
         registry.AddToRef<BotDirectoryGrain>();
@@ -167,9 +129,6 @@ public sealed class VoiceRole : IArgonRole
         features.Add<RepositoriesFeature>();
         features.Add<PermissionsFeature>();
         features.Add<SfuFeature>();
-
-        // CallGrain and SipGrain find and notify the sessions in a call, and post the "call started"
-        // system message.
         features.Add<PresenceFeature>();
         features.Add<MessagesFeature>();
     }
@@ -221,7 +180,6 @@ public sealed class ModerationRole : IArgonRole
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
-        features.Add<RepositoriesFeature>();
         features.Add<ContentModerationFeature>();
     }
 
@@ -246,8 +204,6 @@ public sealed class CommerceRole : IArgonRole
         features.Add<RepositoriesFeature>();
         features.Add<PermissionsFeature>();
         features.Add<XsollaFeature>();
-
-        // A purchase tells the buyer and their space about itself.
         features.Add<RealtimeBusFeature>();
         features.Add<PresenceFeature>();
         features.Add<NotificationsFeature>();
@@ -285,9 +241,6 @@ public sealed class JobsRole : IArgonRole
         features.Add<AccountDeletionFeature>();
         features.Add<ReportSystemFeature>();
         features.Add<NotificationsFeature>();
-
-        // Deleting an account verifies the password and closes the sessions; exporting one writes an
-        // archive to the export bucket.
         features.Add<ArgonAuthorizationFeature>();
         features.Add<PresenceFeature>();
         features.Add<FileStorageFeature>();
@@ -298,29 +251,13 @@ public sealed class JobsRole : IArgonRole
     {
         registry.AddToRef<AccountDeletionGrain>();
         registry.AddToRef<AutoDeleteSchedulerGrain>();
-
-        // The operator queue the scan feeds. Beside the scheduler that writes it and the deletion grain an
-        // approval calls, because the whole path is one reconcile plus one guarded request and putting a
-        // role boundary in the middle of it would buy nothing. The admin console reads it from the client
-        // side, which is a hop it already takes for every other grain it touches.
         registry.AddToRef<AccountDeletionQueueGrain>();
-
-        // The PostgreSQL half of Job:Expiration. It belongs on the role that already runs batch work on
-        // a reminder rather than on one serving traffic: a sweep is a scan and a series of deletes, and
-        // the whole point of putting it behind a single well-known key is that it happens in one place
-        // that is not the hot path.
         registry.AddToRef<TtlSweepGrain>();
         registry.AddToRef<ExportPumpGrain>();
         registry.AddToRef<UserDataExportGrain>();
         registry.AddToRef<EmailManager>();
         registry.AddToRef<ReportGrain>();
         registry.AddToRef<UserTrustGrain>();
-
-        // The operator console's reads and writes — accounts, what users build, and the platform-wide
-        // pages. On the batch role rather than on core because the console's queries are the heavy
-        // kind — whole-table counts for the statistics, a dozen counts for a user card — and that is
-        // load to keep away from the hot path. Co-hosted with what they lean on: the deletion grain
-        // the impact panel asks, the sweep's threshold options, and the e-mail journal.
         registry.AddToRef<AdminUsersGrain>();
         registry.AddToRef<AdminDirectoryGrain>();
         registry.AddToRef<AdminPlatformGrain>();

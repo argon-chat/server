@@ -31,9 +31,6 @@ public sealed class ArgonOrleansInterceptor : IIonInterceptor
     }
 }
 
-/// <summary>What the request interceptor caches about an account's lockdown.</summary>
-public sealed record LockdownSnapshot(LockdownReason Reason, DateTimeOffset? ExpiresAt);
-
 public sealed class ArgonTransactionInterceptor(
     TokenAuthorization                  validationParameters,
     IOptions<AnonymousRateLimitOptions> anonymousLimits,
@@ -302,9 +299,9 @@ public sealed class ArgonTransactionInterceptor(
     /// Whether this machine is barred. Cached, because the answer is "no" for everyone but a handful.
     /// </summary>
     /// <remarks>
-    /// Fails <em>open</em>, consistently with the other cache gates on this path: a database
-    /// incident must not lock every bound session out of the product. The blast radius is that a
-    /// banned machine keeps working until the store answers again, which is the same trade the
+    /// Fails <em>open</em>, consistently with the other cache gates on this path: a database or
+    /// cluster incident must not lock every bound session out of the product. The blast radius is that
+    /// a banned machine keeps working until the store answers again, which is the same trade the
     /// revocation gate above makes.
     /// </remarks>
     private static async Task<bool> IsDeviceBannedAsync(IServiceProvider sp, Guid deviceId, CancellationToken ct)
@@ -313,17 +310,9 @@ public sealed class ArgonTransactionInterceptor(
         {
             return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
                 $"device:banned:{deviceId}",
-                async token =>
-                {
-                    await using var ctx = await sp
-                       .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
-                       .CreateDbContextAsync(token);
-
-                    var now = DateTimeOffset.UtcNow;
-
-                    return await ctx.DeviceBans.AnyAsync(
-                        x => x.DeviceId == deviceId && (x.ExpiresAt == null || x.ExpiresAt > now), token);
-                },
+                async token => await sp.GetRequiredService<IGrainFactory>()
+                   .GetGrain<IDeviceIdentityGrain>(Guid.Empty)
+                   .IsBannedAsync(deviceId, token),
                 BannedDeviceCacheOptions,
                 cancellationToken: ct);
         }
@@ -447,16 +436,9 @@ public sealed class ArgonTransactionInterceptor(
         // else clears the column. Reading the reason alone made every timed ban permanent.
         var snapshot = await cache.GetOrCreateAsync(
             ArgonRequestContext.LockdownCacheKey(userId),
-            async token =>
-            {
-                var dbFactory = sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
-                await using var db = await dbFactory.CreateDbContextAsync(token);
-                return await db.Users
-                   .AsNoTracking()
-                   .Where(u => u.Id == userId)
-                   .Select(u => new LockdownSnapshot(u.LockdownReason, u.LockDownExpiration))
-                   .FirstOrDefaultAsync(token) ?? new LockdownSnapshot(LockdownReason.NONE, null);
-            },
+            async token => await sp.GetRequiredService<IGrainFactory>()
+               .GetGrain<IIdentityDirectoryGrain>(Guid.Empty)
+               .GetLockdownAsync(userId, token),
             LockdownCacheOptions,
             cancellationToken: ct);
 

@@ -93,6 +93,8 @@ public static class OtelFeature
                 .AddMeter("System.Runtime")
                 .AddMeter("Microsoft.AspNetCore")
                 .AddMeter("Microsoft.Orleans")
+                .AddMeter("Npgsql")
+                .AddMeter("Microsoft.EntityFrameworkCore")
                 .AddOtlpExporter(options => {
                     options.Endpoint = metricsEndpoint;
                     options.Protocol = OtlpExportProtocol.HttpProtobuf;

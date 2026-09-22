@@ -2,6 +2,7 @@ namespace ArgonComplexTest.Tests;
 
 using Argon.Entities;
 using Argon.Features.Auth;
+using Argon.Grains.Interfaces;
 using Argon.Services;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
@@ -9,6 +10,7 @@ using ion.runtime.client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
 using System.Net.WebSockets;
 
 [TestFixture]
@@ -1077,6 +1079,136 @@ public class SecurityTests : TestBase
 
         Assert.That(async () => await client.SubscribeToChannel(locked, ct), Throws.Exception,
             "a member without ViewChannel was put on the channel group and is now reading its messages live");
+    }
+
+    #endregion
+
+    #region Device keys
+
+    private IDeviceIdentityGrain Devices => GetGrainFactory().GetGrain<IDeviceIdentityGrain>(Guid.Empty);
+
+    private Task<ApplicationDbContext> NewDbAsync(CancellationToken ct)
+        => FactoryAsp.Services.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContextAsync(ct);
+
+    private static string NewDevicePublicKey()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        return Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
+    }
+
+    /// <summary>
+    /// A proven key is enrolled on first sight, and a refresh inside the hour reads rather than writes.
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 2), Order(70)]
+    public async Task AProvenKey_IsEnrolledOnce_AndItsSightingIsWrittenAtMostHourly(CancellationToken ct = default)
+    {
+        var account    = await CreateSessionAsync(ct);
+        var publicKey  = NewDevicePublicKey();
+        var thumbprint = DeviceProofVerifier.Thumbprint(publicKey);
+
+        var first  = await Devices.ResolveByKeyAsync(account.UserId, publicKey, ct);
+        var second = await Devices.ResolveByKeyAsync(account.UserId, publicKey, ct);
+
+        Assert.That(first, Is.Not.Null, "a first proof from a machine did not enrol it");
+        Assert.That(second, Is.EqualTo(first));
+
+        var aged = DateTimeOffset.UtcNow.AddHours(-2);
+
+        await using (var db = await NewDbAsync(ct))
+        {
+            var observation = await db.DeviceObservations.AsNoTracking()
+               .SingleAsync(o => o.UserId == account.UserId && o.DeviceId == first, ct);
+
+            Assert.That(observation.Logins, Is.EqualTo(1),
+                "a second refresh inside the hour wrote the sighting again");
+
+            await db.DeviceKeys.Where(k => k.Thumbprint == thumbprint)
+               .ExecuteUpdateAsync(set => set.SetProperty(k => k.LastProvenAt, aged), ct);
+            await db.DeviceObservations.Where(o => o.UserId == account.UserId && o.DeviceId == first)
+               .ExecuteUpdateAsync(set => set.SetProperty(o => o.LastSeenAt, aged), ct);
+        }
+
+        var third = await Devices.ResolveByKeyAsync(account.UserId, publicKey, ct);
+
+        await using (var db = await NewDbAsync(ct))
+        {
+            var key         = await db.DeviceKeys.AsNoTracking().SingleAsync(k => k.Thumbprint == thumbprint, ct);
+            var observation = await db.DeviceObservations.AsNoTracking()
+               .SingleAsync(o => o.UserId == account.UserId && o.DeviceId == first, ct);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(third, Is.EqualTo(first));
+                Assert.That(key.LastProvenAt, Is.GreaterThan(aged), "a sighting older than the hour was not refreshed");
+                Assert.That(observation.LastSeenAt, Is.GreaterThan(aged));
+                Assert.That(observation.Logins, Is.EqualTo(2));
+            });
+        }
+    }
+
+    /// <summary>
+    /// A second account on the same machine is recorded at once, not an hour later.
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 2), Order(71)]
+    public async Task ASecondAccountOnTheSameKey_IsRecordedAgainstTheSameMachine(CancellationToken ct = default)
+    {
+        var first     = await CreateSessionAsync(ct);
+        var second    = await CreateSessionAsync(ct);
+        var publicKey = NewDevicePublicKey();
+
+        var a = await Devices.ResolveByKeyAsync(first.UserId, publicKey, ct);
+        var b = await Devices.ResolveByKeyAsync(second.UserId, publicKey, ct);
+
+        await using var db = await NewDbAsync(ct);
+
+        var accounts = await db.DeviceObservations.AsNoTracking()
+           .Where(o => o.DeviceId == a)
+           .Select(o => o.UserId)
+           .ToListAsync(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(b, Is.EqualTo(a), "one key is one machine, whichever account presents it");
+            Assert.That(accounts, Is.EquivalentTo(new[] { first.UserId, second.UserId }),
+                "the second account's sighting was skipped because the machine had been seen recently");
+        });
+    }
+
+    /// <summary>
+    /// A barred machine resolves to no device, and stops being barred when the ban runs out.
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 2), Order(72)]
+    public async Task ABarredMachine_ResolvesToNoDevice_UntilTheBanExpires(CancellationToken ct = default)
+    {
+        var account   = await CreateSessionAsync(ct);
+        var publicKey = NewDevicePublicKey();
+        var device    = await Devices.ResolveByKeyAsync(account.UserId, publicKey, ct);
+
+        Assert.That(device, Is.Not.Null);
+
+        await using (var db = await NewDbAsync(ct))
+        {
+            db.DeviceBans.Add(new DeviceBanEntity { Id = Guid.CreateVersion7(), DeviceId = device!.Value, Reason = "test" });
+            await db.SaveChangesAsync(ct);
+        }
+
+        var bannedCheck   = await Devices.IsBannedAsync(device!.Value, ct);
+        var bannedResolve = await Devices.ResolveByKeyAsync(account.UserId, publicKey, ct);
+
+        await using (var db = await NewDbAsync(ct))
+            await db.DeviceBans.Where(b => b.DeviceId == device.Value)
+               .ExecuteUpdateAsync(set => set.SetProperty(b => b.ExpiresAt, DateTimeOffset.UtcNow.AddMinutes(-1)), ct);
+
+        var expiredCheck   = await Devices.IsBannedAsync(device.Value, ct);
+        var expiredResolve = await Devices.ResolveByKeyAsync(account.UserId, publicKey, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(bannedCheck, Is.True);
+            Assert.That(bannedResolve, Is.Null, "a barred machine still resolved, so its bound token keeps refreshing");
+            Assert.That(expiredCheck, Is.False);
+            Assert.That(expiredResolve, Is.EqualTo(device));
+        });
     }
 
     #endregion

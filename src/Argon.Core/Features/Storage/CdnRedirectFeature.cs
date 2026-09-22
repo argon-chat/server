@@ -1,12 +1,11 @@
 namespace Argon.Features.Storage;
 
-using Argon.Entities;            // ApplicationDbContext
 using Argon.Features;            // HttpContextExtensions.GetRegion
 using Argon.Features.Discovery;  // OpenPublicPolicy (AllowAnyOrigin GET CORS)
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -45,20 +44,50 @@ public static class CdnRedirectFeature
         return app;
     }
 
-    private static async Task<IResult> FileRedirectHandler(
-        HttpContext                             ctx,
-        Guid                                    fileId,
-        IOptions<StorageOptions>                options,
-        IDbContextFactory<ApplicationDbContext> dbFactory,
-        CancellationToken                       ct)
+    // A file's object key is written once, at upload, so a found key is held for a day — in process
+    // for less, since every file anyone views lands there. A missing one is held briefly: it may be an
+    // upload about to be finalized, and anyone can mint them.
+    private static readonly HybridCacheEntryOptions KeyOptions = new()
     {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var key = await db.Files
-           .Where(f => f.Id == fileId && f.Finalized)
-           .Select(f => f.S3Key)
-           .FirstOrDefaultAsync(ct) ?? fileId.ToString(); // fallback: legacy flat key (key == fileId)
+        Expiration           = TimeSpan.FromDays(1),
+        LocalCacheExpiration = TimeSpan.FromMinutes(10)
+    };
 
-        return RegionRedirect(ctx, options.Value.Cdn, key);
+    private static readonly HybridCacheEntryOptions MissingKeyOptions = new()
+    {
+        Expiration           = TimeSpan.FromSeconds(30),
+        LocalCacheExpiration = TimeSpan.FromSeconds(10)
+    };
+
+    private static async Task<IResult> FileRedirectHandler(
+        HttpContext              ctx,
+        Guid                     fileId,
+        IOptions<StorageOptions> options,
+        IGrainFactory            grains,
+        HybridCache              hybrid,
+        CancellationToken        ct)
+    {
+        var cacheKey = $"cdn:file-key:{fileId}";
+        var fresh    = false;
+
+        // Empty string for "no such file": a cached null is indistinguishable from a miss.
+        var key = await hybrid.GetOrCreateAsync(
+            cacheKey,
+            (grains, fileId),
+            async (state, token) =>
+            {
+                fresh = true;
+                return await state.grains.GetGrain<IFileDirectoryGrain>(Guid.Empty)
+                   .GetObjectKeyAsync(state.fileId, token) ?? "";
+            },
+            KeyOptions,
+            cancellationToken: ct);
+
+        if (fresh && key.Length == 0)
+            await hybrid.SetAsync(cacheKey, key, MissingKeyOptions, cancellationToken: ct);
+
+        // Fallback: legacy flat key (key == fileId).
+        return RegionRedirect(ctx, options.Value.Cdn, key.Length == 0 ? fileId.ToString() : key);
     }
 
     private static IResult KeyRedirectHandler(HttpContext ctx, string key, IOptions<StorageOptions> options)

@@ -295,6 +295,29 @@ public class RoleStartupTests
         });
     }
 
+    /// <summary>
+    /// The bot API reaches its data through <c>IBotDirectoryGrain</c> and the user grains, on the same
+    /// terms as the consoles above.
+    /// </summary>
+    [Test, CancelAfter(300_000)]
+    public async Task The_bot_api_serves_without_a_database()
+    {
+        await using var host = new RoleHost(Settings, ArgonRoleId.BotApi, siloPort: 0,
+            ArgonClusterEndpoints.DefaultClusterId);
+
+        var services = host.Services;
+        var role     = services.GetRequiredService<RoleDescriptor>();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(role.Features.Ordered.Select(f => f.Name), Does.Contain("bot-api"));
+            Assert.That(role.Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"));
+
+            Assert.That(services.GetService<IDbContextFactory<ApplicationDbContext>>(), Is.Null,
+                "the bot API talks to grains, not to Postgres");
+        });
+    }
+
     [Test, CancelAfter(300_000)]
     public async Task Only_moderation_registers_the_onnx_stack()
     {

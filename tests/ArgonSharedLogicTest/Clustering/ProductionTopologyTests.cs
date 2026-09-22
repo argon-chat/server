@@ -160,8 +160,8 @@ public class ProductionTopologyTests
     }
 
     /// <summary>
-    /// The consoles and the identity server reach their data through grains, and never hold a
-    /// connection pool of their own.
+    /// The consoles, the identity server and the bot API reach their data through grains, and never
+    /// hold a connection pool of their own.
     /// </summary>
     /// <remarks>
     /// A requirement pulls its own requirements in, so the way the database comes back is not somebody
@@ -177,7 +177,7 @@ public class ProductionTopologyTests
 
         Assert.Multiple(() =>
         {
-            foreach (var id in new[] { ArgonRoleId.Admin, ArgonRoleId.Account, ArgonRoleId.Aegis })
+            foreach (var id in new[] { ArgonRoleId.Admin, ArgonRoleId.Account, ArgonRoleId.Aegis, ArgonRoleId.BotApi })
                 Assert.That(catalog.Require(id).Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"),
                     $"role '{id}' reaches its data through grains; something in its feature graph requires the database");
         });

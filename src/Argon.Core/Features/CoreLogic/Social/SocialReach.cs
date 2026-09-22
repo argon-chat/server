@@ -19,36 +19,33 @@ using Microsoft.EntityFrameworkCore;
 /// </remarks>
 public static class SocialReach
 {
+    /// <remarks>
+    /// One round trip: every anchor is an <c>EXISTS</c> in a single projection over the caller's own
+    /// row, which is present for anyone able to ask. The block still wins over every anchor.
+    /// </remarks>
     public static async Task<bool> CanReachAsync(ApplicationDbContext ctx, Guid callerId, Guid targetId, CancellationToken ct = default)
     {
         if (callerId == targetId)
             return true;
 
-        if (await ctx.UserBlocklist.AnyAsync(
-                x => (x.UserId == callerId && x.BlockedId == targetId) ||
-                     (x.UserId == targetId && x.BlockedId == callerId), ct))
-            return false;
-
-        if (await ctx.Friends.AnyAsync(
-                x => (x.UserId == callerId && x.FriendId == targetId) ||
-                     (x.UserId == targetId && x.FriendId == callerId), ct))
-            return true;
-
-        if (await ctx.FriendRequest.AnyAsync(
-                x => (x.RequesterId == callerId && x.TargetId == targetId) ||
-                     (x.RequesterId == targetId && x.TargetId == callerId), ct))
-            return true;
-
         var conversationId = ConversationEntity.GenerateConversationId(callerId, targetId);
 
-        if (await ctx.Conversations.AnyAsync(x => x.Id == conversationId, ct))
-            return true;
-
-        var callerSpaces = ctx.UsersToServerRelations
-           .Where(x => x.UserId == callerId)
-           .Select(x => x.SpaceId);
-
-        return await ctx.UsersToServerRelations
-           .AnyAsync(x => x.UserId == targetId && callerSpaces.Contains(x.SpaceId), ct);
+        return await ctx.Users
+           .Where(u => u.Id == callerId)
+           .Select(_ =>
+                !ctx.UserBlocklist.Any(x =>
+                    (x.UserId == callerId && x.BlockedId == targetId) ||
+                    (x.UserId == targetId && x.BlockedId == callerId)) &&
+                (ctx.Friends.Any(x =>
+                     (x.UserId == callerId && x.FriendId == targetId) ||
+                     (x.UserId == targetId && x.FriendId == callerId)) ||
+                 ctx.FriendRequest.Any(x =>
+                     (x.RequesterId == callerId && x.TargetId == targetId) ||
+                     (x.RequesterId == targetId && x.TargetId == callerId)) ||
+                 ctx.Conversations.Any(x => x.Id == conversationId) ||
+                 ctx.UsersToServerRelations.Any(x =>
+                     x.UserId == targetId &&
+                     ctx.UsersToServerRelations.Any(y => y.UserId == callerId && y.SpaceId == x.SpaceId))))
+           .FirstOrDefaultAsync(ct);
     }
 }

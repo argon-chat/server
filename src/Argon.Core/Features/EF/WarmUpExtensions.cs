@@ -90,8 +90,11 @@ public static class WarmUpExtension
 
             using var scope = app.Services.CreateScope();
 
-            var             factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<T>>();
-            await using var db      = await factory.CreateDbContextAsync();
+            // A silo role without DatabaseFeature has no pool and nothing to migrate.
+            if (scope.ServiceProvider.GetService<IDbContextFactory<T>>() is not { } factory)
+                return app;
+
+            await using var db = await factory.CreateDbContextAsync();
 
             if (isMigrate)
                 await db.MigrateArgonDatabase(

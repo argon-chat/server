@@ -200,9 +200,9 @@ public sealed class AccountConsoleAuthInterceptor(
     /// budget <c>ArgonTransactionInterceptor</c> gives a lockdown, and the floor above is the gate that
     /// takes effect immediately.</para>
     ///
-    /// <para>Fails <em>open</em>, where the floor fails closed: a database blip locking every developer
-    /// out of their own console is a worse answer than half a minute of an account that no longer exists
-    /// reading its own status page, and the floor has already refused the erased case.</para>
+    /// <para>Fails <em>open</em>, where the floor fails closed: a database or cluster blip locking every
+    /// developer out of their own console is a worse answer than half a minute of an account that no
+    /// longer exists reading its own status page, and the floor has already refused the erased case.</para>
     /// </remarks>
     private async Task<bool> AccountExistsAsync(IServiceProvider sp, Guid userId, CancellationToken ct)
     {
@@ -210,14 +210,9 @@ public sealed class AccountConsoleAuthInterceptor(
         {
             return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
                 $"console:account:{userId}",
-                async token =>
-                {
-                    await using var db = await sp
-                       .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
-                       .CreateDbContextAsync(token);
-
-                    return await db.Users.AsNoTracking().AnyAsync(u => u.Id == userId, token);
-                },
+                async token => await sp.GetRequiredService<IGrainFactory>()
+                   .GetGrain<IIdentityDirectoryGrain>(Guid.Empty)
+                   .UserExistsAsync(userId, token),
                 AccountCacheOptions,
                 cancellationToken: ct);
         }

@@ -36,12 +36,65 @@ public record DatabaseOptions : Argon.Features.Clustering.IValidatableFeatureOpt
     /// <summary>Which flavour of the PostgreSQL wire protocol. Unset means CockroachDB.</summary>
     public string? Provider { get; set; }
 
+    // The pool and timeout settings below are defaults: a keyword the connection string sets itself wins.
+
+    /// <summary>Also the size of the pooled DbContext factory.</summary>
+    public int MaxPoolSize { get; set; } = 100;
+
+    public int MinPoolSize { get; set; } = 2;
+
+    /// <summary>How long an idle connection is kept; too short and every burst pays TCP, TLS and SCRAM again.</summary>
+    public TimeSpan ConnectionIdleLifetime { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Rotates connections so they spread back over nodes that restarted.</summary>
+    public TimeSpan ConnectionLifetime { get; set; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// List only the nodes of the pod's own region in <c>Host</c> when turning this on: <c>Messages</c> is
+    /// <c>REGIONAL BY ROW</c> on <c>gateway_region()</c>.
+    /// </summary>
+    public bool LoadBalanceHosts { get; set; }
+
+    /// <summary>Off until a load test says otherwise.</summary>
+    public int MaxAutoPrepare { get; set; }
+
+    /// <summary>Client-side, per attempt. Npgsql counts it as transient, so it is retried.</summary>
+    public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Server-side <c>statement_timeout</c>, sent through the <c>Options</c> keyword. Unset leaves the
+    /// server's own. Unlike <see cref="CommandTimeout"/> a cancelled statement is not retried.
+    /// </summary>
+    public TimeSpan? StatementTimeout { get; set; }
+
+    public int MaxRetryCount { get; set; } = 3;
+
+    public TimeSpan MaxRetryDelay { get; set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>Statements per round trip; matches the message write buffer's batch.</summary>
+    public int MaxBatchSize { get; set; } = 256;
+
     public void Validate(Argon.Features.Clustering.IFeatureConfigurationReport report)
-        => report.Require(
+    {
+        report.Require(
             !string.IsNullOrWhiteSpace(ConnectionString) ||
             !string.IsNullOrWhiteSpace(report.Read<ConnectionStringsSection>("ConnectionStrings").Default),
             nameof(ConnectionString),
             "is not set and neither is ConnectionStrings:Default; there is no database to reach");
+
+        report.RequireRange(MaxPoolSize, 1, 1024, nameof(MaxPoolSize));
+        report.RequireRange(MinPoolSize, 0, MaxPoolSize, nameof(MinPoolSize));
+        report.RequireRange(ConnectionIdleLifetime, TimeSpan.FromSeconds(1), TimeSpan.FromDays(1), nameof(ConnectionIdleLifetime));
+        report.RequireRange(ConnectionLifetime, TimeSpan.Zero, TimeSpan.FromDays(1), nameof(ConnectionLifetime));
+        report.RequireRange(MaxAutoPrepare, 0, 1024, nameof(MaxAutoPrepare));
+        report.RequireRange(CommandTimeout, TimeSpan.FromSeconds(1), TimeSpan.FromHours(1), nameof(CommandTimeout));
+        report.RequireRange(MaxRetryCount, 0, 10, nameof(MaxRetryCount));
+        report.RequireRange(MaxRetryDelay, TimeSpan.Zero, TimeSpan.FromMinutes(1), nameof(MaxRetryDelay));
+        report.RequireRange(MaxBatchSize, 1, 10_000, nameof(MaxBatchSize));
+
+        if (StatementTimeout is { } statement)
+            report.RequireRange(statement, TimeSpan.FromMilliseconds(1), TimeSpan.FromHours(1), nameof(StatementTimeout));
+    }
 }
 
 /// <summary>The shape of the framework's own <c>ConnectionStrings</c> block, for the one rule that reads it.</summary>

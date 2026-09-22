@@ -72,4 +72,41 @@ public sealed class IdentityDirectoryGrain(IDbContextFactory<ApplicationDbContex
            .AsNoTracking()
            .AnyAsync(a => a.OperatorId == operatorId, ct);
     }
+
+    // Under the soft-delete filter, so an erased account answers "no".
+    public async Task<bool> UserExistsAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        return await db.Users.AsNoTracking().AnyAsync(u => u.Id == userId, ct);
+    }
+
+    public async Task<LockdownSnapshot> GetLockdownAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        return await db.Users
+           .AsNoTracking()
+           .Where(u => u.Id == userId)
+           .Select(u => new LockdownSnapshot(u.LockdownReason, u.LockDownExpiration))
+           .FirstOrDefaultAsync(ct) ?? new LockdownSnapshot(LockdownReason.NONE, null);
+    }
+
+    public async Task<bool> CanReachAsync(Guid callerId, Guid targetId, CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        return await SocialReach.CanReachAsync(db, callerId, targetId, ct);
+    }
+
+    public async Task<string?> ResolveTenantInstanceAsync(string domain, CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        return await db.TenantDirectory
+           .AsNoTracking()
+           .Where(t => t.Domain == domain && t.IsVerified)
+           .Select(t => t.InstanceUrl)
+           .FirstOrDefaultAsync(ct);
+    }
 }

@@ -4,6 +4,7 @@ using Argon.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -57,12 +58,27 @@ public static class DiscoveryFeature
             MinClientVersion: m.MinClientVersion));
     }
 
+    // A tenant row changes when an operator verifies a domain, which is rare and never urgent. Most
+    // lookups are for domains with no row at all, and those are held for less: anyone can mint them.
+    private static readonly HybridCacheEntryOptions TenantOptions = new()
+    {
+        Expiration           = TimeSpan.FromMinutes(5),
+        LocalCacheExpiration = TimeSpan.FromMinutes(1)
+    };
+
+    private static readonly HybridCacheEntryOptions NoTenantOptions = new()
+    {
+        Expiration           = TimeSpan.FromMinutes(1),
+        LocalCacheExpiration = TimeSpan.FromSeconds(30)
+    };
+
     private static async Task<IResult> ResolveHandler(
-        string?                                 email,
-        IDbContextFactory<ApplicationDbContext> dbFactory,
-        IArgonCacheDatabase                     cache,
-        ILoggerFactory                          loggerFactory,
-        CancellationToken                       ct)
+        string?             email,
+        IGrainFactory       grains,
+        HybridCache         hybrid,
+        IArgonCacheDatabase cache,
+        ILoggerFactory      loggerFactory,
+        CancellationToken   ct)
     {
         var domain = ExtractDomain(email);
         // Invalid / missing domain → treat as official (never enumerate, never error).
@@ -86,16 +102,28 @@ public static class DiscoveryFeature
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var row = await db.TenantDirectory
-               .AsNoTracking()
-               .Where(t => t.Domain == domain && t.IsVerified && !t.IsDeleted)
-               .Select(t => new { t.InstanceUrl })
-               .FirstOrDefaultAsync(ct);
+            var key   = $"discovery:tenant:{domain}";
+            var fresh = false;
 
-            return Results.Ok(row is null
+            // Empty string for "no tenant": a cached null is indistinguishable from a miss.
+            var instanceUrl = await hybrid.GetOrCreateAsync(
+                key,
+                (grains, domain),
+                async (state, token) =>
+                {
+                    fresh = true;
+                    return await state.grains.GetGrain<IIdentityDirectoryGrain>(Guid.Empty)
+                       .ResolveTenantInstanceAsync(state.domain, token) ?? "";
+                },
+                TenantOptions,
+                cancellationToken: ct);
+
+            if (fresh && instanceUrl.Length == 0)
+                await hybrid.SetAsync(key, instanceUrl, NoTenantOptions, cancellationToken: ct);
+
+            return Results.Ok(instanceUrl.Length == 0
                 ? new ResolveResultDto("official", null)
-                : new ResolveResultDto("managed", row.InstanceUrl));
+                : new ResolveResultDto("managed", instanceUrl));
         }
         catch (Exception e)
         {

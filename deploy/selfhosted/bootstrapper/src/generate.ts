@@ -705,8 +705,6 @@ function connectionString(password: string): string {
         `Username=${DEPLOYMENT.database.user}`,
         `Password=${password}`,
         `Database=${DEPLOYMENT.database.name}`,
-        "ConnectionIdleLifetime=15",
-        "ConnectionPruningInterval=10",
     ].join(";");
 }
 

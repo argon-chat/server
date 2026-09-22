@@ -29,6 +29,9 @@ public readonly record struct DeviceIdentity(
 /// workshop machine and a legitimate second account all look identical from here. Acting on it
 /// automatically punishes the first three to catch the fourth, so it is returned for a human or a
 /// risk score to weigh and never enforced in this class.</para>
+///
+/// <para>The key half — the machine behind a proven hardware key — is
+/// <see cref="IDeviceIdentityGrain"/>'s.</para>
 /// </remarks>
 public class DeviceIdentityService(
     IDbContextFactory<ApplicationDbContext> context,
@@ -44,7 +47,7 @@ public class DeviceIdentityService(
     /// shared by every old build in the wild, and then ban it.
     /// <para>
     /// A deployment that configured no weight table reports nothing by construction, so the same
-    /// guard covers it: no fingerprint is stored, and the key half below carries on regardless.
+    /// guard covers it: no fingerprint is stored, and the key half carries on regardless.
     /// </para>
     /// </remarks>
     public async Task<DeviceIdentity?> ObserveAsync(Guid userId, DeviceFingerprint fingerprint, CancellationToken ct = default)
@@ -98,86 +101,6 @@ public class DeviceIdentityService(
             // Device attribution is an anti-abuse signal, not a credential check. Failing to record
             // it must never be a reason someone cannot sign in.
             logger.LogError(e, "Could not attribute a device for {UserId}", userId);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Finds the machine behind a verified key, recording it the first time it is seen.
-    /// </summary>
-    /// <remarks>
-    /// <para>There is no enrolment step to call, because there is no device service to call it on:
-    /// the first request carrying a valid proof <em>is</em> the enrolment. That is the whole point of
-    /// the identity riding the cookie — native code pushes it, the auth path reads it, and the
-    /// contract never learns hardware exists.</para>
-    ///
-    /// <para>Returns null when the machine is barred, so a ban reads the same as having no device:
-    /// the caller refuses the bound token and the session ends. Recording the sighting first is
-    /// deliberate — a banned machine still trying is exactly what a ban wants to know about.</para>
-    /// </remarks>
-    public async Task<Guid?> ResolveByKeyAsync(Guid userId, DeviceProof proof, CancellationToken ct = default)
-    {
-        var thumbprint = DeviceProofVerifier.Thumbprint(proof.PublicKey);
-        var now        = DateTimeOffset.UtcNow;
-
-        try
-        {
-            await using var ctx = await context.CreateDbContextAsync(ct);
-
-            var key = await ctx.DeviceKeys.FirstOrDefaultAsync(x => x.Thumbprint == thumbprint, ct);
-
-            if (key is null)
-            {
-                key = new DeviceKeyEntity
-                {
-                    Id           = ArgonId.New(),
-                    DeviceId     = ArgonId.New(),
-                    Thumbprint   = thumbprint,
-                    PublicKey    = proof.PublicKey,
-                    Platform     = DevicePlatform.UNKNOWN,
-                    Assurance    = DeviceAssurance.KEY,
-                    ClientName   = string.Empty,
-                    EnrolledAt   = now,
-                    LastProvenAt = now
-                };
-
-                ctx.DeviceKeys.Add(key);
-            }
-            else
-                key.LastProvenAt = now;
-
-            // Soft delete leaves a forgotten pair holding the unique (UserId, DeviceId) index, so it
-            // has to be revived rather than inserted alongside — the filtered query cannot see it.
-            var observation = await ctx.DeviceObservations
-               .IgnoreQueryFilters()
-               .FirstOrDefaultAsync(x => x.UserId == userId && x.DeviceId == key.DeviceId, ct);
-
-            if (observation is null)
-                ctx.DeviceObservations.Add(new DeviceObservationEntity
-                {
-                    Id          = ArgonId.New(),
-                    UserId      = userId,
-                    DeviceId    = key.DeviceId,
-                    Components  = string.Empty,
-                    FirstSeenAt = now,
-                    LastSeenAt  = now,
-                    Logins      = 1
-                });
-            else
-            {
-                observation.IsDeleted  = false;
-                observation.DeletedAt  = null;
-                observation.LastSeenAt = now;
-                observation.Logins++;
-            }
-
-            await ctx.SaveChangesAsync(ct);
-
-            return await IsBannedAsync(ctx, key.DeviceId, ct) ? null : key.DeviceId;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not resolve a device key for {UserId}", userId);
             return null;
         }
     }
