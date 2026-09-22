@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Clustering;
+namespace Argon.Api.Clustering;
 
 using Argon.Features.Clustering;
 
@@ -81,9 +81,6 @@ public sealed class AccountConsoleRole : IArgonRole
     public string Description => "developer account console — accounts, dev teams and their apps";
     public bool   IsClient    => true;
 
-    // No DatabaseFeature: everything this role reads or writes goes through IDevTeamsGrain, so it
-    // never opens a connection of its own. That is the whole reason the console's repository became
-    // a grain rather than being carried over as a service.
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
@@ -112,7 +109,6 @@ public sealed class AdminRole : IArgonRole
         features.Add<TelemetryFeature>();
         features.Add<RegionRegistryFeature>();
         features.Add<SentryFeature>();
-        features.Add<DatabaseFeature>();
 
         features.Add<KestrelFeature>();
         features.Add<ForwardedHeadersFeature>();

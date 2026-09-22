@@ -1,8 +1,5 @@
 namespace Argon.Api.Features.AdminApi;
 
-using Argon.Features.Email;
-
-using Argon.Api.Entities.Data;
 using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
@@ -11,930 +8,82 @@ using Argon.Features.Admin;
 using Argon.Grains.Interfaces;
 using ConsoleContracts;
 using ion.runtime;
-using Livekit.Server.Sdk.Dotnet;
 using Argon.Services.Ion;
-using Microsoft.Extensions.Caching.Hybrid;
 
+/// <summary>
+/// The operator console.
+/// </summary>
+/// <remarks>
+/// <para><b>No database here, and none on the role that hosts it.</b> <c>admin</c> is a client role
+/// and opens no connection of its own: every read and write goes through a grain — the four admin
+/// grains (<see cref="IAdminUsersGrain"/>, <see cref="IAdminDirectoryGrain"/>,
+/// <see cref="IAdminPlatformGrain"/>, <see cref="IAdminOperatorsGrain"/>) for what used to be queries
+/// here, and the domain grains for everything that already had an owner. It is the arrangement the
+/// account console has with <c>IDevTeamsGrain</c>, for the same reason: an Ion service holding a
+/// connection pool is one the next person writes a query against.</para>
+///
+/// <para>What is left here is the mapping onto the console contract, the audit line, and the
+/// operator's identity — which lives in an ambient context that does not cross a grain call, so every
+/// grain method that needs it takes it as an argument.</para>
+/// </remarks>
 public class AdminConsoleImpl(
     IGrainFactory grainFactory,
     ILogger<IAdminConsole> logger,
-    IDbContextFactory<ApplicationDbContext> dbFactory,
     RuntimeDiagnosticsService runtimeDiagnostics,
     DatabaseDiagnosticsService databaseDiagnostics,
     KubernetesDiagnosticsService? kubernetesDiagnostics,
     NatsDiagnosticsService? natsDiagnostics,
     RedisDiagnosticsService? redisDiagnostics,
     OrleansDiagnosticsService? orleansDiagnostics,
-    IOperatorCertificateService certificateService,
     IOperatorAuditService auditService,
-    HybridCache lockdownCache,
     IUserSessionDiscoveryService sessionDiscovery,
-    IUserSessionNotifier sessionNotifier,
-    IOptions<AccountDeletionOptions> deletionOptions,
-    IEmailJournal emailJournal
+    IUserSessionNotifier sessionNotifier
 ) : IAdminConsole
 {
-    public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return new SearchUserResult(false, null, SearchMatchKind.None);
+    private IAdminUsersGrain     AdminUsers     => grainFactory.GetGrain<IAdminUsersGrain>(Guid.Empty);
+    private IAdminDirectoryGrain AdminDirectory => grainFactory.GetGrain<IAdminDirectoryGrain>(Guid.Empty);
+    private IAdminPlatformGrain  AdminPlatform  => grainFactory.GetGrain<IAdminPlatformGrain>(Guid.Empty);
+    private IAdminOperatorsGrain AdminOperators => grainFactory.GetGrain<IAdminOperatorsGrain>(Guid.Empty);
 
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-
-        // Try parse as GUID first
-        if (Guid.TryParse(query, out var userId))
-        {
-            var exists = await db.Users.AnyAsync(u => u.Id == userId, ct);
-            if (exists)
-                return new SearchUserResult(true, userId, SearchMatchKind.UserId);
-        }
-
-        // Search by username
-        var byUsername = await db.Users
-           .Where(u => u.NormalizedUsername == normalizedQuery)
-           .Select(u => u.Id)
-           .FirstOrDefaultAsync(ct);
-        if (byUsername != Guid.Empty)
-            return new SearchUserResult(true, byUsername, SearchMatchKind.Username);
-
-        // Search by email
-        var byEmail = await db.Users
-           .Where(u => u.NormalizedEmail == normalizedQuery)
-           .Select(u => u.Id)
-           .FirstOrDefaultAsync(ct);
-        if (byEmail != Guid.Empty)
-            return new SearchUserResult(true, byEmail, SearchMatchKind.Email);
-
-        // Search by phone
-        var byPhone = await db.Users
-           .Where(u => u.PhoneNumber != null && u.PhoneNumber == query.Trim())
-           .Select(u => u.Id)
-           .FirstOrDefaultAsync(ct);
-        if (byPhone != Guid.Empty)
-            return new SearchUserResult(true, byPhone, SearchMatchKind.Phone);
-
-        return new SearchUserResult(false, null, SearchMatchKind.None);
-    }
+    public Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
+        => AdminUsers.SearchUserAsync(query, ct);
 
     public async Task<UserCardDetails> GetUserCard(Guid userId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        => await AdminUsers.GetUserCardAsync(userId, ct)
+        ?? throw new InvalidOperationException("User not found");
 
-        var user = await db.Users
-                      .Include(u => u.Profile)
-                      .Include(u => u.BotEntity)
-                      .FirstOrDefaultAsync(u => u.Id == userId, ct)
-                   ?? throw new InvalidOperationException("User not found");
+    public Task<PlatformStats> GetPlatformStats(CancellationToken ct = default)
+        => AdminPlatform.GetPlatformStatsAsync(ct);
 
-        // Get last login from device history
-        var lastLogin = await db.DeviceHistories
-           .Where(d => d.UserId == userId && d.LastLoginTime != null)
-           .OrderByDescending(d => d.LastLoginTime)
-           .Select(d => d.LastLoginTime)
-           .FirstOrDefaultAsync(ct);
+    public Task<ItemTemplateList> GetItemTemplates(CancellationToken ct = default)
+        => AdminPlatform.GetItemTemplatesAsync(ct);
 
-        // Get blocked users count
-        var blockedUsersCount = await db.UserBlocklist.CountAsync(b => b.UserId == userId, ct);
+    public Task<DeleteItemResult> DeleteItemFromUserInventory(Guid userId, Guid itemId, CancellationToken ct = default)
+        => AdminPlatform.DeleteItemFromUserInventoryAsync(userId, itemId, ct);
 
-        // Get direct messages count (sent by user)
-        var directMessagesCount = await db.DirectMessages.CountAsync(m => m.SenderId == userId, ct);
+    public Task<DeleteItemResult> DeleteItemTemplate(Guid itemId, CancellationToken ct = default)
+        => AdminPlatform.DeleteItemTemplateAsync(itemId, ct);
 
-        // Get conversations count (where user is a participant)
-        var conversationsCount = await db.Conversations
-           .CountAsync(c => c.Participant1Id == userId || c.Participant2Id == userId, ct);
+    public Task<CreateItemTemplateResult> CreateItemTemplate(CreateItemTemplateInput input, CancellationToken ct = default)
+        => AdminPlatform.CreateItemTemplateAsync(input, ct);
 
-        // Account info
-        var account = new UserAccountInfo(
-            user.Id,
-            user.Username,
-            user.DisplayName,
-            user.Email,
-            user.PhoneNumber,
-            user.AvatarFileId,
-            user.DateOfBirth,
-            user.CreatedAt.UtcDateTime,
-            user.LockdownReason,
-            user.LockDownExpiration?.UtcDateTime,
-            user.LockDownIsAppealable,
-            user.PreferredAuthMode,
-            user.PreferredOtpMethod,
-            user.AgreeTOS,
-            lastLogin?.UtcDateTime,
-            blockedUsersCount,
-            directMessagesCount,
-            conversationsCount
-        );
+    public Task<CouponList> GetCoupons(CancellationToken ct = default)
+        => AdminPlatform.GetCouponsAsync(ct);
 
-        // Profile info
-        var profile = user.Profile.ToDto();
+    public Task<CreateCouponResult> CreateCoupon(CreateCouponInput input, CancellationToken ct = default)
+        => AdminPlatform.CreateCouponAsync(input, ct);
 
-        // Passkeys count & TwoFactor
-        var passkeyCount = await db.Passkeys.CountAsync(p => p.UserId == userId && p.IsCompleted, ct);
-        var hasTwoFactor = !string.IsNullOrEmpty(user.TotpSecret);
-
-        // Items with box contents
-        var itemEntities = await db.Items
-           .Where(i => i.OwnerId == userId && !i.IsReference)
-           .Include(i => i.Scenario)
-           .ToListAsync(ct);
-
-        var items = new List<InventoryItemInfo>();
-        foreach (var item in itemEntities)
-        {
-            var isBox = item.Scenario is BoxScenario or QualifierBox or MultipleQualifierBox;
-            var boxContents = IonArray<BoxContentInfo>.Empty;
-
-            if (isBox && item.Scenario is QualifierBox qb && qb.ReferenceItemId != Guid.Empty)
-            {
-                var refItem = await db.Items.FirstOrDefaultAsync(i => i.Id == qb.ReferenceItemId, ct);
-                if (refItem is not null)
-                    boxContents = new IonArray<BoxContentInfo>([new BoxContentInfo(refItem.Id, refItem.TemplateId)]);
-            }
-
-            if (isBox && item.Scenario is MultipleQualifierBox { ReferenceItemIds.Count: > 0 } mqb)
-            {
-                var refItems = await db.Items.Where(i => mqb.ReferenceItemIds.Contains(i.Id)).ToListAsync(ct);
-                if (refItems.Count > 0)
-                    boxContents = new IonArray<BoxContentInfo>(refItems.Select(ri => new BoxContentInfo(ri.Id, ri.TemplateId)).ToList());
-            }
-
-            items.Add(new InventoryItemInfo(
-                item.Id,
-                item.TemplateId,
-                item.IsUsable,
-                item.IsGiftable,
-                item.ReceivedFrom,
-                item.TTL.HasValue ? (int)item.TTL.Value.TotalSeconds : null,
-                item.CreatedAt.UtcDateTime,
-                isBox,
-                boxContents
-            ));
-        }
-
-        // Recent messages (last 10)
-        var messages = await db.Messages
-           .Where(m => m.CreatorId == userId)
-           .OrderByDescending(m => m.CreatedAt)
-           .Take(10)
-           .Select(m => new
-           {
-               m.MessageId,
-               m.SpaceId,
-               m.ChannelId,
-               m.Text,
-               m.CreatedAt
-           })
-           .ToListAsync(ct);
-
-        var spaceIds = messages.Select(m => m.SpaceId).Distinct().ToList();
-        var channelIds = messages.Select(m => m.ChannelId).Distinct().ToList();
-
-        var spaceNames = await db.Spaces
-           .Where(s => spaceIds.Contains(s.Id))
-           .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-
-        var channelNames = await db.Channels
-           .Where(c => channelIds.Contains(c.Id))
-           .ToDictionaryAsync(c => c.Id, c => c.Name, ct);
-
-        var recentMessages = messages.Select(m => new MessageInfo(
-            m.MessageId,
-            m.SpaceId,
-            spaceNames.GetValueOrDefault(m.SpaceId, "Unknown"),
-            m.ChannelId,
-            channelNames.GetValueOrDefault(m.ChannelId, "Unknown"),
-            m.Text,
-            m.CreatedAt.UtcDateTime
-        )).ToArray();
-
-        // Device history (last 10)
-        var deviceHistoryEntities = await db.DeviceHistories
-           .Where(d => d.UserId == userId)
-           .OrderByDescending(d => d.LastLoginTime)
-           .Take(10)
-           .ToListAsync(ct);
-
-        var deviceHistory = deviceHistoryEntities.Select(d => new DeviceHistoryInfo(
-            d.MachineId,
-            d.LastLoginTime?.UtcDateTime,
-            d.LastKnownIP ?? "",
-            d.RegionAddress ?? "",
-            d.AppId ?? "",
-            (ConsoleContracts.DeviceTypeKind)(int)d.DeviceType
-        )).ToList();
-
-        // Redeemed coupons
-        var redemptionEntities = await db.CouponRedemption
-           .Where(r => r.UserId == userId)
-           .Include(r => r.Coupon)
-           .Include(r => r.Items)
-           .ToListAsync(ct);
-
-        var redemptions = redemptionEntities.Select(r => new RedeemedCouponInfo(
-            r.CouponId,
-            r.Coupon.Code,
-            r.RedeemedAt.UtcDateTime,
-            r.Items.Count
-        )).ToList();
-
-        // Spaces (first 5)
-        var spaceMemberships = await db.UsersToServerRelations
-           .Where(sm => sm.UserId == userId && !sm.IsDeleted)
-           .OrderByDescending(sm => sm.CreatedAt)
-           .Take(5)
-           .Include(sm => sm.Space)
-           .ToListAsync(ct);
-
-        var spaces = new List<UserSpaceInfo>();
-        foreach (var sm in spaceMemberships)
-        {
-            var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == sm.SpaceId && !x.IsDeleted, ct);
-            var channelCount = await db.Channels.CountAsync(c => c.SpaceId == sm.SpaceId, ct);
-            var isOwner = sm.Space.CreatorId == userId;
-
-            spaces.Add(new UserSpaceInfo(
-                sm.SpaceId,
-                sm.Space.Name,
-                sm.Space.AvatarFileId,
-                memberCount,
-                channelCount,
-                sm.CreatedAt.UtcDateTime,
-                isOwner
-            ));
-        }
-
-        // Level info
-        var levelEntity = await db.UserLevels.FirstOrDefaultAsync(l => l.UserId == userId, ct);
-        var level = levelEntity is not null
-            ? new UserLevelInfo(
-                levelEntity.CurrentLevel,
-                levelEntity.CurrentCycleXp,
-                levelEntity.TotalXpAllTime,
-                levelEntity.CanClaimMedal,
-                levelEntity.LastXpAward.UtcDateTime)
-            : new UserLevelInfo(1, 0, 0, false, DateTime.UtcNow);
-
-        // Stats (aggregated)
-        var statsEntities = await db.UserDailyStats
-           .Where(s => s.UserId == userId)
-           .ToListAsync(ct);
-
-        var stats = new UserStatsInfo(
-            statsEntities.Sum(s => s.TimeInVoiceSeconds),
-            statsEntities.Sum(s => s.CallsMade),
-            statsEntities.Sum(s => s.MessagesSent),
-            statsEntities.Sum(s => s.XpEarned)
-        );
-
-        // Teams (first 3)
-        var teamMemberships = await db.MemberTeamEntities
-           .Where(tm => tm.UserId == userId)
-           .Take(3)
-           .Include(tm => tm.Team)
-           .Select(tm => new UserTeamInfo(
-                tm.TeamId,
-                tm.Team.Name,
-                tm.Team.AvatarFileId,
-                tm.IsOwner,
-                tm.JoinedAt
-            ))
-           .ToListAsync(ct);
-
-        // Friend count
-        var friendCount = await db.Friends.CountAsync(f => f.UserId == userId, ct);
-
-        // Auto-delete settings
-        var autoDeleteEntity = await db.AutoDeleteSettings.FirstOrDefaultAsync(a => a.UserId == userId, ct);
-        var autoDeleteSettings = autoDeleteEntity is not null
-            ? new AutoDeleteSettingsInfo(autoDeleteEntity.Enabled, autoDeleteEntity.Months)
-            : null;
-
-        // Bots owned by user (through team membership)
-        var userTeamIds = await db.MemberTeamEntities
-           .Where(tm => tm.UserId == userId)
-           .Select(tm => tm.TeamId)
-           .ToListAsync(ct);
-
-        var userBots = userTeamIds.Count > 0
-            ? await db.BotEntities
-               .Where(b => userTeamIds.Contains(b.TeamId))
-               .Include(b => b.BotAsUser)
-               .Include(b => b.Team)
-               .Select(b => new AdminUserBotInfo(
-                    b.AppId,
-                    b.Name,
-                    b.BotAsUser.Username,
-                    b.IsVerified,
-                    b.LifecycleState == BotLifecycleState.Published,
-                    b.TeamId,
-                    b.Team.Name
-                ))
-               .ToListAsync(ct)
-            : [];
-
-        // Premium info
-        AdminPremiumInfo? premiumInfo = null;
-        var subscription = await db.UltimaSubscriptions
-           .Where(s => s.UserId == userId)
-           .OrderByDescending(s => s.StartsAt)
-           .FirstOrDefaultAsync(ct);
-
-        if (subscription is not null)
-        {
-            var usedBoostSlots = await db.SpaceBoosts
-               .CountAsync(b => b.SubscriptionId == subscription.Id && b.SpaceId != null, ct);
-            premiumInfo = new AdminPremiumInfo(
-                subscription.Id,
-                (UltimaPlan)(int)subscription.Tier,
-                (UltimaSubscriptionStatus)(int)subscription.Status,
-                subscription.StartsAt.UtcDateTime,
-                subscription.ExpiresAt.UtcDateTime,
-                subscription.AutoRenew,
-                subscription.BoostSlots,
-                usedBoostSlots,
-                subscription.CancelledAt?.UtcDateTime,
-                subscription.XsollaSubscriptionId,
-                subscription.ActivatedFromItemId
-            );
-        }
-
-        // Bot flag & user flags
-        var isBot = user.BotEntityId is not null;
-        var flags = (UserFlag)(int)UserEntity.GetFlags(user);
-
-        return new UserCardDetails(
-            account,
-            profile,
-            passkeyCount,
-            hasTwoFactor,
-            new IonArray<InventoryItemInfo>(items),
-            new IonArray<MessageInfo>(recentMessages),
-            new IonArray<DeviceHistoryInfo>(deviceHistory),
-            new IonArray<RedeemedCouponInfo>(redemptions),
-            new IonArray<UserSpaceInfo>(spaces),
-            level,
-            stats,
-            new IonArray<UserTeamInfo>(teamMemberships),
-            friendCount,
-            autoDeleteSettings,
-            new IonArray<AdminUserBotInfo>(userBots),
-            premiumInfo,
-            isBot,
-            flags
-        );
-    }
-
-    public async Task<PlatformStats> GetPlatformStats(CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var totalUsers = await db.Users.LongCountAsync(ct);
-        var totalSpaces = await db.Spaces.LongCountAsync(ct);
-        var totalChannels = await db.Channels.LongCountAsync(ct);
-        var totalMessages = await db.Messages.LongCountAsync(ct);
-        var totalCustomItems = await db.Items.Where(i => i.IsReference).LongCountAsync(ct);
-        var totalCouponsRedeemed = await db.CouponRedemption.LongCountAsync(ct);
-        var totalApps = await db.AppEntities.LongCountAsync(ct);
-        var totalBots = await db.BotEntities.LongCountAsync(ct);
-
-        var oneMonthAgo = DateTimeOffset.UtcNow.AddMonths(-1);
-
-        // New users in last month
-        var newUsersLast1Month = await db.Users
-           .Where(u => u.CreatedAt >= oneMonthAgo)
-           .LongCountAsync(ct);
-
-        // Active users in last month (users who logged in)
-        var activeUsersLast1Month = await db.DeviceHistories
-           .Where(d => d.LastLoginTime >= oneMonthAgo)
-           .Select(d => d.UserId)
-           .Distinct()
-           .LongCountAsync(ct);
-
-        // Peak active users in last month (max unique users per day)
-        var dailyActiveUsers = await db.DeviceHistories
-           .Where(d => d.LastLoginTime >= oneMonthAgo && d.LastLoginTime != null)
-           .GroupBy(d => d.LastLoginTime!.Value.Date)
-           .Select(g => g.Select(x => x.UserId).Distinct().Count())
-           .ToListAsync(ct);
-        var peakActiveUsersLast1Month = dailyActiveUsers.Count > 0 ? dailyActiveUsers.Max() : 0;
-
-        // New spaces in last month
-        var newSpacesLast1Month = await db.Spaces
-           .Where(s => s.CreatedAt >= oneMonthAgo)
-           .LongCountAsync(ct);
-
-        // Active spaces in last month (spaces with messages)
-        var activeSpacesLast1Month = await db.Messages
-           .Where(m => m.CreatedAt >= oneMonthAgo)
-           .Select(m => m.SpaceId)
-           .Distinct()
-           .LongCountAsync(ct);
-
-        // Peak active spaces in last month (max unique spaces with messages per day)
-        var dailyActiveSpaces = await db.Messages
-           .Where(m => m.CreatedAt >= oneMonthAgo)
-           .GroupBy(m => m.CreatedAt.Date)
-           .Select(g => g.Select(x => x.SpaceId).Distinct().Count())
-           .ToListAsync(ct);
-        var peakActiveSpacesLast1Month = dailyActiveSpaces.Count > 0 ? dailyActiveSpaces.Max() : 0;
-
-        return new PlatformStats(
-            totalUsers,
-            totalSpaces,
-            totalChannels,
-            totalMessages,
-            totalCustomItems,
-            totalCouponsRedeemed,
-            newUsersLast1Month,
-            activeUsersLast1Month,
-            peakActiveUsersLast1Month,
-            newSpacesLast1Month,
-            activeSpacesLast1Month,
-            peakActiveSpacesLast1Month,
-            totalApps,
-            totalBots
-        );
-    }
-
-    public async Task<ItemTemplateList> GetItemTemplates(CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var templates = await db.Items
-           .Where(i => i.IsReference)
-           .Include(i => i.Scenario)
-           .ToListAsync(ct);
-
-        var result = new List<ItemTemplateInfo>();
-        foreach (var t in templates)
-        {
-            var scenarioType = t.Scenario switch
-            {
-                RedeemScenario => ItemScenarioKind.RedeemCode,
-                PremiumScenario => ItemScenarioKind.Premium,
-                QualifierBox => ItemScenarioKind.QualifierBox,
-                MultipleQualifierBox => ItemScenarioKind.QualifierBox,
-                BoxScenario => ItemScenarioKind.Box,
-                _ => ItemScenarioKind.None
-            };
-
-            var boxContents = IonArray<BoxContentInfo>.Empty;
-            switch (t.Scenario)
-            {
-                case QualifierBox qb when qb.ReferenceItemId != Guid.Empty:
-                {
-                    var refItem = await db.Items.FirstOrDefaultAsync(i => i.Id == qb.ReferenceItemId, ct);
-                    if (refItem is not null)
-                        boxContents = new IonArray<BoxContentInfo>([new BoxContentInfo(refItem.Id, refItem.TemplateId)]);
-                    break;
-                }
-                case MultipleQualifierBox { ReferenceItemIds.Count: > 0 } mqb:
-                {
-                    var refItems = await db.Items.Where(i => mqb.ReferenceItemIds.Contains(i.Id)).ToListAsync(ct);
-                    if (refItems.Count > 0)
-                        boxContents = new IonArray<BoxContentInfo>(refItems.Select(ri => new BoxContentInfo(ri.Id, ri.TemplateId)).ToList());
-                    break;
-                }
-            }
-
-            result.Add(new ItemTemplateInfo(
-                t.Id,
-                t.TemplateId,
-                t.IsUsable,
-                t.IsGiftable,
-                t.IsAffectBadge,
-                t.TTL.HasValue ? (int)t.TTL.Value.TotalSeconds : null,
-                t.CreatedAt.UtcDateTime,
-                scenarioType,
-                boxContents
-            ));
-        }
-
-        return new ItemTemplateList(new IonArray<ItemTemplateInfo>(result));
-    }
-
-    public async Task<DeleteItemResult> DeleteItemFromUserInventory(Guid userId, Guid itemId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var userExists = await db.Users.AnyAsync(u => u.Id == userId, ct);
-            if (!userExists)
-            {
-                logger.LogWarning("DeleteItemFromUserInventory failed: user {UserId} not found", userId);
-                return new DeleteItemResult(false, null, $"User {userId} not found");
-            }
-
-            var item = await db.Items
-               .Include(i => i.Scenario)
-               .FirstOrDefaultAsync(i => i.Id == itemId, ct);
-
-            if (item is null)
-            {
-                logger.LogWarning("DeleteItemFromUserInventory failed: item {ItemId} not found", itemId);
-                return new DeleteItemResult(false, null, $"Item {itemId} not found");
-            }
-
-            if (item.IsReference)
-            {
-                logger.LogWarning("DeleteItemFromUserInventory failed: cannot delete reference template {ItemId} from user inventory", itemId);
-                return new DeleteItemResult(false, null, $"Cannot delete reference template {itemId}, use DeleteItemTemplate instead");
-            }
-
-            if (item.OwnerId != userId)
-            {
-                logger.LogWarning("DeleteItemFromUserInventory failed: item {ItemId} does not belong to user {UserId} (actual owner: {OwnerId})",
-                    itemId, userId, item.OwnerId);
-                return new DeleteItemResult(false, null, $"Item {itemId} does not belong to user {userId}");
-            }
-
-            db.Items.Remove(item);
-            var rowsAffected = await db.SaveChangesAsync(ct);
-
-            if (rowsAffected == 0)
-            {
-                logger.LogError("DeleteItemFromUserInventory failed: no rows affected when deleting item {ItemId} from user {UserId}", itemId,
-                    userId);
-                return new DeleteItemResult(false, null, $"Failed to delete item {itemId} from database");
-            }
-
-            logger.LogInformation("Deleted item {ItemId} (template: '{TemplateId}') from user {UserId} inventory",
-                itemId, item.TemplateId, userId);
-            return new DeleteItemResult(true, itemId, null);
-        }
-        catch (DbUpdateException ex)
-        {
-            logger.LogError(ex, "Database error while deleting item {ItemId} from user {UserId} inventory", itemId, userId);
-            return new DeleteItemResult(false, null, $"Database error while deleting item {itemId}");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Unexpected error while deleting item {ItemId} from user {UserId} inventory", itemId, userId);
-            return new DeleteItemResult(false, null, $"Unexpected error while deleting item {itemId}");
-        }
-    }
-
-    public async Task<DeleteItemResult> DeleteItemTemplate(Guid itemId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-
-            var item = await db.Items
-               .Include(i => i.Scenario)
-               .FirstOrDefaultAsync(i => i.Id == itemId, ct);
-
-            if (item is null)
-            {
-                logger.LogWarning("DeleteItemTemplate failed: item {ItemId} not found", itemId);
-                return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: item {itemId} not found");
-            }
-
-            if (!item.IsReference)
-            {
-                logger.LogWarning("DeleteItemTemplate failed: item {ItemId} is not a reference template", itemId);
-                return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: item {itemId} is not a reference template");
-            }
-
-            var usedInCoupons = await db.Coupons.AnyAsync(c => c.ReferenceItemEntityId == itemId, ct);
-            if (usedInCoupons)
-            {
-                logger.LogWarning("DeleteItemTemplate failed: template {ItemId} is used in coupons", itemId);
-                return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: template {itemId} is used in coupons");
-            }
-
-            var usedInQualifierBoxes = await db.Items
-               .Where(i => i.IsReference && i.Scenario != null)
-               .Include(argonItemEntity => argonItemEntity.Scenario)
-               .ToListAsync(ct);
-
-            var isUsedInBox = usedInQualifierBoxes.Any(i =>
-                (i.Scenario is QualifierBox qb && qb.ReferenceItemId == itemId) ||
-                (i.Scenario is MultipleQualifierBox mqb && mqb.ReferenceItemIds.Contains(itemId)));
-
-            if (isUsedInBox)
-            {
-                logger.LogWarning("DeleteItemTemplate failed: template {ItemId} is used in other box templates", itemId);
-                return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: template {itemId} is used in other box templates");
-            }
-
-            db.Items.Remove(item);
-            var rowsAffected = await db.SaveChangesAsync(ct);
-
-            if (rowsAffected == 0)
-            {
-                logger.LogError("DeleteItemTemplate failed: no rows affected when deleting template {ItemId}", itemId);
-                return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: no rows affected when deleting template {itemId}");
-            }
-
-            logger.LogInformation("Deleted item template {ItemId} with TemplateId '{TemplateId}'", itemId, item.TemplateId);
-            return new DeleteItemResult(true, itemId, null);
-        }
-        catch (DbUpdateException ex)
-        {
-            logger.LogError(ex, "Database error while deleting item template {ItemId}", itemId);
-            return new DeleteItemResult(false, null, $"Database error while deleting item template {itemId}");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Unexpected error while deleting item template {ItemId}", itemId);
-            return new DeleteItemResult(false, null, $"Unexpected error while deleting item template {itemId}");
-        }
-    }
-
-    public async Task<CreateItemTemplateResult> CreateItemTemplate(CreateItemTemplateInput input, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            if (string.IsNullOrWhiteSpace(input.templateId))
-            {
-                logger.LogWarning("CreateItemTemplate failed: templateId is empty");
-                return new CreateItemTemplateResult(false, null, "Template ID cannot be empty");
-            }
-
-            List<Guid>? boxContentIds = null;
-            if (input is { scenarioType: ItemScenarioKind.QualifierBox, boxContentTemplateIds.Size: > 0 })
-            {
-                try
-                {
-                    boxContentIds = input.boxContentTemplateIds.Values.Select(Guid.Parse).ToList();
-                }
-                catch (FormatException)
-                {
-                    logger.LogWarning("CreateItemTemplate failed: invalid GUID format in boxContentTemplateIds");
-                    return new CreateItemTemplateResult(false, null, "One or more box content IDs have invalid format");
-                }
-
-                var existingItems = await db.Items
-                   .Where(i => i.IsReference && boxContentIds.Contains(i.Id))
-                   .Select(i => i.Id)
-                   .ToListAsync(ct);
-
-                var missingIds = boxContentIds.Except(existingItems).ToList();
-                if (missingIds.Count > 0)
-                {
-                    logger.LogWarning("CreateItemTemplate failed: reference items not found: {MissingIds}", string.Join(", ", missingIds));
-                    return new CreateItemTemplateResult(false, null, $"Reference items not found: {string.Join(", ", missingIds)}");
-                }
-
-                var existingBoxTemplates = await db.Items
-                   .Where(i => i.IsReference && i.Scenario != null)
-                   .Include(i => i.Scenario)
-                   .ToListAsync(ct);
-
-                foreach (var existingTemplate in existingBoxTemplates)
-                {
-                    var isDuplicate = false;
-
-                    switch (boxContentIds.Count)
-                    {
-                        case 1 when existingTemplate.Scenario is QualifierBox qb:
-                        isDuplicate = qb.ReferenceItemId == boxContentIds[0];
-                        break;
-                        case > 1 when existingTemplate.Scenario is MultipleQualifierBox mqb:
-                        {
-                            var existingSet = mqb.ReferenceItemIds.OrderBy(x => x).ToList();
-                            var newSet = boxContentIds.OrderBy(x => x).ToList();
-                            isDuplicate = existingSet.SequenceEqual(newSet);
-                            break;
-                        }
-                    }
-
-                    if (isDuplicate)
-                    {
-                        logger.LogWarning("CreateItemTemplate failed: box template with same content already exists (ID: {ExistingId}, TemplateId: '{ExistingTemplateId}')",
-                            existingTemplate.Id, existingTemplate.TemplateId);
-                        return new CreateItemTemplateResult(false, null,
-                            $"Box template with same content already exists (ID: {existingTemplate.Id}, TemplateId: '{existingTemplate.TemplateId}')");
-                    }
-                }
-            }
-            else if (input.scenarioType is not ItemScenarioKind.Box and not ItemScenarioKind.QualifierBox)
-            {
-                var existingTemplate = await db.Items.AnyAsync(i => i.IsReference && i.TemplateId == input.templateId, ct);
-                if (existingTemplate)
-                {
-                    logger.LogWarning("CreateItemTemplate failed: template with ID '{TemplateId}' already exists", input.templateId);
-                    return new CreateItemTemplateResult(false, null, $"Template with ID '{input.templateId}' already exists");
-                }
-            }
-
-            ItemUseScenario? scenario = input.scenarioType switch
-            {
-                ItemScenarioKind.Box => new BoxScenario
-                {
-                    Key = ArgonId.New(),
-                    Edition = input.templateId
-                },
-                ItemScenarioKind.QualifierBox when boxContentIds?.Count == 1 => new QualifierBox
-                {
-                    Key = ArgonId.New(),
-                    ReferenceItemId = boxContentIds[0]
-                },
-                ItemScenarioKind.QualifierBox when boxContentIds?.Count > 1 => new MultipleQualifierBox
-                {
-                    Key = ArgonId.New(),
-                    ReferenceItemIds = boxContentIds
-                },
-                ItemScenarioKind.Premium => new PremiumScenario
-                {
-                    Key = ArgonId.New(),
-                    PlanId = ""
-                },
-                ItemScenarioKind.RedeemCode => new RedeemScenario
-                {
-                    Key = ArgonId.New(),
-                    Code = "",
-                    ServiceKey = ""
-                },
-                _ => null
-            };
-
-            var item = new ArgonItemEntity
-            {
-                Id = ArgonId.New(),
-                TemplateId = input.templateId,
-                IsUsable = input.isUsable,
-                IsGiftable = input.isGiftable,
-                IsAffectBadge = input.isAffectBadge,
-                IsReference = true,
-                OwnerId = UserEntity.SystemUser,
-                TTL = input.ttl.HasValue ? TimeSpan.FromSeconds(input.ttl.Value) : null,
-                Scenario = scenario,
-                ScenarioKey = scenario?.Key
-            };
-
-            db.Items.Add(item);
-            var rowsAffected = await db.SaveChangesAsync(ct);
-
-            if (rowsAffected == 0)
-            {
-                logger.LogError("CreateItemTemplate failed: no rows affected when saving template '{TemplateId}'", input.templateId);
-                return new CreateItemTemplateResult(false, null, "Failed to save item template to database");
-            }
-
-            logger.LogInformation("Created item template '{TemplateId}' with ID {ItemId}, type {ScenarioType}",
-                input.templateId, item.Id, input.scenarioType);
-
-            return new CreateItemTemplateResult(true, item.Id, null);
-        }
-        catch (DbUpdateException ex)
-        {
-            logger.LogError(ex, "Database error while creating item template '{TemplateId}'", input.templateId);
-            return new CreateItemTemplateResult(false, null, "Database error occurred while creating template");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Unexpected error while creating item template '{TemplateId}'", input.templateId);
-            return new CreateItemTemplateResult(false, null, $"Unexpected error: {ex.Message}");
-        }
-    }
-
-    public async Task<CouponList> GetCoupons(CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var couponEntities = await db.Coupons
-           .Include(c => c.ReferenceItemEntity)
-           .ToListAsync(ct);
-
-        var coupons = couponEntities.Select(c => new CouponInfo(
-            c.Id,
-            c.Code,
-            c.Description,
-            c.ValidFrom.UtcDateTime,
-            c.ValidTo.UtcDateTime,
-            c.MaxRedemptions,
-            c.RedemptionCount,
-            c.IsActive,
-            c.ReferenceItemEntity?.TemplateId
-        )).ToList();
-
-        return new CouponList(new IonArray<CouponInfo>(coupons));
-    }
-
-    public async Task<CreateCouponResult> CreateCoupon(CreateCouponInput input, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var exists = await db.Coupons.AnyAsync(c => c.Code == input.code, ct);
-            if (exists)
-                return new CreateCouponResult(false, null, "Coupon with this code already exists");
-
-            var coupon = new ArgonCouponEntity
-            {
-                Id = ArgonId.New(),
-                Code = input.code,
-                Description = input.description,
-                ValidFrom = input.validFrom,
-                ValidTo = input.validTo,
-                MaxRedemptions = input.maxRedemptions,
-                RedemptionCount = 0,
-                IsActive = true,
-                ReferenceItemEntityId = input.referenceItemId
-            };
-
-            db.Coupons.Add(coupon);
-            await db.SaveChangesAsync(ct);
-
-            return new CreateCouponResult(true, coupon.Id, null);
-        }
-        catch (Exception ex)
-        {
-            return new CreateCouponResult(false, null, ex.Message);
-        }
-    }
-
-    public async Task<UserActionResult> BlockUser(Guid userId, LockdownReason reason, DateTimeOffset? expiration, bool isAppealable,
+    public Task<UserActionResult> BlockUser(Guid userId, LockdownReason reason, DateTimeOffset? expiration, bool isAppealable,
         CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+        => AuditedAsync(() => AdminUsers.SetLockdownAsync(userId, reason, expiration, isAppealable, ct),
+            "BlockUser", "User", userId, $"Reason={reason}, expiration={expiration}, appealable={isAppealable}");
 
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null)
-                return new UserActionResult(false, "User not found");
+    public Task<UserActionResult> UnblockUser(Guid userId, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.SetLockdownAsync(userId, LockdownReason.NONE, null, false, ct),
+            "UnblockUser", "User", userId);
 
-            user.LockdownReason = reason;
-            user.LockDownExpiration = expiration;
-            user.LockDownIsAppealable = isAppealable;
-
-            await db.SaveChangesAsync(ct);
-            await lockdownCache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
-            await auditService.LogAsync("BlockUser", "User", userId.ToString(),
-                $"Reason={reason}, expiration={expiration}, appealable={isAppealable}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
-
-    public async Task<UserActionResult> UnblockUser(Guid userId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null)
-                return new UserActionResult(false, "User not found");
-
-            user.LockdownReason = LockdownReason.NONE;
-            user.LockDownExpiration = null;
-            user.LockDownIsAppealable = false;
-
-            await db.SaveChangesAsync(ct);
-            await lockdownCache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
-            await auditService.LogAsync("UnblockUser", "User", userId.ToString());
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
-
-    public async Task<DeviceList> GetUserDevices(Guid userId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var now = DateTimeOffset.UtcNow;
-
-        var devices = await db.DeviceObservations
-           .Where(o => o.UserId == userId)
-           .Join(db.DeviceKeys, o => o.DeviceId, k => k.DeviceId, (o, k) => k)
-           .OrderByDescending(k => k.LastProvenAt)
-           .ToListAsync(ct);
-
-        var summaries = new List<DeviceSummary>(devices.Count);
-
-        foreach (var key in devices)
-        {
-            summaries.Add(new DeviceSummary(
-                key.DeviceId,
-                (int)key.Platform,
-                (int)key.Assurance,
-                key.ClientName,
-                key.EnrolledAt,
-                key.LastProvenAt,
-                await db.DeviceObservations.CountAsync(o => o.DeviceId == key.DeviceId, ct),
-                await db.DeviceBans.AnyAsync(b => b.DeviceId == key.DeviceId && (b.ExpiresAt == null || b.ExpiresAt > now), ct)));
-        }
-
-        return new DeviceList(summaries);
-    }
+    public Task<DeviceList> GetUserDevices(Guid userId, CancellationToken ct = default)
+        => AdminUsers.GetUserDevicesAsync(userId, ct);
 
     /// <summary>
     /// Everyone who has signed in from one machine.
@@ -944,104 +93,21 @@ public class AdminConsoleImpl(
     /// computer and an alt farm produce the same list, so this exists to be read by a person before
     /// <see cref="BanDevice"/> is used rather than to be counted by anything automatic.
     /// </remarks>
-    public async Task<DeviceAccountList> GetDeviceAccounts(Guid deviceId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+    public Task<DeviceAccountList> GetDeviceAccounts(Guid deviceId, CancellationToken ct = default)
+        => AdminUsers.GetDeviceAccountsAsync(deviceId, ct);
 
-        var accounts = await db.DeviceObservations
-           .Where(o => o.DeviceId == deviceId)
-           .Join(db.Users, o => o.UserId, u => u.Id, (o, u) => new { o, u })
-           .OrderByDescending(x => x.o.LastSeenAt)
-           .Select(x => new DeviceAccount(
-                x.u.Id,
-                x.u.Username,
-                x.u.DisplayName,
-                x.o.FirstSeenAt,
-                x.o.LastSeenAt,
-                x.o.Logins,
-                x.u.LockdownReason != LockdownReason.NONE))
-           .ToListAsync(ct);
+    public Task<UserActionResult> BanDevice(Guid deviceId, string reason, DateTimeOffset? expiration, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.BanDeviceAsync(deviceId, reason, expiration, ct),
+            "BanDevice", "Device", deviceId, $"Reason={reason}, expiration={expiration}");
 
-        return new DeviceAccountList(accounts);
-    }
-
-    public async Task<UserActionResult> BanDevice(Guid deviceId, string reason, DateTimeOffset? expiration, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            // Only an enrolled machine can be barred: a device the server cannot recognise on sight
-            // would shed the ban by clearing a cookie, and a ban that does nothing is worse than
-            // none, because it looks like something was done.
-            if (!await db.DeviceKeys.AnyAsync(k => k.DeviceId == deviceId, ct))
-                return new UserActionResult(false, "Device not found");
-
-            var existing = await db.DeviceBans
-               .IgnoreQueryFilters()
-               .FirstOrDefaultAsync(b => b.DeviceId == deviceId, ct);
-
-            if (existing is null)
-                db.DeviceBans.Add(new DeviceBanEntity
-                {
-                    Id        = ArgonId.New(),
-                    DeviceId  = deviceId,
-                    Reason    = reason,
-                    ExpiresAt = expiration
-                });
-            else
-            {
-                // Revived rather than inserted alongside: soft delete leaves the old row holding the
-                // unique index, so a second insert would collide with something nobody can see.
-                existing.IsDeleted = false;
-                existing.DeletedAt = null;
-                existing.Reason    = reason;
-                existing.ExpiresAt = expiration;
-            }
-
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("BanDevice", "Device", deviceId.ToString(), $"Reason={reason}, expiration={expiration}");
-
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
-
-    public async Task<UserActionResult> UnbanDevice(Guid deviceId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var ban = await db.DeviceBans.FirstOrDefaultAsync(b => b.DeviceId == deviceId, ct);
-
-            if (ban is null)
-                return new UserActionResult(false, "Device is not banned");
-
-            db.DeviceBans.Remove(ban);
-
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("UnbanDevice", "Device", deviceId.ToString());
-
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
+    public Task<UserActionResult> UnbanDevice(Guid deviceId, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.UnbanDeviceAsync(deviceId, ct), "UnbanDevice", "Device", deviceId);
 
     public async Task<UserActionResult> GrantXp(Guid userId, int amount, CancellationToken ct = default)
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var userExists = await db.Users.AnyAsync(u => u.Id == userId, ct);
-            if (!userExists)
+            if (!await AdminUsers.UserExistsAsync(userId, ct))
                 return new UserActionResult(false, "User not found");
 
             var grain = grainFactory.GetGrain<IUserLevelGrain>(userId);
@@ -1060,14 +126,11 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var refItem = await db.Items.FirstOrDefaultAsync(i => i.IsReference && i.Id == itemId, ct);
-            if (refItem is null)
+            if (!await AdminPlatform.ReferenceItemExistsAsync(itemId, ct))
                 return new UserActionResult(false, "Reference item not found");
 
             var inventoryGrain = grainFactory.GetGrain<IInventoryGrain>(Guid.Empty);
-            var success = await inventoryGrain.GiveItemFor(userId, itemId, ct);
+            var success        = await inventoryGrain.GiveItemFor(userId, itemId, ct);
 
             if (!success)
                 return new UserActionResult(false, "Failed to grant item");
@@ -1081,105 +144,19 @@ public class AdminConsoleImpl(
         }
     }
 
-    public async Task<UserActionResult> ChangeUsername(Guid userId, string newUsername, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+    public Task<UserActionResult> ChangeUsername(Guid userId, string newUsername, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.ChangeUsernameAsync(userId, newUsername, ct),
+            "ChangeUsername", "User", userId, $"NewUsername={newUsername}");
 
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null)
-                return new UserActionResult(false, "User not found");
+    public Task<UserActionResult> RemoveTwoFactor(Guid userId, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.RemoveTwoFactorAsync(userId, ct), "RemoveTwoFactor", "User", userId);
 
-            var normalizedNew = newUsername.ToLowerInvariant();
-            var taken = await db.Users.AnyAsync(u => u.NormalizedUsername == normalizedNew && u.Id != userId, ct);
-            if (taken)
-                return new UserActionResult(false, "Username already taken");
+    public Task<UserActionResult> RemovePhoneNumber(Guid userId, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.RemovePhoneNumberAsync(userId, ct), "RemovePhoneNumber", "User", userId);
 
-            user.Username = newUsername;
-            await db.SaveChangesAsync(ct);
-
-            await auditService.LogAsync("ChangeUsername", "User", userId.ToString(), $"NewUsername={newUsername}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
-
-    public async Task<UserActionResult> RemoveTwoFactor(Guid userId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null)
-                return new UserActionResult(false, "User not found");
-
-            user.TotpSecret = null;
-            await db.SaveChangesAsync(ct);
-
-            await auditService.LogAsync("RemoveTwoFactor", "User", userId.ToString());
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
-
-    public async Task<UserActionResult> RemovePhoneNumber(Guid userId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null)
-                return new UserActionResult(false, "User not found");
-
-            user.PhoneNumber = null;
-            await db.SaveChangesAsync(ct);
-
-            await auditService.LogAsync("RemovePhoneNumber", "User", userId.ToString());
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
-
-    public async Task<UserActionResult> ChangeEmail(Guid userId, string newEmail, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null)
-                return new UserActionResult(false, "User not found");
-
-            var normalizedNew = newEmail.ToLowerInvariant();
-            var taken = await db.Users.AnyAsync(u => u.NormalizedEmail == normalizedNew && u.Id != userId, ct);
-            if (taken)
-                return new UserActionResult(false, "Email already taken");
-
-            user.Email = newEmail;
-            await db.SaveChangesAsync(ct);
-
-            await auditService.LogAsync("ChangeEmail", "User", userId.ToString(), $"NewEmail={newEmail}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex)
-        {
-            return new UserActionResult(false, ex.Message);
-        }
-    }
+    public Task<UserActionResult> ChangeEmail(Guid userId, string newEmail, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.ChangeEmailAsync(userId, newEmail, ct),
+            "ChangeEmail", "User", userId, $"NewEmail={newEmail}");
 
     public async Task<DiagnosticsResult> GetDiagnostics(CancellationToken ct = default)
     {
@@ -1203,110 +180,24 @@ public class AdminConsoleImpl(
         );
     }
 
-    public async Task<OperatorList> GetOperators(CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var entities = await db.Operators
-           .Include(o => o.Certificates.Where(c => !c.IsDeleted))
-           .Where(o => !o.IsDeleted)
-           .OrderByDescending(o => o.CreatedAt)
-           .ToListAsync(ct);
-
-        var operators = entities.Select(MapOperatorInfo).ToList();
-
-        return new OperatorList(new IonArray<OperatorInfo>(operators));
-    }
+    public Task<OperatorList> GetOperators(CancellationToken ct = default)
+        => AdminOperators.GetOperatorsAsync(ct);
 
     public async Task<OperatorDetails> GetOperatorDetails(Guid operatorId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var op = await db.Operators
-                    .Include(o => o.Certificates.Where(c => !c.IsDeleted))
-                    .Include(o => o.User)
-                    .ThenInclude(u => u!.Profile)
-                    .FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct)
-                 ?? throw new InvalidOperationException("Operator not found");
-
-        var info = MapOperatorInfo(op);
-
-        UserAccountInfo? account = null;
-        ArgonUserProfile? profile = null;
-        if (op.User is { } user)
-        {
-            account = new UserAccountInfo(
-                user.Id,
-                user.Username,
-                user.DisplayName,
-                user.Email,
-                user.PhoneNumber,
-                user.AvatarFileId,
-                user.DateOfBirth,
-                user.CreatedAt.UtcDateTime,
-                user.LockdownReason,
-                user.LockDownExpiration?.UtcDateTime,
-                user.LockDownIsAppealable,
-                user.PreferredAuthMode,
-                user.PreferredOtpMethod,
-                user.AgreeTOS,
-                null,
-                0, 0, 0
-            );
-            profile = user.Profile?.ToDto();
-        }
-
-        var recentAudit = await auditService.GetRecentByOperatorAsync(operatorId, 20, ct);
-        var auditEntries = recentAudit.Select(MapAuditEntry).ToList();
-
-        return new OperatorDetails(info, account, profile, new IonArray<AuditEntry>(auditEntries));
-    }
+        => await AdminOperators.GetOperatorDetailsAsync(operatorId, ct)
+        ?? throw new InvalidOperationException("Operator not found");
 
     public async Task<CreateOperatorResult> CreateOperator(CreateOperatorInput input, CancellationToken ct = default)
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var result = await AdminOperators.CreateOperatorAsync(CurrentOperatorId, input, ct);
 
-            var caller = OperatorRequestContext.Current;
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new CreateOperatorResult(false, null, "Only system operators can create new operators");
+            if (result.success)
+                await auditService.LogAsync("CreateOperator", "Operator", result.operatorId.ToString(),
+                    $"Created operator '{input.displayName.Trim()}' ({input.email.Trim().ToLowerInvariant()}), system={input.isSystemOperator}");
 
-            if (string.IsNullOrWhiteSpace(input.displayName) || string.IsNullOrWhiteSpace(input.email))
-                return new CreateOperatorResult(false, null, "Display name and email are required");
-
-            var exists = await db.Operators.AnyAsync(o => o.Email == input.email && !o.IsDeleted, ct);
-            if (exists)
-                return new CreateOperatorResult(false, null, "An operator with this email already exists");
-
-            if (input.userId.HasValue)
-            {
-                var userExists = await db.Users.AnyAsync(u => u.Id == input.userId.Value, ct);
-                if (!userExists)
-                    return new CreateOperatorResult(false, null, "Linked user not found");
-
-                var alreadyLinked = await db.Operators.AnyAsync(o => o.UserId == input.userId.Value && !o.IsDeleted, ct);
-                if (alreadyLinked)
-                    return new CreateOperatorResult(false, null, "This user is already linked to another operator");
-            }
-
-            var entity = new OperatorEntity
-            {
-                DisplayName      = input.displayName.Trim(),
-                Email            = input.email.Trim().ToLowerInvariant(),
-                UserId           = input.userId,
-                IsActive         = true,
-                IsSystemOperator = input.isSystemOperator
-            };
-
-            db.Operators.Add(entity);
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation("Created operator={OperatorId} email={Email}", entity.Id, entity.Email);
-            await auditService.LogAsync("CreateOperator", "Operator", entity.Id.ToString(),
-                $"Created operator '{entity.DisplayName}' ({entity.Email}), system={entity.IsSystemOperator}");
-
-            return new CreateOperatorResult(true, entity.Id, null);
+            return result;
         }
         catch (Exception ex)
         {
@@ -1319,28 +210,12 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var result = await AdminOperators.SetOperatorActiveAsync(CurrentOperatorId, operatorId, false, ct);
 
-            var caller = OperatorRequestContext.Current;
-            if (caller.OperatorId == operatorId)
-                return new OperatorActionResult(false, "Cannot deactivate yourself");
+            if (result.success)
+                await auditService.LogAsync("DeactivateOperator", "Operator", operatorId.ToString());
 
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new OperatorActionResult(false, "Only system operators can deactivate other operators");
-
-            var op = await db.Operators.FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct);
-            if (op is null)
-                return new OperatorActionResult(false, "Operator not found");
-
-            if (!op.IsActive)
-                return new OperatorActionResult(false, "Operator is already inactive");
-
-            op.IsActive = false;
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation("Operator={CallerId} deactivated operator={OperatorId}", caller.OperatorId, operatorId);
-            await auditService.LogAsync("DeactivateOperator", "Operator", operatorId.ToString());
-            return new OperatorActionResult(true, null);
+            return result;
         }
         catch (Exception ex)
         {
@@ -1353,26 +228,12 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var result = await AdminOperators.SetOperatorActiveAsync(CurrentOperatorId, operatorId, true, ct);
 
-            var caller = OperatorRequestContext.Current;
+            if (result.success)
+                await auditService.LogAsync("ActivateOperator", "Operator", operatorId.ToString());
 
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new OperatorActionResult(false, "Only system operators can activate other operators");
-
-            var op = await db.Operators.FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct);
-            if (op is null)
-                return new OperatorActionResult(false, "Operator not found");
-
-            if (op.IsActive)
-                return new OperatorActionResult(false, "Operator is already active");
-
-            op.IsActive = true;
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation("Operator={CallerId} activated operator={OperatorId}", caller.OperatorId, operatorId);
-            await auditService.LogAsync("ActivateOperator", "Operator", operatorId.ToString());
-            return new OperatorActionResult(true, null);
+            return result;
         }
         catch (Exception ex)
         {
@@ -1385,33 +246,13 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var revocation = await AdminOperators.RevokeCertificateAsync(CurrentOperatorId, certificateId, ct);
 
-            var caller = OperatorRequestContext.Current;
+            if (revocation.Result.success)
+                await auditService.LogAsync("RevokeOperatorCertificate", "Operator", revocation.OperatorId.ToString(),
+                    $"Revoked certificate {certificateId} (serial={revocation.SerialNumber})");
 
-            var cert = await db.OperatorCertificates
-               .AsNoTracking()
-               .FirstOrDefaultAsync(c => c.Id == certificateId && !c.IsDeleted, ct);
-            if (cert is null)
-                return new OperatorActionResult(false, "Certificate not found");
-
-            if (caller.OperatorId == cert.OperatorId)
-                return new OperatorActionResult(false, "Cannot revoke your own certificate");
-
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new OperatorActionResult(false, "Only system operators can revoke certificates");
-
-            await certificateService.RevokeCertificateAsync(certificateId);
-
-            logger.LogInformation("Operator={CallerId} revoked certificate={CertificateId} for operator={OperatorId}",
-                caller.OperatorId, certificateId, cert.OperatorId);
-            await auditService.LogAsync("RevokeOperatorCertificate", "Operator", cert.OperatorId.ToString(),
-                $"Revoked certificate {certificateId} (serial={cert.SerialNumber})");
-            return new OperatorActionResult(true, null);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return new OperatorActionResult(false, ex.Message);
+            return revocation.Result;
         }
         catch (Exception ex)
         {
@@ -1422,131 +263,32 @@ public class AdminConsoleImpl(
 
     public async Task<EnrollCertificateResult> EnrollOperatorCertificate(Guid operatorId, string csrPem, string? deviceName, string? deviceSerialNumber, CancellationToken ct = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var result = await AdminOperators.EnrollCertificateAsync(CurrentOperatorId, operatorId, csrPem, deviceName, deviceSerialNumber, ct);
 
-        var caller = OperatorRequestContext.Current;
-        if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-            return new EnrollCertificateResult(false, null, null, null, null, null, null, "Only system operators can enroll certificates");
-
-        var result = await certificateService.EnrollCertificateAsync(operatorId, csrPem, deviceName, deviceSerialNumber);
-
-        if (result.IsSuccess)
-        {
-            var s = result.Value;
+        if (result.success)
             await auditService.LogAsync("EnrollOperatorCertificate", "Operator", operatorId.ToString(),
-                $"Enrolled certificate serial={s.SerialNumber}, device={s.Thumbprint}");
-            return new EnrollCertificateResult(
-                true,
-                s.CertificateId,
-                s.CertificatePem,
-                s.CaChainPem,
-                s.SerialNumber,
-                s.Thumbprint,
-                s.NotAfter.UtcDateTime,
-                null);
-        }
+                $"Enrolled certificate serial={result.serialNumber}, device={result.thumbprint}");
 
-        var errorMessage = result.Error switch
-        {
-            EnrollmentError.OperatorNotFound  => "Operator not found",
-            EnrollmentError.OperatorInactive  => "Operator is inactive",
-            EnrollmentError.InvalidCsr        => "Invalid CSR format",
-            EnrollmentError.CsrKeyTooSmall    => "CSR key size is too small (min RSA 2048, EC 256)",
-            EnrollmentError.VaultSigningFailed => "Vault PKI signing failed",
-            _                                 => "Unknown error"
-        };
-
-        return new EnrollCertificateResult(false, null, null, null, null, null, null, errorMessage);
+        return result;
     }
 
     // ===== Operator App Access =====
 
-    public async Task<OperatorAppAccessList> GetOperatorAppAccess(Guid operatorId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var raw = await db.OperatorAppAccess
-           .AsNoTracking()
-           .Where(a => a.OperatorId == operatorId)
-           .Join(db.AppEntities.AsNoTracking(),
-                a => a.AppId,
-                app => app.AppId,
-                (a, app) => new
-                {
-                    a.OperatorId,
-                    a.AppId,
-                    AppName = app.Name,
-                    app.ClientId,
-                    a.AllowedScopes,
-                    a.Claims,
-                    a.GrantedBy,
-                    a.GrantedAt,
-                    a.IsActive
-                })
-           .ToListAsync(ct);
-
-        var records = raw.Select(r => new OperatorAppAccessEntry(
-            r.OperatorId,
-            r.AppId,
-            r.AppName,
-            r.ClientId,
-            new IonArray<string>(r.AllowedScopes),
-            new IonArray<string>(r.Claims),
-            r.GrantedBy,
-            r.GrantedAt.UtcDateTime,
-            r.IsActive
-        )).ToList();
-
-        return new OperatorAppAccessList(new IonArray<OperatorAppAccessEntry>(records));
-    }
+    public Task<OperatorAppAccessList> GetOperatorAppAccess(Guid operatorId, CancellationToken ct = default)
+        => AdminOperators.GetAppAccessAsync(operatorId, ct);
 
     public async Task<OperatorAppAccessResult> GrantOperatorAppAccess(GrantOperatorAppAccessInput input, CancellationToken ct = default)
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var grant = await AdminOperators.GrantAppAccessAsync(CurrentOperatorId, input, ct);
 
-            var caller = OperatorRequestContext.Current;
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new OperatorAppAccessResult(false, "Only system operators can manage operator app access");
+            if (grant.Result.success)
+                await auditService.LogAsync("GrantOperatorAppAccess", "OperatorAppAccess",
+                    $"{input.operatorId}:{input.appId}",
+                    $"Granted access to app '{grant.AppName}' (clientId={grant.ClientId}), scopes=[{string.Join(",", input.allowedScopes)}], claims=[{string.Join(",", input.claims)}]");
 
-            var operatorExists = await db.Operators.AnyAsync(o => o.Id == input.operatorId && !o.IsDeleted, ct);
-            if (!operatorExists)
-                return new OperatorAppAccessResult(false, "Operator not found");
-
-            var app = await db.AppEntities.AsNoTracking().FirstOrDefaultAsync(a => a.AppId == input.appId, ct);
-            if (app is null)
-                return new OperatorAppAccessResult(false, "Application not found");
-
-            var existing = await db.OperatorAppAccess
-               .FirstOrDefaultAsync(a => a.OperatorId == input.operatorId && a.AppId == input.appId, ct);
-
-            if (existing is not null)
-                return new OperatorAppAccessResult(false, "Access record already exists. Use UpdateOperatorAppAccess to modify it.");
-
-            var entity = new OperatorAppAccessEntity
-            {
-                OperatorId    = input.operatorId,
-                AppId         = input.appId,
-                AllowedScopes = input.allowedScopes.Values.ToList(),
-                Claims        = input.claims.Values.ToList(),
-                GrantedBy     = caller.OperatorId,
-                GrantedAt     = DateTimeOffset.UtcNow,
-                IsActive      = true
-            };
-
-            db.OperatorAppAccess.Add(entity);
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation("Operator={CallerId} granted app access: operator={OperatorId} app={AppId} ({AppName})",
-                caller.OperatorId, input.operatorId, input.appId, app.Name);
-            await auditService.LogAsync("GrantOperatorAppAccess", "OperatorAppAccess",
-                $"{input.operatorId}:{input.appId}",
-                $"Granted access to app '{app.Name}' (clientId={app.ClientId}), scopes=[{string.Join(",", input.allowedScopes)}], claims=[{string.Join(",", input.claims)}]");
-
-            await InvalidateOperatorAppAccessCacheAsync(input.operatorId, input.appId);
-
-            return new OperatorAppAccessResult(true, null);
+            return grant.Result;
         }
         catch (Exception ex)
         {
@@ -1559,29 +301,13 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var result = await AdminOperators.RevokeAppAccessAsync(CurrentOperatorId, operatorId, appId, ct);
 
-            var caller = OperatorRequestContext.Current;
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new OperatorActionResult(false, "Only system operators can manage operator app access");
+            if (result.success)
+                await auditService.LogAsync("RevokeOperatorAppAccess", "OperatorAppAccess",
+                    $"{operatorId}:{appId}", "Revoked app access");
 
-            var record = await db.OperatorAppAccess
-               .FirstOrDefaultAsync(a => a.OperatorId == operatorId && a.AppId == appId, ct);
-
-            if (record is null)
-                return new OperatorActionResult(false, "Access record not found");
-
-            db.OperatorAppAccess.Remove(record);
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation("Operator={CallerId} revoked app access: operator={OperatorId} app={AppId}",
-                caller.OperatorId, operatorId, appId);
-            await auditService.LogAsync("RevokeOperatorAppAccess", "OperatorAppAccess",
-                $"{operatorId}:{appId}", "Revoked app access");
-
-            await InvalidateOperatorAppAccessCacheAsync(operatorId, appId);
-
-            return new OperatorActionResult(true, null);
+            return result;
         }
         catch (Exception ex)
         {
@@ -1594,33 +320,14 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var result = await AdminOperators.UpdateAppAccessAsync(CurrentOperatorId, input, ct);
 
-            var caller = OperatorRequestContext.Current;
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new OperatorAppAccessResult(false, "Only system operators can manage operator app access");
+            if (result.success)
+                await auditService.LogAsync("UpdateOperatorAppAccess", "OperatorAppAccess",
+                    $"{input.operatorId}:{input.appId}",
+                    $"Updated: scopes=[{string.Join(",", input.allowedScopes)}], claims=[{string.Join(",", input.claims)}], active={input.isActive}");
 
-            var record = await db.OperatorAppAccess
-               .FirstOrDefaultAsync(a => a.OperatorId == input.operatorId && a.AppId == input.appId, ct);
-
-            if (record is null)
-                return new OperatorAppAccessResult(false, "Access record not found");
-
-            record.AllowedScopes = input.allowedScopes.Values.ToList();
-            record.Claims        = input.claims.Values.ToList();
-            record.IsActive      = input.isActive;
-
-            await db.SaveChangesAsync(ct);
-
-            logger.LogInformation("Operator={CallerId} updated app access: operator={OperatorId} app={AppId} active={IsActive}",
-                caller.OperatorId, input.operatorId, input.appId, input.isActive);
-            await auditService.LogAsync("UpdateOperatorAppAccess", "OperatorAppAccess",
-                $"{input.operatorId}:{input.appId}",
-                $"Updated: scopes=[{string.Join(",", input.allowedScopes)}], claims=[{string.Join(",", input.claims)}], active={input.isActive}");
-
-            await InvalidateOperatorAppAccessCacheAsync(input.operatorId, input.appId);
-
-            return new OperatorAppAccessResult(true, null);
+            return result;
         }
         catch (Exception ex)
         {
@@ -1629,530 +336,63 @@ public class AdminConsoleImpl(
         }
     }
 
-    public async Task<InternalAppSearchResult> SearchInternalApps(string query, CancellationToken ct = default)
+    public Task<InternalAppSearchResult> SearchInternalApps(string query, CancellationToken ct = default)
+        => AdminDirectory.SearchInternalAppsAsync(query, ct);
+
+    public Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(query))
-            return new InternalAppSearchResult(new IonArray<InternalAppInfo>([]));
-
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-
-        // Try GUID first
-        if (Guid.TryParse(query, out var appId))
-        {
-            var byId = await db.AppEntities
-               .AsNoTracking()
-               .Include(a => a.Team)
-               .Where(a => a.AppId == appId && a.IsInternalApp && !a.IsDeleted)
-               .FirstOrDefaultAsync(ct);
-
-            if (byId is not null)
-                return new InternalAppSearchResult(new IonArray<InternalAppInfo>([MapInternalApp(byId)]));
-        }
-
-        // Search by name, clientId, or bot username
-        var byNameOrClient = await db.AppEntities
-           .AsNoTracking()
-           .Include(a => a.Team)
-           .Where(a => a.IsInternalApp && !a.IsDeleted &&
-                       (a.Name.ToLower().Contains(normalizedQuery) ||
-                        a.ClientId.ToLower().Contains(normalizedQuery)))
-           .Take(20)
-           .ToListAsync(ct);
-
-        // Also search by bot username
-        var byBotUsername = await db.BotEntities
-           .AsNoTracking()
-           .Include(b => b.BotAsUser)
-           .Include(b => b.Team)
-           .Where(b => b.IsInternalApp && !b.IsDeleted &&
-                       b.BotAsUser.NormalizedUsername.Contains(normalizedQuery))
-           .Take(20)
-           .ToListAsync(ct);
-
-        var results = byNameOrClient
-           .Select(MapInternalApp)
-           .Concat(byBotUsername.Select(b => MapInternalApp((DevAppEntity)b)))
-           .DistinctBy(x => x.appId)
-           .ToList();
-
-        return new InternalAppSearchResult(new IonArray<InternalAppInfo>(results));
-    }
-
-    private static InternalAppInfo MapInternalApp(DevAppEntity app) => new(
-        app.AppId,
-        app.Name,
-        app.ClientId,
-        app.Description,
-        (AdminDevAppType)(int)app.AppType,
-        app.TeamId,
-        app.Team?.Name ?? "",
-        app.IsInternalApp
-    );
-
-    public async Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default)
-    {
-        var page = Math.Max(0, query.page);
+        var page     = Math.Max(0, query.page);
         var pageSize = Math.Clamp(query.pageSize, 1, 100);
 
-        var (entries, totalCount) = await auditService.QueryAsync(
+        return AdminOperators.QueryAuditAsync(
             query.operatorId, query.action, query.targetId,
             query.fromDate,
             query.toDate,
             page, pageSize, ct);
-
-        var mapped = entries.Select(MapAuditEntry).ToList();
-
-        return new AuditLogPage(
-            new IonArray<AuditEntry>(mapped),
-            totalCount,
-            page,
-            pageSize
-        );
     }
 
     // ===== Bot Management =====
 
-    public async Task<AdminBotSearchResult> SearchBot(string query, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return new AdminBotSearchResult(false, null);
-
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-
-        // Try GUID first
-        if (Guid.TryParse(query, out var appId))
-        {
-            var bot = await db.BotEntities
-               .Include(b => b.BotAsUser)
-               .Include(b => b.Team)
-               .FirstOrDefaultAsync(b => b.AppId == appId, ct);
-
-            if (bot is not null)
-                return new AdminBotSearchResult(true, MapBotSummary(bot));
-        }
-
-        // Search by bot username or name
-        var byName = await db.BotEntities
-           .Include(b => b.BotAsUser)
-           .Include(b => b.Team)
-           .FirstOrDefaultAsync(b =>
-                b.BotAsUser.NormalizedUsername == normalizedQuery ||
-                b.Name.ToLower() == normalizedQuery, ct);
-
-        return byName is not null
-            ? new AdminBotSearchResult(true, MapBotSummary(byName))
-            : new AdminBotSearchResult(false, null);
-    }
+    public Task<AdminBotSearchResult> SearchBot(string query, CancellationToken ct = default)
+        => AdminDirectory.SearchBotAsync(query, ct);
 
     public async Task<AdminBotCard> GetBotCard(Guid appId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        => await AdminDirectory.GetBotCardAsync(appId, ct)
+        ?? throw new InvalidOperationException("Bot not found");
 
-        var bot = await db.BotEntities
-                     .Include(b => b.BotAsUser)
-                     .Include(b => b.Team).ThenInclude(t => t.Owner)
-                     .FirstOrDefaultAsync(b => b.AppId == appId, ct)
-                  ?? throw new InvalidOperationException("Bot not found");
+    public Task<UserActionResult> SetBotVerified(Guid appId, bool isVerified, CancellationToken ct = default)
+        => AuditedAsync(() => AdminDirectory.SetBotVerifiedAsync(appId, isVerified, ct),
+            "SetBotVerified", "Bot", appId, $"IsVerified={isVerified}");
 
-        // Installed spaces
-        var botMemberships = await db.UsersToServerRelations
-           .Where(sm => sm.UserId == bot.BotAsUserId && !sm.IsDeleted)
-           .Include(sm => sm.Space)
-           .ToListAsync(ct);
+    public Task<UserActionResult> SetBotMaxSpaces(Guid appId, int maxSpaces, CancellationToken ct = default)
+        => AuditedAsync(() => AdminDirectory.SetBotMaxSpacesAsync(appId, maxSpaces, ct),
+            "SetBotMaxSpaces", "Bot", appId, $"MaxSpaces={maxSpaces}");
 
-        var installedSpaces = new List<AdminBotSpaceInfo>();
-        foreach (var sm in botMemberships)
-        {
-            var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == sm.SpaceId && !x.IsDeleted, ct);
+    public Task<UserActionResult> SetBotInternalApp(Guid appId, bool isInternalApp, CancellationToken ct = default)
+        => AuditedAsync(() => AdminDirectory.SetAppInternalAsync(appId, isInternalApp, ct),
+            "SetBotInternalApp", "App", appId, $"IsInternalApp={isInternalApp}");
 
-            // Check archetype for entitlements
-            var botArchetype = await db.Archetypes
-               .Where(a => a.SpaceId == sm.SpaceId && a.IsLocked && !a.IsDeleted)
-               .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == sm.Id),
-                    a => a.Id, ma => ma.ArchetypeId, (a, _) => a)
-               .FirstOrDefaultAsync(ct);
-
-            installedSpaces.Add(new AdminBotSpaceInfo(
-                sm.SpaceId,
-                sm.Space.Name,
-                sm.Space.AvatarFileId,
-                memberCount,
-                (ArgonEntitlement)(ulong)(botArchetype?.Entitlement ?? ArgonEntitlement.None),
-                botArchetype is not null && (ulong)botArchetype.Entitlement != (ulong)bot.RequiredEntitlements
-            ));
-        }
-
-        // Commands
-        var commands = await db.BotCommands
-           .Where(c => c.AppId == appId)
-           .Select(c => new AdminBotCommandInfo(
-                c.CommandId,
-                c.Name,
-                c.Description,
-                c.Options != null ? c.Options.Count : 0,
-                c.SpaceId == null
-            ))
-           .ToListAsync(ct);
-
-        var team = MapTeamSummary(bot.Team);
-        var creator = new AdminUserSummary(
-            bot.Team.Owner.Id,
-            bot.Team.Owner.Username,
-            bot.Team.Owner.DisplayName,
-            bot.Team.Owner.AvatarFileId
-        );
-
-        return new AdminBotCard(
-            bot.AppId,
-            bot.Name,
-            bot.BotAsUser.Username,
-            bot.Description,
-            bot.BotAsUser.AvatarFileId,
-            bot.IsVerified,
-            bot.IsPublic,
-            bot.IsInternalApp,
-            (AdminBotLifecycleState)(int)bot.LifecycleState,
-            bot.MaxSpaces,
-            botMemberships.Count,
-            (ArgonEntitlement)(ulong)bot.RequiredEntitlements,
-            new IonArray<string>(bot.RequiredScopes),
-            bot.CreatedAt.UtcDateTime,
-            team,
-            creator,
-            new IonArray<AdminBotSpaceInfo>(installedSpaces),
-            new IonArray<AdminBotCommandInfo>(commands)
-        );
-    }
-
-    public async Task<UserActionResult> SetBotVerified(Guid appId, bool isVerified, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var bot = await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId, ct);
-            if (bot is null) return new UserActionResult(false, "Bot not found");
-
-            bot.IsVerified = isVerified;
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("SetBotVerified", "Bot", appId.ToString(), $"IsVerified={isVerified}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
-    }
-
-    public async Task<UserActionResult> SetBotMaxSpaces(Guid appId, int maxSpaces, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var bot = await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId, ct);
-            if (bot is null) return new UserActionResult(false, "Bot not found");
-
-            bot.MaxSpaces = maxSpaces;
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("SetBotMaxSpaces", "Bot", appId.ToString(), $"MaxSpaces={maxSpaces}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
-    }
-
-    public async Task<UserActionResult> SetBotInternalApp(Guid appId, bool isInternalApp, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var app = await db.AppEntities.FirstOrDefaultAsync(a => a.AppId == appId, ct);
-            if (app is null) return new UserActionResult(false, "App not found");
-
-            app.IsInternalApp = isInternalApp;
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("SetBotInternalApp", "App", appId.ToString(), $"IsInternalApp={isInternalApp}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
-    }
-
-    public async Task<UserActionResult> SetBotLifecycleState(Guid appId, AdminBotLifecycleState state, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var bot = await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId, ct);
-            if (bot is null) return new UserActionResult(false, "Bot not found");
-
-            bot.LifecycleState = (BotLifecycleState)(int)state;
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("SetBotLifecycleState", "Bot", appId.ToString(), $"State={state}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
-    }
+    public Task<UserActionResult> SetBotLifecycleState(Guid appId, AdminBotLifecycleState state, CancellationToken ct = default)
+        => AuditedAsync(() => AdminDirectory.SetBotLifecycleStateAsync(appId, state, ct),
+            "SetBotLifecycleState", "Bot", appId, $"State={state}");
 
     // ===== Team Management =====
 
-    public async Task<AdminTeamSearchResult> SearchTeam(string query, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return new AdminTeamSearchResult(false, null);
-
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        // Try GUID first
-        if (Guid.TryParse(query, out var teamId))
-        {
-            var team = await db.TeamEntities
-               .Include(t => t.Members)
-               .Include(t => t.Applications)
-               .FirstOrDefaultAsync(t => t.TeamId == teamId && !t.IsDeleted, ct);
-
-            if (team is not null)
-                return new AdminTeamSearchResult(true, MapTeamSummary(team));
-        }
-
-        // Search by name
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-        var byName = await db.TeamEntities
-           .Include(t => t.Members)
-           .Include(t => t.Applications)
-           .FirstOrDefaultAsync(t => !t.IsDeleted && t.Name.ToLower() == normalizedQuery, ct);
-
-        return byName is not null
-            ? new AdminTeamSearchResult(true, MapTeamSummary(byName))
-            : new AdminTeamSearchResult(false, null);
-    }
+    public Task<AdminTeamSearchResult> SearchTeam(string query, CancellationToken ct = default)
+        => AdminDirectory.SearchTeamAsync(query, ct);
 
     public async Task<AdminTeamCard> GetTeamCard(Guid teamId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var team = await db.TeamEntities
-                      .Include(t => t.Owner)
-                      .Include(t => t.Members).ThenInclude(m => m.User)
-                      .Include(t => t.Applications)
-                      .FirstOrDefaultAsync(t => t.TeamId == teamId && !t.IsDeleted, ct)
-                   ?? throw new InvalidOperationException("Team not found");
-
-        var owner = new AdminUserSummary(
-            team.Owner.Id,
-            team.Owner.Username,
-            team.Owner.DisplayName,
-            team.Owner.AvatarFileId
-        );
-
-        var members = team.Members.Select(m => new AdminTeamMemberInfo(
-            m.UserId,
-            m.User.Username,
-            m.User.DisplayName,
-            m.User.AvatarFileId,
-            m.IsOwner,
-            m.JoinedAt,
-            new IonArray<string>(m.Claims ?? [])
-        )).ToList();
-
-        var apps = team.Applications.Select(a =>
-        {
-            var isVerified = a is BotEntity bot ? bot.IsVerified : a is ClientAppEntity client && client.IsVerified;
-            return new AdminTeamAppInfo(
-                a.AppId,
-                a.Name,
-                (AdminDevAppType)(int)a.AppType,
-                a.IsInternalApp,
-                isVerified,
-                a.CreatedAt.UtcDateTime
-            );
-        }).ToList();
-
-        return new AdminTeamCard(
-            team.TeamId,
-            team.Name,
-            team.AvatarFileId,
-            owner,
-            team.CreatedAt.UtcDateTime,
-            new IonArray<AdminTeamMemberInfo>(members),
-            new IonArray<AdminTeamAppInfo>(apps)
-        );
-    }
+        => await AdminDirectory.GetTeamCardAsync(teamId, ct)
+        ?? throw new InvalidOperationException("Team not found");
 
     // ===== Space Management =====
 
-    public async Task<AdminSpaceSearchResult> SearchSpace(string query, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return new AdminSpaceSearchResult(false, null, SpaceSearchMatchKind.None);
-
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        // Try GUID first
-        if (Guid.TryParse(query, out var spaceId))
-        {
-            var space = await db.Spaces.FirstOrDefaultAsync(s => s.Id == spaceId && !s.IsDeleted, ct);
-            if (space is not null)
-            {
-                var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == spaceId && !x.IsDeleted, ct);
-                var channelCount = await db.Channels.CountAsync(c => c.SpaceId == spaceId && !c.IsDeleted, ct);
-                return new AdminSpaceSearchResult(true,
-                    new AdminSpaceSummary(space.Id, space.Name, space.AvatarFileId, memberCount, channelCount, space.CreatedAt.UtcDateTime),
-                    SpaceSearchMatchKind.SpaceId);
-            }
-        }
-
-        // Search by name
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-        var byName = await db.Spaces
-           .FirstOrDefaultAsync(s => !s.IsDeleted && s.Name.ToLower() == normalizedQuery, ct);
-
-        if (byName is not null)
-        {
-            var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == byName.Id && !x.IsDeleted, ct);
-            var channelCount = await db.Channels.CountAsync(c => c.SpaceId == byName.Id && !c.IsDeleted, ct);
-            return new AdminSpaceSearchResult(true,
-                new AdminSpaceSummary(byName.Id, byName.Name, byName.AvatarFileId, memberCount, channelCount, byName.CreatedAt.UtcDateTime),
-                SpaceSearchMatchKind.Name);
-        }
-
-        return new AdminSpaceSearchResult(false, null, SpaceSearchMatchKind.None);
-    }
+    public Task<AdminSpaceSearchResult> SearchSpace(string query, CancellationToken ct = default)
+        => AdminDirectory.SearchSpaceAsync(query, ct);
 
     public async Task<AdminSpaceCard> GetSpaceCard(Guid spaceId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var space = await db.Spaces
-                       .Include(s => s.Channels.Where(c => !c.IsDeleted))
-                       .Include(s => s.ChannelGroups.Where(g => !g.IsDeleted))
-                       .Include(s => s.Archetypes.Where(a => !a.IsDeleted))
-                       .FirstOrDefaultAsync(s => s.Id == spaceId && !s.IsDeleted, ct)
-                    ?? throw new InvalidOperationException("Space not found");
-
-        var creator = await db.Users
-           .Where(u => u.Id == space.CreatorId)
-           .Select(u => new AdminUserSummary(u.Id, u.Username, u.DisplayName, u.AvatarFileId))
-           .FirstOrDefaultAsync(ct) ?? new AdminUserSummary(space.CreatorId, "Unknown", "Unknown", null);
-
-        var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == spaceId && !x.IsDeleted, ct);
-
-        // The channel's last-message id is no longer on the channel row — ChannelEntity.LastMessageId
-        // is a column nothing writes any more — so it comes from ChannelLastMessages, one seek by
-        // space. The Redis cell would be up to a flush interval fresher and is not consulted: an
-        // operator looking at a space card is not reading unread state, and a support answer that
-        // disagrees with the database by three seconds is worse than one that is the database.
-        // A channel with no row has had nothing posted in it, and shows zero, which is what the
-        // column said for such a channel too.
-        var storedMarks = await db.ChannelLastMessages
-           .AsNoTracking()
-           .Where(m => m.SpaceId == spaceId)
-           .Select(m => new { m.ChannelId, m.LastMessageId })
-           .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId, ct);
-
-        var channels = space.Channels.Select(c => new AdminChannelInfo(
-            c.Id,
-            c.Name,
-            (ChannelType)(int)c.ChannelType,
-            c.Description,
-            c.ChannelGroupId,
-            c.SlowMode.HasValue ? (int)c.SlowMode.Value.TotalSeconds : null,
-            c.DoNotRestrictBoosters,
-            storedMarks.GetValueOrDefault(c.Id)
-        )).ToList();
-
-        var channelGroups = space.ChannelGroups.Select(g => new AdminChannelGroupInfo(
-            g.Id,
-            g.Name,
-            g.Description,
-            space.Channels.Count(c => c.ChannelGroupId == g.Id)
-        )).ToList();
-
-        // Archetype member counts
-        var archetypeMemberCounts = await db.MemberArchetypes
-           .Where(ma => space.Archetypes.Select(a => a.Id).Contains(ma.ArchetypeId))
-           .GroupBy(ma => ma.ArchetypeId)
-           .Select(g => new { g.Key, Count = g.Count() })
-           .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
-
-        var archetypes = space.Archetypes.Select(a => new AdminArchetypeInfo(
-            a.Id,
-            a.Name,
-            (ArgonEntitlement)(ulong)a.Entitlement,
-            a.IsDefault,
-            a.IsLocked,
-            a.IsHidden,
-            archetypeMemberCounts.GetValueOrDefault(a.Id, 0)
-        )).ToList();
-
-        // Installed bots
-        var botMembers = await db.UsersToServerRelations
-           .Where(sm => sm.SpaceId == spaceId && !sm.IsDeleted)
-           .Join(db.Users.Where(u => u.BotEntityId != null),
-                sm => sm.UserId, u => u.Id, (sm, u) => new { sm, u })
-           .Join(db.BotEntities,
-                x => x.u.BotEntityId, b => b.AppId, (x, b) => new { x.sm, x.u, b })
-           .ToListAsync(ct);
-
-        var installedBots = new List<AdminSpaceBotInfo>();
-        foreach (var bm in botMembers)
-        {
-            var botArchetype = await db.Archetypes
-               .Where(a => a.SpaceId == spaceId && a.IsLocked && !a.IsDeleted)
-               .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == bm.sm.Id),
-                    a => a.Id, ma => ma.ArchetypeId, (a, _) => a)
-               .FirstOrDefaultAsync(ct);
-
-            installedBots.Add(new AdminSpaceBotInfo(
-                bm.b.AppId,
-                bm.b.Name,
-                bm.u.Username,
-                bm.u.AvatarFileId,
-                bm.b.IsVerified,
-                (ArgonEntitlement)(ulong)(botArchetype?.Entitlement ?? ArgonEntitlement.None),
-                botArchetype is not null && (ulong)botArchetype.Entitlement != (ulong)bm.b.RequiredEntitlements
-            ));
-        }
-
-        // Recent invites (last 10)
-        var invites = await db.Invites
-           .Where(i => i.SpaceId == spaceId)
-           .OrderByDescending(i => i.CreatedAt)
-           .Take(10)
-           .ToListAsync(ct);
-
-        var issuerIds = invites.Select(i => i.CreatorId).Distinct().ToList();
-        var issuerNames = await db.Users
-           .Where(u => issuerIds.Contains(u.Id))
-           .ToDictionaryAsync(u => u.Id, u => u.Username, ct);
-
-        var recentInvites = invites.Select(i => new AdminInviteInfo(
-            i.Id.ToString(),
-            i.CreatorId,
-            issuerNames.GetValueOrDefault(i.CreatorId, "Unknown"),
-            i.ExpireAt.UtcDateTime,
-            0
-        )).ToList();
-
-        return new AdminSpaceCard(
-            space.Id,
-            space.Name,
-            space.Description,
-            space.AvatarFileId,
-            space.TopBannedFileId,
-            space.IsCommunity,
-            space.BoostCount,
-            space.BoostLevel,
-            creator,
-            space.CreatedAt.UtcDateTime,
-            memberCount,
-            space.Channels.Count,
-            botMembers.Count,
-            new IonArray<AdminChannelInfo>(channels),
-            new IonArray<AdminChannelGroupInfo>(channelGroups),
-            new IonArray<AdminArchetypeInfo>(archetypes),
-            new IonArray<AdminSpaceBotInfo>(installedBots),
-            new IonArray<AdminInviteInfo>(recentInvites),
-            space.IsVerified,
-            space.IsOfficial
-        );
-    }
+        => await AdminDirectory.GetSpaceCardAsync(spaceId, ct)
+        ?? throw new InvalidOperationException("Space not found");
 
     public Task<UserActionResult> SetSpaceCommunity(Guid spaceId, bool isCommunity, CancellationToken ct = default)
         => SetSpaceFlag(spaceId, isCommunity: isCommunity, isOfficial: null,
@@ -2171,9 +411,8 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var exists = await db.Spaces.AnyAsync(s => s.Id == spaceId && !s.IsDeleted, ct);
-            if (!exists) return new UserActionResult(false, "Space not found");
+            if (!await AdminDirectory.SpaceExistsAsync(spaceId, ct))
+                return new UserActionResult(false, "Space not found");
 
             await grainFactory.GetGrain<ISpaceGrain>(spaceId).SetPlatformSpaceFlags(isCommunity, isOfficial, ct);
             await auditService.LogAsync(auditAction, "Space", spaceId.ToString(), auditDetails);
@@ -2182,41 +421,8 @@ public class AdminConsoleImpl(
         catch (Exception ex) { return new UserActionResult(false, ex.Message); }
     }
 
-    public async Task<AdminSpaceMemberPage> GetSpaceMembers(Guid spaceId, int offset, int limit, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        offset = Math.Max(0, offset);
-        limit = Math.Clamp(limit, 1, 100);
-
-        var totalCount = await db.UsersToServerRelations
-           .CountAsync(sm => sm.SpaceId == spaceId && !sm.IsDeleted, ct);
-
-        var memberEntities = await db.UsersToServerRelations
-           .Where(sm => sm.SpaceId == spaceId && !sm.IsDeleted)
-           .OrderBy(sm => sm.CreatedAt)
-           .Skip(offset)
-           .Take(limit)
-           .Include(sm => sm.User)
-           .Include(sm => sm.SpaceMemberArchetypes).ThenInclude(sma => sma.Archetype)
-           .ToListAsync(ct);
-
-        var members = memberEntities.Select(sm => new AdminSpaceMemberInfo(
-            sm.UserId,
-            sm.User.Username,
-            sm.User.DisplayName,
-            sm.User.AvatarFileId,
-            sm.CreatedAt.UtcDateTime,
-            new IonArray<string>(sm.SpaceMemberArchetypes.Select(sma => sma.Archetype.Name).ToList())
-        )).ToList();
-
-        return new AdminSpaceMemberPage(
-            new IonArray<AdminSpaceMemberInfo>(members),
-            totalCount,
-            offset,
-            limit
-        );
-    }
+    public Task<AdminSpaceMemberPage> GetSpaceMembers(Guid spaceId, int offset, int limit, CancellationToken ct = default)
+        => AdminDirectory.GetSpaceMembersAsync(spaceId, offset, limit, ct);
 
     // ===== Premium Management =====
 
@@ -2224,7 +430,7 @@ public class AdminConsoleImpl(
     {
         try
         {
-            var grain = grainFactory.GetGrain<IUltimaGrain>(userId);
+            var grain  = grainFactory.GetGrain<IUltimaGrain>(userId);
             var result = await grain.CancelSubscriptionAsync(ct);
             if (!result)
                 return new UserActionResult(false, "No active subscription to cancel");
@@ -2260,168 +466,28 @@ public class AdminConsoleImpl(
 
     // ===== Payment/Transaction API =====
 
-    public async Task<AdminTransactionPage> GetUserTransactions(Guid userId, int page, int pageSize, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+    public Task<AdminTransactionPage> GetUserTransactions(Guid userId, int page, int pageSize, CancellationToken ct = default)
+        => AdminUsers.GetUserTransactionsAsync(userId, page, pageSize, ct);
 
-        page = Math.Max(0, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var totalCount = await db.PaymentTransactions.CountAsync(t => t.UserId == userId, ct);
-
-        var username = await db.Users
-           .Where(u => u.Id == userId)
-           .Select(u => u.Username)
-           .FirstOrDefaultAsync(ct) ?? "Unknown";
-
-        // DateTimeOffset.UtcDateTime has no SQL translation. Projecting it inside the query made EF
-        // throw while compiling the shaper, so this endpoint failed for every caller regardless of
-        // whether the user had any transactions. Materialise first, convert after.
-        var rows = await db.PaymentTransactions
-           .Where(t => t.UserId == userId)
-           .OrderByDescending(t => t.CreatedAt)
-           .Skip(page * pageSize)
-           .Take(pageSize)
-           .ToListAsync(ct);
-
-        var transactions = rows
-           .Select(t => new AdminTransactionInfo(
-                t.Id,
-                t.UserId,
-                username,
-                t.XsollaTxId,
-                t.TransactionType,
-                t.PlanExternalId,
-                t.BoostPackType,
-                t.BoostCount,
-                t.Amount,
-                t.Currency,
-                t.RecipientId,
-                t.CardSuffix,
-                t.CardBrand,
-                t.Status,
-                t.CreatedAt.UtcDateTime
-            ))
-           .ToList();
-
-        return new AdminTransactionPage(
-            new IonArray<AdminTransactionInfo>(transactions),
-            totalCount,
-            page,
-            pageSize
-        );
-    }
-
-    public async Task<AdminTransactionDetails?> GetTransactionByXsollaId(string xsollaTxId, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var tx = await db.PaymentTransactions
-           .Include(t => t.User)
-           .FirstOrDefaultAsync(t => t.XsollaTxId == xsollaTxId, ct);
-
-        if (tx is null)
-            return null;
-
-        var transactionInfo = new AdminTransactionInfo(
-            tx.Id,
-            tx.UserId,
-            tx.User.Username,
-            tx.XsollaTxId,
-            tx.TransactionType,
-            tx.PlanExternalId,
-            tx.BoostPackType,
-            tx.BoostCount,
-            tx.Amount,
-            tx.Currency,
-            tx.RecipientId,
-            tx.CardSuffix,
-            tx.CardBrand,
-            tx.Status,
-            tx.CreatedAt.UtcDateTime
-        );
-
-        // Related items granted around the same time
-        var relatedItems = await db.Items
-           .Where(i => i.OwnerId == tx.UserId && !i.IsReference &&
-                        i.CreatedAt >= tx.CreatedAt.AddMinutes(-1) &&
-                        i.CreatedAt <= tx.CreatedAt.AddMinutes(5))
-           .Select(i => new AdminTransactionItemInfo(i.Id, i.TemplateId, i.CreatedAt.UtcDateTime))
-           .ToListAsync(ct);
-
-        // Premium info
-        AdminPremiumInfo? premiumInfo = null;
-        var subscription = await db.UltimaSubscriptions
-           .Where(s => s.UserId == tx.UserId)
-           .OrderByDescending(s => s.StartsAt)
-           .FirstOrDefaultAsync(ct);
-
-        if (subscription is not null)
-        {
-            var usedBoostSlots = await db.SpaceBoosts
-               .CountAsync(b => b.SubscriptionId == subscription.Id && b.SpaceId != null, ct);
-            premiumInfo = new AdminPremiumInfo(
-                subscription.Id,
-                (UltimaPlan)(int)subscription.Tier,
-                (UltimaSubscriptionStatus)(int)subscription.Status,
-                subscription.StartsAt.UtcDateTime,
-                subscription.ExpiresAt.UtcDateTime,
-                subscription.AutoRenew,
-                subscription.BoostSlots,
-                usedBoostSlots,
-                subscription.CancelledAt?.UtcDateTime,
-                subscription.XsollaSubscriptionId,
-                subscription.ActivatedFromItemId
-            );
-        }
-
-        return new AdminTransactionDetails(
-            transactionInfo,
-            new IonArray<AdminTransactionItemInfo>(relatedItems),
-            premiumInfo
-        );
-    }
+    public Task<AdminTransactionDetails?> GetTransactionByXsollaId(string xsollaTxId, CancellationToken ct = default)
+        => AdminUsers.GetTransactionByXsollaIdAsync(xsollaTxId, ct);
 
     // ===== User Settings Mutations =====
 
-    public async Task<UserActionResult> ChangeUserAuthMode(Guid userId, ArgonAuthMode authMode, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null) return new UserActionResult(false, "User not found");
+    public Task<UserActionResult> ChangeUserAuthMode(Guid userId, ArgonAuthMode authMode, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.ChangeAuthModeAsync(userId, authMode, ct),
+            "ChangeUserAuthMode", "User", userId, $"AuthMode={authMode}");
 
-            user.PreferredAuthMode = authMode;
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("ChangeUserAuthMode", "User", userId.ToString(), $"AuthMode={authMode}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
-    }
-
-    public async Task<UserActionResult> ChangeUserOtpMethod(Guid userId, OtpMethod otpMethod, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-            if (user is null) return new UserActionResult(false, "User not found");
-
-            user.PreferredOtpMethod = otpMethod;
-            await db.SaveChangesAsync(ct);
-            await auditService.LogAsync("ChangeUserOtpMethod", "User", userId.ToString(), $"OtpMethod={otpMethod}");
-            return new UserActionResult(true, null);
-        }
-        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
-    }
+    public Task<UserActionResult> ChangeUserOtpMethod(Guid userId, OtpMethod otpMethod, CancellationToken ct = default)
+        => AuditedAsync(() => AdminUsers.ChangeOtpMethodAsync(userId, otpMethod, ct),
+            "ChangeUserOtpMethod", "User", userId, $"OtpMethod={otpMethod}");
 
     public async Task<IUploadFileResult> BeginUploadUserAvatar(Guid userId, CancellationToken ct = default)
     {
         try
         {
             var userGrain = grainFactory.GetGrain<IUserGrain>(userId);
-            var result = await userGrain.BeginUploadUserFile(UserFileKind.Avatar, ct);
+            var result    = await userGrain.BeginUploadUserFile(UserFileKind.Avatar, ct);
 
             if (result.IsSuccess)
             {
@@ -2452,84 +518,30 @@ public class AdminConsoleImpl(
 
     // ===== Private Helpers =====
 
-    private static AdminBotSummary MapBotSummary(BotEntity bot) => new(
-        bot.AppId,
-        bot.Name,
-        bot.BotAsUser.Username,
-        bot.Description,
-        bot.BotAsUser.AvatarFileId,
-        bot.IsVerified,
-        bot.IsPublic,
-        bot.TeamId,
-        bot.Team.Name
-    );
-
-    private static AdminTeamSummary MapTeamSummary(DevTeamEntity team) => new(
-        team.TeamId,
-        team.Name,
-        team.AvatarFileId,
-        team.OwnerId,
-        team.Members?.Count ?? 0,
-        team.Applications?.Count ?? 0,
-        team.CreatedAt.UtcDateTime
-    );
-
-    private static OperatorInfo MapOperatorInfo(OperatorEntity op)
-    {
-        var certificates = (op.Certificates ?? new List<OperatorCertificateEntity>())
-           .OrderByDescending(c => c.CreatedAt)
-           .Select(MapOperatorCertificateInfo)
-           .ToList();
-
-        return new OperatorInfo(
-            op.Id,
-            op.DisplayName,
-            op.Email,
-            op.UserId,
-            op.IsActive,
-            op.IsSystemOperator,
-            new IonArray<OperatorCertificateInfo>(certificates),
-            op.LastAuthAt?.UtcDateTime,
-            op.CreatedAt.UtcDateTime
-        );
-    }
-
-    private static OperatorCertificateInfo MapOperatorCertificateInfo(OperatorCertificateEntity c)
-        => new(
-            c.Id,
-            c.SerialNumber,
-            c.Thumbprint,
-            c.Subject,
-            c.NotBefore.UtcDateTime,
-            c.NotAfter.UtcDateTime,
-            c.NotAfter < DateTimeOffset.UtcNow,
-            c.RevokedAt.HasValue,
-            c.CreatedAt.UtcDateTime,
-            c.DeviceName,
-            c.DeviceSerialNumber
-        );
-
-    private static AuditEntry MapAuditEntry(OperatorAuditEntity a)
-        => new(
-            a.Id,
-            a.OperatorId,
-            a.OperatorEmail,
-            a.Action,
-            a.TargetType,
-            a.TargetId,
-            a.Details,
-            a.CreatedAt.UtcDateTime
-        );
-
     /// <summary>
-    /// Invalidate Aegis-side HybridCache entries for operator app access.
-    /// Keys match CachedTeamsRepository patterns; clears Redis L2 immediately,
-    /// L1 on Aegis side expires within LocalCacheExpiration (1 min).
+    /// One edit made by a grain and audited once it has been made.
     /// </summary>
-    private async Task InvalidateOperatorAppAccessCacheAsync(Guid operatorId, Guid appId)
+    /// <remarks>
+    /// The shape every simple account and bot button had when it wrote the row itself: a refusal from
+    /// the grain comes back as the result and writes no audit line, and an exception anywhere — the
+    /// grain call or the audit write — is the result too rather than a fault on the Ion call.
+    /// </remarks>
+    private async Task<UserActionResult> AuditedAsync(Func<Task<UserActionResult>> act, string action, string targetType,
+        Guid targetId, string? details = null)
     {
-        await lockdownCache.RemoveAsync($"aegis:operator:app-access:{operatorId}:{appId}");
-        await lockdownCache.RemoveAsync($"aegis:operator:has-app-access:{operatorId}");
+        try
+        {
+            var result = await act();
+
+            if (result.success)
+                await auditService.LogAsync(action, targetType, targetId.ToString(), details);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return new UserActionResult(false, ex.Message);
+        }
     }
 
     // ===== Reports & Trust =====
@@ -2642,64 +654,37 @@ public class AdminConsoleImpl(
 
     public async Task<AdminUserTrustCard> GetUserTrustCard(Guid userId, CancellationToken ct = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var trustInfo = await grainFactory.GetGrain<IUserTrustGrain>(userId).GetTrustScoreAsync(ct);
+        var facts     = await AdminUsers.GetTrustFactsAsync(userId, ct);
 
-        var trustGrain = grainFactory.GetGrain<IUserTrustGrain>(userId);
-        var trustInfo = await trustGrain.GetTrustScoreAsync(ct);
-
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
-        var trustEntity = await db.UserTrustScores.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == userId, ct);
-
-        var accountAge = user is not null
-            ? DateTimeOffset.UtcNow - user.CreatedAt
-            : TimeSpan.Zero;
-
-        var lastActivity = user?.UpdatedAt.UtcDateTime ?? DateTime.UtcNow;
-
-        return new AdminUserTrustCard(
-            userId,
-            user?.Username ?? "unknown",
-            trustInfo.trustScore,
-            trustInfo.totalReportsReceived,
-            trustInfo.confirmedReportsReceived,
-            trustInfo.totalReportsFiled,
-            trustInfo.falseReportsFiled,
-            trustEntity?.AutoActionsApplied ?? 0,
-            accountAge,
-            lastActivity
-        );
+        return ToTrustCard(userId, trustInfo, facts);
     }
 
     public async Task<AdminUserTrustCard> RecalculateUserTrust(Guid userId, CancellationToken ct = default)
     {
-        var trustGrain = grainFactory.GetGrain<IUserTrustGrain>(userId);
-        var trustInfo = await trustGrain.RecalculateTrustAsync(ct);
-
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
-
-        var accountAge = user is not null
-            ? DateTimeOffset.UtcNow - user.CreatedAt
-            : TimeSpan.Zero;
+        var trustInfo = await grainFactory.GetGrain<IUserTrustGrain>(userId).RecalculateTrustAsync(ct);
 
         await auditService.LogAsync("RecalculateUserTrust", "User", userId.ToString(),
             $"NewScore={trustInfo.trustScore}");
 
-        var trustEntity = await db.UserTrustScores.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == userId, ct);
+        var facts = await AdminUsers.GetTrustFactsAsync(userId, ct);
 
-        return new AdminUserTrustCard(
+        return ToTrustCard(userId, trustInfo, facts);
+    }
+
+    private static AdminUserTrustCard ToTrustCard(Guid userId, UserTrustInfo trustInfo, AdminTrustFacts facts)
+        => new(
             userId,
-            user?.Username ?? "unknown",
+            facts.Username ?? "unknown",
             trustInfo.trustScore,
             trustInfo.totalReportsReceived,
             trustInfo.confirmedReportsReceived,
             trustInfo.totalReportsFiled,
             trustInfo.falseReportsFiled,
-            trustEntity?.AutoActionsApplied ?? 0,
-            accountAge,
-            user?.UpdatedAt.UtcDateTime ?? DateTime.UtcNow
+            facts.AutoActionsApplied,
+            facts.CreatedAt is { } createdAt ? DateTimeOffset.UtcNow - createdAt : TimeSpan.Zero,
+            facts.UpdatedAt?.UtcDateTime ?? DateTime.UtcNow
         );
-    }
 
     private static AdminReportEntry ToEntry(ReportEntryView r)
         => new(
@@ -2896,19 +881,8 @@ public class AdminConsoleImpl(
     }
 
     /// <summary>The display fields of the accounts a queue page names, erased ones included.</summary>
-    private async Task<Dictionary<Guid, QueuedAccountIdentity>> ReadQueuedAccountsAsync(List<Guid> ids, CancellationToken ct)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        return await db.Users
-           .IgnoreQueryFilters()
-           .AsNoTracking()
-           .Where(u => ids.Contains(u.Id))
-           .Select(u => new QueuedAccountIdentity(u.Id, u.Username, u.DisplayName, u.Email))
-           .ToDictionaryAsync(u => u.Id, ct);
-    }
-
-    private sealed record QueuedAccountIdentity(Guid Id, string Username, string DisplayName, string Email);
+    private Task<Dictionary<Guid, AdminAccountIdentity>> ReadQueuedAccountsAsync(List<Guid> ids, CancellationToken ct)
+        => AdminUsers.GetAccountIdentitiesAsync(ids, ct);
 
     /// <summary>
     /// Approves one queued account: the deletion is scheduled and the account is told by e-mail.
@@ -3154,21 +1128,8 @@ public class AdminConsoleImpl(
     /// and whether it left the building. That is enough to answer the question and not enough to be a
     /// record of who was mailed where.</para>
     /// </remarks>
-    public async Task<EmailJournalPage> GetEmailJournal(Guid? userId, int offset, int limit, CancellationToken ct = default)
-    {
-        var page = await emailJournal.ReadAsync(userId, offset, limit, ct);
-
-        var rows = page.Entries
-           .Select(entry => new EmailJournalEntry(
-                entry.UserId,
-                entry.Kind,
-                entry.SentAt.UtcDateTime,
-                entry.Delivered,
-                entry.Error))
-           .ToList();
-
-        return new EmailJournalPage(new IonArray<EmailJournalEntry>(rows), page.TotalCount, offset, limit);
-    }
+    public Task<EmailJournalPage> GetEmailJournal(Guid? userId, int offset, int limit, CancellationToken ct = default)
+        => AdminPlatform.ReadEmailJournalAsync(userId, offset, limit, ct);
 
     /// <summary>The erasures under way right now, whoever started them.</summary>
     /// <remarks>
@@ -3191,16 +1152,7 @@ public class AdminConsoleImpl(
             return new InFlightDeletionPage(new IonArray<InFlightDeletionEntry>([]),
                 snapshot.TotalCount, snapshot.FailedCount, offset, limit);
 
-        var ids = snapshot.Entries.Select(entry => entry.UserId).ToList();
-
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        var accounts = await ctx.Users
-           .IgnoreQueryFilters()
-           .AsNoTracking()
-           .Where(u => ids.Contains(u.Id))
-           .Select(u => new { u.Id, u.Username, u.DisplayName, u.Email })
-           .ToDictionaryAsync(u => u.Id, ct);
+        var accounts = await ReadQueuedAccountsAsync(snapshot.Entries.Select(entry => entry.UserId).ToList(), ct);
 
         var rows = new List<InFlightDeletionEntry>(snapshot.Entries.Count);
 
@@ -3244,124 +1196,11 @@ public class AdminConsoleImpl(
 
     /// <summary>What erasing one account would actually destroy.</summary>
     /// <remarks>
-    /// <para>Read on demand rather than folded into the queue page: every count below is a query, and
-    /// an operator wants them for the one account they are deciding about. The queue lists who and how
-    /// long they have been quiet; this answers "and what goes with them", which is the question that
-    /// decides whether an approval is routine or needs a conversation first.</para>
-    ///
-    /// <para>The dates are the sweep's own arithmetic spelled out — the later of the last login and the
-    /// last message, the threshold that account is measured against, and whether it chose that
-    /// threshold itself — so an operator can see why the account was proposed rather than trusting that
-    /// it was. <see cref="AccountDeletionImpact.blockedBy"/> is the bar that would refuse a deletion
-    /// asked for right now, which is not always the same as the entry being approvable: a queue entry
-    /// is written by a pass that ran up to a day ago.</para>
+    /// Computed by <see cref="IAdminUsersGrain.GetAccountDeletionImpactAsync"/>, on the role where the
+    /// sweep's threshold and the deletion grain both live — see there for what each figure means.
     /// </remarks>
-    public async Task<AccountDeletionImpact> GetAccountDeletionImpact(Guid userId, CancellationToken ct = default)
-    {
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-
-        var account = await ctx.Users
-           .AsNoTracking()
-           .Where(u => u.Id == userId)
-           .Select(u => new
-            {
-                u.Id,
-                u.Username,
-                u.DisplayName,
-                u.Email,
-                u.CreatedAt,
-                u.HasActiveUltima,
-                u.LockdownReason,
-                u.LockDownExpiration,
-                IsBot            = ctx.BotEntities.Any(bot => bot.BotAsUserId == u.Id),
-                AutoDeleteOn     = ctx.AutoDeleteSettings.Where(x => x.UserId == u.Id).Select(x => (bool?)x.Enabled).FirstOrDefault(),
-                AutoDeleteMonths = ctx.AutoDeleteSettings.Where(x => x.UserId == u.Id).Select(x => x.Months).FirstOrDefault(),
-                LastLogin        = ctx.DeviceHistories.Where(d => d.UserId == u.Id).Max(d => (DateTimeOffset?)d.LastLoginTime),
-                LastMessage      = ctx.Messages.Where(m => m.CreatorId == u.Id).Max(m => (DateTimeOffset?)m.CreatedAt),
-                Memberships      = ctx.UsersToServerRelations.Count(m => m.UserId == u.Id && !m.IsDeleted),
-                Messages         = ctx.Messages.Count(m => m.CreatorId == u.Id && !m.IsDeleted),
-                Files            = ctx.Files.Count(f => f.OwnerId == u.Id && !f.IsDeleted),
-                Conversations    = ctx.UserConversations.Count(c => c.UserId == u.Id),
-                BotsOwned        = ctx.BotEntities.Count(b => !b.IsDeleted
-                                    && ctx.TeamEntities.Any(t => t.TeamId == b.TeamId && t.OwnerId == u.Id))
-            })
-           .FirstOrDefaultAsync(ct);
-
-        if (account is null)
-            return Empty(userId);
-
-        // Named rather than counted: "three spaces will be deleted" is a number an operator has to take
-        // on trust, and the names are what let them recognise the one that should not have been there.
-        var owned = await ctx.Spaces
-           .AsNoTracking()
-           .Where(space => space.CreatorId == userId && !space.IsDeleted)
-           .Select(space => new { space.Name, space.IsCommunity })
-           .ToListAsync(ct);
-
-        var deleted     = owned.Where(space => !space.IsCommunity).Select(space => space.Name).ToArray();
-        var communities = owned.Where(space => space.IsCommunity).Select(space => space.Name).ToArray();
-
-        var status = await grainFactory.GetGrain<IAccountDeletionGrain>(userId).GetDeletionStatusAsync();
-
-        var chosen          = account.AutoDeleteOn is true && account.AutoDeleteMonths is > 0;
-        var thresholdMonths = chosen
-            ? account.AutoDeleteMonths!.Value
-            : deletionOptions.Value.DefaultInactivityMonths;
-
-        var lastActivity = (account.LastLogin, account.LastMessage) switch
-        {
-            ({ } login, { } message) => login > message ? login : message,
-            ({ } login, null)        => login,
-            (null, { } message)      => message,
-            _                        => (DateTimeOffset?)null
-        };
-
-        var locked = account.LockdownReason != LockdownReason.NONE
-                  && (account.LockDownExpiration is not { } expiry || expiry > DateTimeOffset.UtcNow);
-
-        // The order the grain checks them in, so the answer is the one it would actually give.
-        var blockedBy = account.IsBot || userId == UserEntity.SystemUser ? "bot or platform account"
-            : locked                                                    ? "standing lockdown"
-            : account.HasActiveUltima                                   ? "active subscription"
-            : communities.Length > 0                                    ? "owns a community"
-            : status.Status is not AccountDeletionStatusKind.None        ? $"deletion already {status.Status}"
-            : null;
-
-        return new AccountDeletionImpact(
-            userId, true, account.Username, account.DisplayName, account.Email,
-            account.CreatedAt.UtcDateTime,
-            lastActivity?.UtcDateTime,
-            account.LastLogin?.UtcDateTime,
-            account.LastMessage?.UtcDateTime,
-            thresholdMonths,
-            chosen,
-            account.HasActiveUltima,
-            locked,
-            account.IsBot,
-            deleted.Length, new IonArray<string>(deleted),
-            communities.Length, new IonArray<string>(communities),
-            account.Memberships,
-            account.Messages,
-            account.Files,
-            account.Conversations,
-            account.BotsOwned,
-            status.Status switch
-            {
-                AccountDeletionStatusKind.Scheduled => AccountDeletionStatusView.SCHEDULED,
-                AccountDeletionStatusKind.Executing => AccountDeletionStatusView.EXECUTING,
-                AccountDeletionStatusKind.Completed => AccountDeletionStatusView.COMPLETED,
-                AccountDeletionStatusKind.Failed    => AccountDeletionStatusView.FAILED,
-                _                                   => AccountDeletionStatusView.NONE
-            },
-            status.ScheduledAt?.UtcDateTime,
-            status.ExecutionAt?.UtcDateTime,
-            blockedBy);
-
-        static AccountDeletionImpact Empty(Guid id)
-            => new(id, false, "", "", "", default, null, null, null, 0, false, false, false, false,
-                0, new IonArray<string>([]), 0, new IonArray<string>([]), 0, 0, 0, 0, 0,
-                AccountDeletionStatusView.NONE, null, null, "no such account");
-    }
+    public Task<AccountDeletionImpact> GetAccountDeletionImpact(Guid userId, CancellationToken ct = default)
+        => AdminUsers.GetAccountDeletionImpactAsync(userId, ct);
 
     /// <summary>Starts the deletion workflow on an account nobody proposed.</summary>
     /// <remarks>
@@ -3607,20 +1446,8 @@ public class AdminConsoleImpl(
 
     // ── Tenant directory (self-hosted / enterprise routing) ──────────────────────────────────
 
-    public async Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var entities = await db.TenantDirectory
-           .Where(t => !t.IsDeleted)
-           .OrderBy(t => t.Domain)
-           .ToListAsync(ct);
-
-        var tenants = entities.Select(t => new TenantInfo(
-            t.Id, t.Domain, t.InstanceUrl, t.IsVerified, t.OrgName, t.OwnerUserId, t.Notes, t.CreatedAt.UtcDateTime)).ToList();
-
-        return new TenantDirectoryList(new IonArray<TenantInfo>(tenants));
-    }
+    public Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default)
+        => AdminPlatform.GetTenantDirectoryAsync(ct);
 
     public async Task<TenantActionResult> CreateTenant(CreateTenantInput input, CancellationToken ct = default)
     {
@@ -3632,25 +1459,15 @@ public class AdminConsoleImpl(
             if (!IsValidInstanceUrl(input.instanceUrl))
                 return new TenantActionResult(false, null, "Instance URL must be an absolute https URL");
 
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            if (await db.TenantDirectory.AnyAsync(t => t.Domain == domain && !t.IsDeleted, ct))
-                return new TenantActionResult(false, null, "A tenant for this domain already exists");
+            var instanceUrl = input.instanceUrl.Trim();
+            var result = await AdminPlatform.CreateTenantAsync(domain, instanceUrl, input.orgName?.Trim(), input.ownerUserId,
+                input.notes?.Trim(), ct);
 
-            var entity = new TenantDirectoryEntity
-            {
-                Domain      = domain,
-                InstanceUrl = input.instanceUrl.Trim(),
-                IsVerified  = false, // verify is a separate, system-operator-gated step
-                OrgName     = input.orgName?.Trim(),
-                OwnerUserId = input.ownerUserId,
-                Notes       = input.notes?.Trim()
-            };
-            db.TenantDirectory.Add(entity);
-            await db.SaveChangesAsync(ct);
+            if (result.success)
+                await auditService.LogAsync("CreateTenant", "Tenant", result.tenantId.ToString(),
+                    $"Created tenant domain='{domain}' url='{instanceUrl}' (unverified)");
 
-            await auditService.LogAsync("CreateTenant", "Tenant", entity.Id.ToString(),
-                $"Created tenant domain='{domain}' url='{entity.InstanceUrl}' (unverified)");
-            return new TenantActionResult(true, entity.Id, null);
+            return result;
         }
         catch (Exception ex)
         {
@@ -3666,18 +1483,13 @@ public class AdminConsoleImpl(
             if (!IsValidInstanceUrl(input.instanceUrl))
                 return new TenantActionResult(false, input.tenantId, "Instance URL must be an absolute https URL");
 
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == input.tenantId && !x.IsDeleted, ct);
-            if (t is null)
-                return new TenantActionResult(false, input.tenantId, "Tenant not found");
+            var change = await AdminPlatform.UpdateTenantAsync(input.tenantId, input.instanceUrl.Trim(), input.orgName?.Trim(),
+                input.notes?.Trim(), ct);
 
-            t.InstanceUrl = input.instanceUrl.Trim();
-            t.OrgName     = input.orgName?.Trim();
-            t.Notes       = input.notes?.Trim();
-            await db.SaveChangesAsync(ct);
+            if (change.Result.success)
+                await auditService.LogAsync("UpdateTenant", "Tenant", input.tenantId.ToString(), $"Updated tenant '{change.Domain}'");
 
-            await auditService.LogAsync("UpdateTenant", "Tenant", t.Id.ToString(), $"Updated tenant '{t.Domain}'");
-            return new TenantActionResult(true, t.Id, null);
+            return change.Result;
         }
         catch (Exception ex)
         {
@@ -3690,22 +1502,13 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var change = await AdminPlatform.SetTenantVerifiedAsync(CurrentOperatorId, tenantId, isVerified, ct);
 
-            var caller = OperatorRequestContext.Current;
-            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-                return new TenantActionResult(false, tenantId, "Only system operators can verify tenants");
+            if (change.Result.success)
+                await auditService.LogAsync("SetTenantVerified", "Tenant", tenantId.ToString(),
+                    $"Set verified={isVerified} for '{change.Domain}'");
 
-            var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
-            if (t is null)
-                return new TenantActionResult(false, tenantId, "Tenant not found");
-
-            t.IsVerified = isVerified;
-            await db.SaveChangesAsync(ct);
-
-            await auditService.LogAsync("SetTenantVerified", "Tenant", tenantId.ToString(),
-                $"Set verified={isVerified} for '{t.Domain}'");
-            return new TenantActionResult(true, tenantId, null);
+            return change.Result;
         }
         catch (Exception ex)
         {
@@ -3718,17 +1521,12 @@ public class AdminConsoleImpl(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
-            if (t is null)
-                return new TenantActionResult(false, tenantId, "Tenant not found");
+            var change = await AdminPlatform.DeleteTenantAsync(tenantId, ct);
 
-            t.IsDeleted = true;
-            t.DeletedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(ct);
+            if (change.Result.success)
+                await auditService.LogAsync("DeleteTenant", "Tenant", tenantId.ToString(), $"Deleted tenant '{change.Domain}'");
 
-            await auditService.LogAsync("DeleteTenant", "Tenant", tenantId.ToString(), $"Deleted tenant '{t.Domain}'");
-            return new TenantActionResult(true, tenantId, null);
+            return change.Result;
         }
         catch (Exception ex)
         {

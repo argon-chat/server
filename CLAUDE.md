@@ -1,5 +1,41 @@
 # Argon server — instructions for agents
 
+## Ion services never touch the main database (mandatory)
+
+An Ion service — anything registered with `x.AddService<IContract, Impl>(...)` (see
+`src/Argon.Api/Clustering/Features/IonFeatures.cs`), its Ion interceptors, and every helper or
+"service" class it calls — **must not read or write `ApplicationDbContext`**, the main CockroachDB
+database. Not through `IDbContextFactory<ApplicationDbContext>`, not through a scoped
+`ApplicationDbContext`, and not through a repository that wraps one. Database access lives in
+grains; the Ion layer maps contracts, checks the caller, writes the audit line and calls grains.
+
+How to do it instead:
+
+- Put the query in the grain that owns the data. If nothing owns it (a console, a directory lookup),
+  use a `[StatelessWorker]` grain keyed with `Guid.Empty`, like `IDevTeamsGrain`,
+  `IIdentityDirectoryGrain` or the `IAdmin*Grain` family behind the operator console.
+- Return the Ion contract types straight from the grain. They cross the grain boundary as they are
+  (the Orleans serializer carries the Ion converters), so there is no need for a parallel set of
+  records.
+- Ambient request context (`ArgonRequestContext`, `OperatorRequestContext`) **does not cross a grain
+  call**. Pass the caller's id to the grain as an argument, and let the grain do the permission check
+  next to the write it guards.
+- Cache invalidation that belongs to a write (lockdown, operator app access) goes in the grain,
+  beside the write.
+
+What guards it:
+
+- The `admin`, `account` and `aegis` roles run **without** `DatabaseFeature`. Don't add it back, and
+  don't add `Requires<DatabaseFeature>()` to a feature those roles take: requirements are pulled in
+  transitively, so a feature that needs the database gives the database to every role that hosts it.
+  That is exactly how `admin` kept a connection pool through `EmailJournalFeature`.
+  `ProductionTopologyTests.The_consoles_and_the_identity_server_carry_no_database` (unit, no
+  containers) and `RoleStartupTests.The_*_without_a_database` fail when the pool comes back.
+- The one sanctioned connection on a client role is `AegisKeyRingDbContext` on `aegis`, a context
+  that maps the data-protection key ring and nothing else. It is not the main database.
+- `entrypoint` and `botapi` still carry `DatabaseFeature`. That is debt, not permission: don't add
+  new queries there, and when you touch an Ion service that queries, move the query into a grain.
+
 ## A new integration fixture must be added to the shard partition (mandatory)
 
 `tests/ArgonComplexTest` is run in parallel shards, and the fixture-to-shard partition is a literal

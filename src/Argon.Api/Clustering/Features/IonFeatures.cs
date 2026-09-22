@@ -82,19 +82,23 @@ public sealed class AdminConsoleFeature : IArgonFeature
     /// service and got a container error. It is a client role hosting no grains, so the fixture that
     /// walks every hosted grain's constructor had nothing here to walk.</para>
     ///
-    /// <para><c>EmailJournalFeature</c> for the same reason, and it happened again: the console grew a
-    /// dependency on <c>IEmailJournal</c> for the page that shows what the platform mailed, the feature
-    /// was added to the roles that <em>send</em> mail, and the admin role — which only reads the journal
-    /// — got none. Every method on the console failed with a container error, not just the new one,
-    /// because the failure is in building the service rather than in calling it. Anything the console's
-    /// constructor takes has to be named here.</para>
+    /// <para>The same thing happened with <c>IEmailJournal</c>: the console took it for the page that
+    /// shows what the platform mailed, only the roles that send mail registered it, and every method on
+    /// the console failed with a container error — the failure is in building the service, not in
+    /// calling it. Anything the console's constructor takes has to be named here.</para>
+    ///
+    /// <para><b>Nothing here may require <c>DatabaseFeature</c>.</b> The console reaches its data
+    /// through the admin grains, and the journal through <c>IAdminPlatformGrain</c> on the role that
+    /// writes it, which is why <c>EmailJournalFeature</c> is no longer on this list: its writer resolves
+    /// addresses against the database, and requiring it put a connection pool back on the admin role.
+    /// A requirement pulls its own requirements in, so a feature that needs the database is a database
+    /// on every role that hosts the console.</para>
     /// </remarks>
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("IAdminConsole on a port of its own")
             .Requires<OperatorAuthFeature>()
             .Requires<IonEndpointsFeature>()
             .Requires<PresenceFeature>()
-            .Requires<EmailJournalFeature>()
             .After<RoutingFeature>()
             .Options<AdminConsoleOptions>("AdminConsole");
 

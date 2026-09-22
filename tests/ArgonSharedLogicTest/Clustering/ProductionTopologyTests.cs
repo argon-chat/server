@@ -159,6 +159,30 @@ public class ProductionTopologyTests
                 $"role '{role.Id}': {string.Join("; ", role.Features.Diagnostics)}");
     }
 
+    /// <summary>
+    /// The consoles and the identity server reach their data through grains, and never hold a
+    /// connection pool of their own.
+    /// </summary>
+    /// <remarks>
+    /// A requirement pulls its own requirements in, so the way the database comes back is not somebody
+    /// adding <c>DatabaseFeature</c> to a role — it is a feature the role needs growing a
+    /// <c>Requires&lt;DatabaseFeature&gt;()</c>. That is how it stayed on <c>admin</c> after the console
+    /// stopped querying: <c>EmailJournalFeature</c> required it. Nothing would break visibly; the role
+    /// would quietly get a pool, and the next Ion method written there would query it.
+    /// </remarks>
+    [Test]
+    public void The_consoles_and_the_identity_server_carry_no_database()
+    {
+        var catalog = Catalog();
+
+        Assert.Multiple(() =>
+        {
+            foreach (var id in new[] { ArgonRoleId.Admin, ArgonRoleId.Account, ArgonRoleId.Aegis })
+                Assert.That(catalog.Require(id).Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"),
+                    $"role '{id}' reaches its data through grains; something in its feature graph requires the database");
+        });
+    }
+
     [Test]
     public void Bot_path_token_rewrite_is_configured_before_routing()
     {

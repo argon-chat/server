@@ -127,6 +127,12 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<EntitlementGrain>();
 
         registry.AddToRef<OperatorAuthChallengeGrain>();
+
+        // The operator console's staff administration: operators, their certificates and per-app
+        // access, and the audit log. Here because the Vault PKI client that signs and revokes staff
+        // certificates is here (OperatorAuthFeature, above) — the console's role holds no connection
+        // and no PKI of its own. It is a handful of calls an hour and never on the hot path.
+        registry.AddToRef<AdminOperatorsGrain>();
         registry.AddToRef<AppsManagementGrain>();
 
         // The read side the identity server asks about people — which account is signing in, and
@@ -309,6 +315,15 @@ public sealed class JobsRole : IArgonRole
         registry.AddToRef<EmailManager>();
         registry.AddToRef<ReportGrain>();
         registry.AddToRef<UserTrustGrain>();
+
+        // The operator console's reads and writes — accounts, what users build, and the platform-wide
+        // pages. On the batch role rather than on core because the console's queries are the heavy
+        // kind — whole-table counts for the statistics, a dozen counts for a user card — and that is
+        // load to keep away from the hot path. Co-hosted with what they lean on: the deletion grain
+        // the impact panel asks, the sweep's threshold options, and the e-mail journal.
+        registry.AddToRef<AdminUsersGrain>();
+        registry.AddToRef<AdminDirectoryGrain>();
+        registry.AddToRef<AdminPlatformGrain>();
 
         registry.AddStartupCall<IAutoDeleteSchedulerGrain>();
         registry.AddStartupCall<ITtlSweepGrain>();

@@ -24,31 +24,22 @@ public static class HostModeExtensions
     }
 }
 
-public class DatabaseDiagnosticsService(IDbContextFactory<ApplicationDbContext> dbFactory)
+/// <summary>
+/// The database as the silos see it.
+/// </summary>
+/// <remarks>
+/// The console's role opens no database connection, so the probe runs on the silo that hosts
+/// <see cref="IAdminPlatformGrain"/> — which is also the more honest number, since that is where the
+/// console's queries run. A cluster that cannot be reached reports as an unhealthy database rather
+/// than failing the whole diagnostics page.
+/// </remarks>
+public class DatabaseDiagnosticsService(IGrainFactory grainFactory)
 {
     public async Task<DatabaseDiagnostics?> GetDiagnosticsAsync(CancellationToken ct = default)
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-            await db.Database.ExecuteSqlRawAsync("SELECT 1", ct);
-
-            stopwatch.Stop();
-
-            var provider = db.Database.ProviderName ?? "Unknown";
-
-            return new DatabaseDiagnostics(
-                provider,
-                10,
-                0,
-                1,
-                true,
-                stopwatch.ElapsedMilliseconds,
-                null
-            );
+            return await grainFactory.GetGrain<IAdminPlatformGrain>(Guid.Empty).PingDatabaseAsync(ct);
         }
         catch (Exception ex)
         {

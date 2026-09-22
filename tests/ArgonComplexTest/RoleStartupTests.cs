@@ -266,6 +266,35 @@ public class RoleStartupTests
         });
     }
 
+    /// <summary>
+    /// The operator console reaches its data through the admin grains, on the same terms as the
+    /// account console above — and is built here, in a scope, because a console that cannot be
+    /// constructed without a pool is one that still needs it.
+    /// </summary>
+    [Test, CancelAfter(300_000)]
+    public async Task The_admin_console_serves_its_ion_service_without_a_database()
+    {
+        await using var host = new RoleHost(Settings, ArgonRoleId.Admin, siloPort: 0,
+            ArgonClusterEndpoints.DefaultClusterId);
+
+        var services = host.Services;
+        var role     = services.GetRequiredService<RoleDescriptor>();
+
+        await using var scope = services.CreateAsyncScope();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(role.Features.Ordered.Select(f => f.Name),
+                Does.Contain("admin-console").And.Contain("ion-endpoints"));
+            Assert.That(role.Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"));
+
+            Assert.That(scope.ServiceProvider.GetService<ConsoleContracts.IAdminConsole>(), Is.Not.Null);
+
+            Assert.That(services.GetService<IDbContextFactory<ApplicationDbContext>>(), Is.Null,
+                "the console talks to grains, not to Postgres");
+        });
+    }
+
     [Test, CancelAfter(300_000)]
     public async Task Only_moderation_registers_the_onnx_stack()
     {
