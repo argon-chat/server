@@ -10,8 +10,7 @@
                 "server",
                 "client",
                 "models"
-            ],
-            "outputs": "./../Argon.CodeGenAccount/"
+            ]
         },
         "browser": {
             "outputFile": "./../Frontend/Console/src/lib/glue/accountConsole.ts",

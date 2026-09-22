@@ -1,11 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+    <Sdk Name="ionpath.compiler" Version="1.18.0" />
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>Argon</RootNamespace>
+        <!-- The C# is generated at build time into obj/ from the contracts in the Argon.IonAdmin submodule. -->
+        <IonProjectDirectory>..\Argon.IonAdmin</IonProjectDirectory>
     </PropertyGroup>
     <ItemGroup>
+        <!-- The build type-checks against the `argon` module but only generates this project's own
+             contracts; the ArgonContracts types come from here. -->
         <ProjectReference Include="..\Argon.CodeGen\Argon.Ion.CodeGen.csproj" />
     </ItemGroup>
     <ItemGroup>
