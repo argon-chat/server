@@ -447,9 +447,12 @@ public class SpaceGrain(
         if (targetMember?.User?.Profile is not { } profile)
             return PlaceholderProfile(userId, "Deleted Account");
 
+        var worn = await GrainFactory.GetGrain<ICosmeticsReadGrain>(Guid.Empty).GetWornAsync([userId]);
+
         return profile.ToDto() with
         {
-            archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto()))
+            archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto())),
+            cosmetics  = worn[userId]
         };
     }
 
@@ -520,6 +523,19 @@ public class SpaceGrain(
                     archetypes = new(member.SpaceMemberArchetypes.Select(x => x.ToDto()))
                 };
             }
+
+            // What they are wearing, for the members found and nobody else: the membership checks
+            // above are the only thing standing between a caller and anybody's profile, so the
+            // cosmetics ride on them rather than being asked for by id on their own.
+            if (found.Count > 0)
+            {
+                var worn = await GrainFactory.GetGrain<ICosmeticsReadGrain>(Guid.Empty).GetWornAsync(found.Keys.ToList());
+
+                foreach (var (memberId, wornBy) in worn)
+                {
+                    found[memberId] = found[memberId] with { cosmetics = wornBy };
+                }
+            }
         }
 
         return asked
@@ -535,7 +551,8 @@ public class SpaceGrain(
     /// </summary>
     private static ArgonUserProfile PlaceholderProfile(Guid userId, string bio)
         => new(userId, null, null, null, null, bio, IonArray<string>.Empty,
-            IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
+            IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null,
+            IonArray<IWornCosmetic>.Empty);
 
     public async Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default)
     {

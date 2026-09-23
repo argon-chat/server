@@ -540,6 +540,8 @@ public class AccountDeletionTests : TestBase
             Assert.That(before.UnreadInventoryItems, Is.GreaterThan(0), "no unread-inventory badge was seeded: " + before);
             Assert.That(before.TeamMemberships, Is.GreaterThan(0), "no team membership was seeded: " + before);
             Assert.That(before.TeamInvites, Is.GreaterThan(0), "no team invite was seeded: " + before);
+            Assert.That(before.CosmeticEquips, Is.GreaterThan(0), "nothing worn was seeded: " + before);
+            Assert.That(before.CosmeticGrants, Is.GreaterThan(0), "no cosmetic grant was seeded: " + before);
         });
 
         Assert.Multiple(() =>
@@ -591,6 +593,10 @@ public class AccountDeletionTests : TestBase
                 "the erased account is still a member of somebody else's developer team");
             Assert.That(census.TeamInvites, Is.Zero,
                 "a developer-team invitation naming the erased account survives it");
+            Assert.That(census.CosmeticEquips, Is.Zero,
+                "what the erased account was wearing survives it");
+            Assert.That(census.CosmeticGrants, Is.Zero,
+                "the cosmetics granted to the erased account survive it");
         });
     }
 
@@ -2324,6 +2330,30 @@ public class AccountDeletionTests : TestBase
             CreatedAt = now.UtcDateTime, ExpireAt = now.AddDays(7)
         });
 
+        // Something worn, and the grant it is worn on. The catalogue row is nobody's and outlives the
+        // account; the two rows naming the account must not.
+        var cosmeticId = Guid.CreateVersion7();
+
+        db.Cosmetics.Add(new CosmeticItemEntity
+        {
+            Id = cosmeticId, KindKey = "profile.frame", Slug = $"seeded-{Guid.NewGuid():N}", NameKey = "seeded",
+            Payload = """{"parts":[{"type":"ring","thickness":2,"colors":[-10496]}]}""",
+            AcquisitionMode = CosmeticAcquisitionMode.OperatorGrant, IsPublished = true, PublishedAt = now,
+            CreatedAt = now, UpdatedAt = now
+        });
+
+        db.CosmeticOwnerships.Add(new CosmeticOwnershipEntity
+        {
+            Id = Guid.CreateVersion7(), UserId = victim.UserId, CosmeticItemId = cosmeticId,
+            CreatedAt = now, UpdatedAt = now
+        });
+
+        db.CosmeticEquips.Add(new CosmeticEquipEntity
+        {
+            UserId = victim.UserId, KindKey = "profile.frame", SlotIndex = 0, CosmeticItemId = cosmeticId,
+            UpdatedAt = now
+        });
+
         // Two files: the avatar the row points at, and an ordinary upload. Both carry a reference
         // count, which is the thing the deletion is supposed to bring down.
         foreach (var (fileId, purpose) in new[] { (avatarFileId, FilePurpose.Avatar), (uploadFileId, FilePurpose.ChannelAttachment) })
@@ -2385,7 +2415,9 @@ public class AccountDeletionTests : TestBase
                                      .CountAsync(n => n.OwnerUserId == userId, ct),
             TeamMemberships:      await db.MemberTeamEntities.IgnoreQueryFilters().CountAsync(m => m.UserId == userId, ct),
             TeamInvites:          await db.TeamInvites.IgnoreQueryFilters()
-                                     .CountAsync(i => i.FromUserId == userId || i.ToUserId == userId, ct));
+                                     .CountAsync(i => i.FromUserId == userId || i.ToUserId == userId, ct),
+            CosmeticEquips:       await db.CosmeticEquips.CountAsync(e => e.UserId == userId, ct),
+            CosmeticGrants:       await db.CosmeticOwnerships.IgnoreQueryFilters().CountAsync(g => g.UserId == userId, ct));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
@@ -2614,14 +2646,16 @@ public class AccountDeletionTests : TestBase
         int InventoryItems,
         int UnreadInventoryItems,
         int TeamMemberships,
-        int TeamInvites)
+        int TeamInvites,
+        int CosmeticEquips,
+        int CosmeticGrants)
     {
         public int Total
             => Friendships + Blocks + MuteSettings + AutoDeleteSettings + DeviceHistories + Passkeys
              + FriendRequests + PrivacyRules + SavedGifs + PendingEmailChanges + PendingPhoneChanges
              + DeviceObservations + ChannelReadStates + NotificationCounters + SystemNotifications
              + TrustScores + Ignores + InventoryItems + UnreadInventoryItems + TeamMemberships
-             + TeamInvites;
+             + TeamInvites + CosmeticEquips + CosmeticGrants;
     }
 
     /// <summary>The account this fixture deleted, and everything that was watching when it happened.</summary>

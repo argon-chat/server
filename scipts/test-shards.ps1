@@ -124,6 +124,9 @@ $presenceFixtures = @(
 # ProfilePrefetchTests (added 2026-09-18, with the PrefetchProfiles batch) is hand-placed into the
 # first shard for the same reason: it is five short fixtures' worth of session-and-space setup, and
 # the first shard was the lighter of the two as measured. Not worth a regeneration on its own.
+#
+# CosmeticEquipTests (added 2026-09-23, with worn cosmetics) goes the same way and for the same
+# reason: eight tests of the same session-and-space shape, into the lighter shard.
 $generalShards = @(
     @(   # ~237 s serial
         'AccountConsoleTests'
@@ -136,6 +139,7 @@ $generalShards = @(
         'ArchetypeTests'
         'ChannelHighWaterMarkTests'
         'ChannelModerationTests'
+        'CosmeticEquipTests'
         'DataExportTests'
         'FeatureFlagTests'
         'IdentityTests'

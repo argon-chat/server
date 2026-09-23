@@ -72,6 +72,12 @@ public sealed record CosmeticKindDefinition
             ? CosmeticPayloadValidation.Invalid($"'{Key}' has no catalogue rows, so it has no payload")
             : Payload.Validate(payloadJson, codec);
 
+    /// <summary>
+    /// A stored payload as the typed case clients are sent, or null when it does not fit this kind or
+    /// the kind has no rows.
+    /// </summary>
+    public ICosmeticPayload? PayloadToWire(string? payloadJson) => Payload?.ToWire(payloadJson);
+
     public CosmeticPayloadValidation ValidateTuning(string? tuningJson, ICosmeticJsonCodec? codec = null)
         => Tuning is null
             ? CosmeticPayloadValidation.Invalid($"'{Key}' is worn as it was authored, so it takes no tuning")

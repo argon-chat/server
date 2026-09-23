@@ -30,7 +30,7 @@ public class CosmeticKindRegistryTests
         Assert.That(keys, Is.EquivalentTo(new[]
         {
             "profile.frame", "avatar.decoration", "nickname.style",
-            "option.font", "option.text-effect", "option.swatch"
+            "option.font", "option.text-effect"
         }));
     }
 

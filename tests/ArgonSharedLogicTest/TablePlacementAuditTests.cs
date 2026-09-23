@@ -182,7 +182,7 @@ public class TablePlacementAuditTests
         => Assert.That(TablesPlaced(Placement.Global), Is.EquivalentTo(new[]
         {
             "Archetypes", "ChannelEntitlementOverwrites", "ChannelGroupEntity", "Channels",
-            "Cosmetics", "CosmeticOwnerships", "CosmeticTranslations",
+            "CosmeticEquips", "Cosmetics", "CosmeticOwnerships", "CosmeticTranslations",
             "MemberArchetypes", "Spaces", "UserProfiles", "Users", "UsersToServerRelations"
         }));
 

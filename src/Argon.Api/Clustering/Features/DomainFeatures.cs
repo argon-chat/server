@@ -284,12 +284,17 @@ public sealed class AccountDeletionFeature : IArgonFeature
 }
 
 /// <summary>
-/// The profile cosmetics engine: the kinds this build ships, read once from the assembly.
+/// The profile cosmetics engine: the kinds this build ships, and the cache in front of what people
+/// are wearing.
 /// </summary>
 /// <remarks>
 /// <para>The registry is built here rather than lazily on first use so that a malformed kind — a
 /// missing key, two kinds on one layer, an axis over a kind nobody declared — stops the process at
 /// configuration with the type named, instead of surfacing as a profile that renders wrong.</para>
+///
+/// <para><b>Only on the role that hosts the cosmetics grains.</b> The entry point hands the
+/// wardrobe's calls to those grains and holds neither the registry nor the cache, and the bot API
+/// never draws a cosmetic at all — so no client role carries this.</para>
 ///
 /// <para>Whether a kind is <i>enabled</i> is a feature flag and a separate question; this feature
 /// only decides what exists. See <c>CosmeticKindRegistry</c>.</para>
@@ -298,9 +303,15 @@ public sealed class CosmeticsFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
         => d.Named("cosmetics")
-            .Describing("profile cosmetics catalogue and kind registry")
-            .Requires<DatabaseFeature>();
+            .Describing("profile cosmetics: kind registry and the worn-cosmetics cache")
+            .Requires<DatabaseFeature>()
+            .Requires<CacheFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Services.AddSingleton(CosmeticKindRegistry.FromAssembly(typeof(ICosmeticKind).Assembly));
+    {
+        ctx.Services.AddSingleton(CosmeticKindRegistry.FromAssembly(typeof(ICosmeticKind).Assembly));
+        ctx.Services.AddSingleton<WornDropLedger>();
+        ctx.Services.AddScoped<ICosmeticsCache, HybridCosmeticsCache>();
+        ctx.Services.AddHostedService<HybridCosmeticsCacheAdapter>();
+    }
 }

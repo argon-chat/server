@@ -55,6 +55,7 @@ public sealed class IonProtocolFeature : IArgonFeature
             x.AddService<IServerInteraction, ServerInteractionImpl>();
             x.AddService<IChannelInteraction, ChannelInteractionImpl>();
             x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
+            x.AddService<ICosmeticsInteraction, CosmeticsInteractionImpl>();
             x.AddService<IArchetypeInteraction, ArchetypeInteraction>();
             x.AddService<ICallInteraction, CallInteraction>();
             x.AddService<IFriendsInteraction, FriendsInteractionImpl>();

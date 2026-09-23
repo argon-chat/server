@@ -60,5 +60,8 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             // The user row is the authority on "in Argon since", but most call sites read the profile
             // without joining it. The profile row is inserted in the same transaction as the user
             // (see registration), so its own CreatedAt is the same instant and serves as the fallback.
-            (self.User is { } owner ? owner.CreatedAt : self.CreatedAt).UtcDateTime);
+            (self.User is { } owner ? owner.CreatedAt : self.CreatedAt).UtcDateTime,
+            // cosmetics: null is "this reader was not told". What is worn is merged in by whoever
+            // serves the profile, from the cosmetics cache, and never read off this row.
+            null);
 }

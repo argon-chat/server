@@ -3,25 +3,6 @@ namespace Argon.Features.Cosmetics;
 using System.Text.Json.Serialization;
 
 /// <summary>
-/// A colour, as the thirty-two bits it is.
-/// </summary>
-/// <remarks>
-/// <para><b>Not a string.</b> A hex string is seven characters, a parse, a shape check and a second
-/// shape check somewhere else that disagrees with the first — for a value that is one integer. It
-/// is written that way in CSS, which is a reason for the client to format it and not a reason to
-/// store it that way.</para>
-///
-/// <para>Alpha is the top byte, so an opaque colour is negative when read as a signed integer. That
-/// is what <c>unchecked</c> is for, and it is why nothing here compares colours with
-/// <c>&gt;</c>.</para>
-/// </remarks>
-public static class CosmeticColor
-{
-    /// <summary>Whether the colour is fully transparent, which is how "unset" is spelled.</summary>
-    public static bool IsTransparent(int argb) => (uint)argb >> 24 is 0;
-}
-
-/// <summary>
 /// Up to six colours, held as three longs and written as a list.
 /// </summary>
 /// <remarks>

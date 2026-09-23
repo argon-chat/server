@@ -98,3 +98,48 @@ public class IonArrayConverter : JsonConverter
         return emptyProp2.GetValue(null);
     }
 }
+
+/// <summary>
+/// Carries an Ion union through Newtonsoft as the union's own Ion encoding.
+/// </summary>
+/// <remarks>
+/// <para>Orleans names the actual type of a union it is handed as an argument or a return value —
+/// see <c>IonUnionTypeFilter</c> — but a union held <i>inside</i> an object is Newtonsoft's to write,
+/// and Newtonsoft cannot build an interface back from JSON. A profile's list of worn cosmetics is
+/// exactly that, and the first grain call that copied one failed with "could not create an instance
+/// of type IWornCosmetic".</para>
+///
+/// <para><b>No type names in the data.</b> <c>MessageEntityConverter</c> writes <c>$type</c> and reads
+/// it back through <c>Type.GetType</c>, which constructs whatever type a payload names. This writes the
+/// bytes the Ion formatter produces and reads them with the same formatter, which knows the union's
+/// cases and nothing else — and which carries any union nested inside this one, such as a frame's
+/// parts inside a payload, without being told about it.</para>
+/// </remarks>
+public sealed class IonUnionConverter<TUnion> : JsonConverter where TUnion : class
+{
+    public override bool CanConvert(Type objectType) => typeof(TUnion).IsAssignableFrom(objectType);
+
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+    {
+        if (value is not TUnion union)
+        {
+            writer.WriteNull();
+            return;
+        }
+
+        var cbor = new System.Formats.Cbor.CborWriter();
+        IonFormatterStorage<TUnion>.Write(cbor, union);
+        writer.WriteValue(Convert.ToBase64String(cbor.Encode()));
+    }
+
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+    {
+        if (reader.TokenType is JsonToken.Null)
+            return null;
+
+        if (reader.TokenType is not JsonToken.String || reader.Value is not string encoded)
+            throw new JsonSerializationException($"{typeof(TUnion).Name} is expected as its Ion encoding, and a {reader.TokenType} arrived");
+
+        return IonFormatterStorage<TUnion>.Read(new System.Formats.Cbor.CborReader(Convert.FromBase64String(encoded)));
+    }
+}

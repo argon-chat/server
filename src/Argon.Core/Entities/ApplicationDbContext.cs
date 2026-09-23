@@ -103,6 +103,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CosmeticItemEntity>        Cosmetics            => Set<CosmeticItemEntity>();
     public DbSet<CosmeticOwnershipEntity>   CosmeticOwnerships   => Set<CosmeticOwnershipEntity>();
     public DbSet<CosmeticTranslationEntity> CosmeticTranslations => Set<CosmeticTranslationEntity>();
+    public DbSet<CosmeticEquipEntity>       CosmeticEquips       => Set<CosmeticEquipEntity>();
 
 #endregion
 
@@ -437,6 +438,12 @@ public static class ArgonTablePlacement
         // imaginable account still sits orders of magnitude below the message path. Read on every
         // equip validation and on every catalogue open, and read from wherever the person is.
         modelBuilder.Entity<CosmeticOwnershipEntity>().PlacementGlobal();
+
+        // One upsert per thing a person puts on or takes off, and one per change of their own
+        // colours — a person in a settings pane, a few times a month. Read far more often than
+        // written, and from wherever the reader is, though the hot read is the cache in front of
+        // it rather than this table.
+        modelBuilder.Entity<CosmeticEquipEntity>().PlacementGlobal();
 
         // ───── Regional: homed in the primary region, because a column on the row is hot. Not
         // because a person clicked something — every table above is written by a person too.

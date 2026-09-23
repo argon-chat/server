@@ -17,39 +17,33 @@ public class CosmeticPayloadTests
 {
     private static ICosmeticJsonCodec[] Codecs => [CosmeticJson.SystemText, CosmeticJson.Newtonsoft];
 
-    private static CosmeticPayloadSchema Swatch  => CosmeticPayloadSchema.For<SwatchOptionPayload>();
     private static CosmeticPayloadSchema Font    => CosmeticPayloadSchema.For<FontOptionPayload>();
     private static CosmeticPayloadSchema Avatar  => CosmeticPayloadSchema.For<AvatarDecorationPayload>();
     private static CosmeticPayloadSchema Nick    => CosmeticPayloadSchema.For<NicknameStyleTuning>();
 
     [Test]
     public void An_empty_payload_is_not_a_payload([Values(null, "", "   ")] string? json)
-        => Assert.That(Swatch.Validate(json).IsValid, Is.False);
+        => Assert.That(Avatar.Validate(json).IsValid, Is.False);
 
     [Test]
     public void A_member_the_type_does_not_declare_is_an_error()
     {
         foreach (var codec in Codecs)
         {
-            var outcome = Swatch.Validate("""{"argb":-1,"opacity":0.5}""", codec);
+            var outcome = Avatar.Validate("""{"insetPct":10,"beneath":false,"opacity":0.5}""", codec);
 
             Assert.That(outcome.IsValid, Is.False, $"{codec.Name} accepted an undeclared member");
         }
     }
 
     [Test]
-    public void A_colour_is_a_number_both_codecs_read_the_same_way()
+    public void A_payload_both_codecs_read_the_same_way()
     {
         foreach (var codec in Codecs)
         {
-            Assert.That(Swatch.Validate("""{"argb":-16711936}""", codec).IsValid, Is.True, codec.Name);
+            Assert.That(Avatar.Validate("""{"insetPct":10,"beneath":true}""", codec).IsValid, Is.True, codec.Name);
         }
     }
-
-    /// <summary>A swatch nobody can see is a row in a picker that does nothing when it is chosen.</summary>
-    [Test]
-    public void A_fully_transparent_swatch_is_refused()
-        => Assert.That(Swatch.Validate("""{"argb":0}""").IsValid, Is.False);
 
     [Test]
     public void A_family_name_is_letters_digits_spaces_and_hyphens()

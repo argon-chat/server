@@ -29,6 +29,19 @@ public interface ICosmeticPayloadReport
     void Error(string message);
 }
 
+/// <summary>
+/// Implemented by a payload type that a catalogue row carries to clients.
+/// </summary>
+/// <remarks>
+/// The stored document is this build's to read and check; what goes over Ion is the typed case of
+/// <see cref="ICosmeticPayload"/>, never the document. Called only on a payload that has already
+/// passed its own validation, so every field the schema requires is present.
+/// </remarks>
+public interface ICosmeticWirePayload
+{
+    ICosmeticPayload ToWire();
+}
+
 internal sealed class CosmeticPayloadReport : ICosmeticPayloadReport
 {
     private readonly List<string> errors = [];
@@ -51,18 +64,23 @@ internal sealed class CosmeticPayloadReport : ICosmeticPayloadReport
 public sealed class CosmeticPayloadSchema
 {
     private readonly Func<string, ICosmeticJsonCodec, CosmeticPayloadValidation> validate;
+    private readonly Func<string, ICosmeticJsonCodec, ICosmeticPayload?>        toWire;
 
-    private CosmeticPayloadSchema(string name, Func<string, ICosmeticJsonCodec, CosmeticPayloadValidation> validate)
+    private CosmeticPayloadSchema(
+        string name,
+        Func<string, ICosmeticJsonCodec, CosmeticPayloadValidation> validate,
+        Func<string, ICosmeticJsonCodec, ICosmeticPayload?> toWire)
     {
         Name          = name;
         this.validate = validate;
+        this.toWire   = toWire;
     }
 
     /// <summary>The payload type's name. For diagnostics, and never parsed back.</summary>
     public string Name { get; }
 
     public static CosmeticPayloadSchema For<TPayload>() where TPayload : class
-        => new(typeof(TPayload).Name, Check<TPayload>);
+        => new(typeof(TPayload).Name, Check<TPayload>, Wire<TPayload>);
 
     public CosmeticPayloadValidation Validate(string? json, ICosmeticJsonCodec? codec = null)
     {
@@ -70,6 +88,22 @@ public sealed class CosmeticPayloadSchema
             return CosmeticPayloadValidation.Invalid("payload is empty");
 
         return validate(json, codec ?? CosmeticJson.Default);
+    }
+
+    /// <summary>
+    /// The typed case a stored document goes over Ion as, or null when it does not fit its schema or
+    /// its type has no case — either of which keeps the row out of what clients are sent.
+    /// </summary>
+    public ICosmeticPayload? ToWire(string? json, ICosmeticJsonCodec? codec = null)
+        => string.IsNullOrWhiteSpace(json) ? null : toWire(json, codec ?? CosmeticJson.Default);
+
+    private static ICosmeticPayload? Wire<TPayload>(string json, ICosmeticJsonCodec codec)
+        where TPayload : class
+    {
+        if (!Check<TPayload>(json, codec).IsValid || !codec.TryRead<TPayload>(json, out var payload, out _))
+            return null;
+
+        return (payload as ICosmeticWirePayload)?.ToWire();
     }
 
     private static CosmeticPayloadValidation Check<TPayload>(string json, ICosmeticJsonCodec codec)

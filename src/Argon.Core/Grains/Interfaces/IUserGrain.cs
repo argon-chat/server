@@ -169,6 +169,18 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(ResetPremiumProfileAsync))]
     ValueTask ResetPremiumProfileAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Announces this person's profile, wearing <paramref name="worn"/>, to every space they are in,
+    /// and returns it.
+    /// </summary>
+    /// <remarks>
+    /// For <c>CosmeticsGrain</c>, which has just read what is worn and hands it over rather than have
+    /// it read again. The announcement is the same one an avatar change makes, so a change of
+    /// cosmetics reaches exactly the people a change of name would.
+    /// </remarks>
+    [Alias(nameof(AnnounceProfileAsync))]
+    Task<ArgonUserProfile> AnnounceProfileAsync(ion.runtime.IonArray<IWornCosmetic> worn);
+
     [Alias(nameof(GetLegalState))]
     Task<LegalState> GetLegalState();
 

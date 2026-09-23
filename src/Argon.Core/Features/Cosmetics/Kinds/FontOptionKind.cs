@@ -1,6 +1,6 @@
 namespace Argon.Features.Cosmetics.Kinds;
 
-public sealed class FontOptionPayload
+public sealed class FontOptionPayload : ICosmeticWirePayload
 {
     /// <summary>
     /// The CSS family the client asks for. Either a face already in the bundle, or the family name
@@ -16,6 +16,8 @@ public sealed class FontOptionPayload
     [StringLength(96)]
     [RegularExpression("^[A-Za-z0-9][A-Za-z0-9 _-]*$")]
     public string CssFamily { get; set; } = null!;
+
+    public ICosmeticPayload ToWire() => new PayloadFont(CssFamily);
 }
 
 /// <summary>

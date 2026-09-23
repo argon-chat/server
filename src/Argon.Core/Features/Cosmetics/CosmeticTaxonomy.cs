@@ -137,4 +137,29 @@ public static class CosmeticAssetSlots
         CosmeticAssetSlot.Quaternary => "quaternary",
         _                            => throw new ArgumentOutOfRangeException(nameof(slot))
     };
+
+    /// <summary>The slot a key in the asset map names, read back the way <see cref="KeyOf"/> wrote it.</summary>
+    public static bool TryParse(string? key, out CosmeticAssetSlot slot)
+    {
+        foreach (var candidate in Enum.GetValues<CosmeticAssetSlot>())
+        {
+            if (KeyOf(candidate) == key)
+            {
+                slot = candidate;
+                return true;
+            }
+        }
+
+        slot = default;
+        return false;
+    }
+
+    public static AssetSlot ToWire(CosmeticAssetSlot slot) => slot switch
+    {
+        CosmeticAssetSlot.Primary    => AssetSlot.Primary,
+        CosmeticAssetSlot.Secondary  => AssetSlot.Secondary,
+        CosmeticAssetSlot.Tertiary   => AssetSlot.Tertiary,
+        CosmeticAssetSlot.Quaternary => AssetSlot.Quaternary,
+        _                            => throw new ArgumentOutOfRangeException(nameof(slot))
+    };
 }

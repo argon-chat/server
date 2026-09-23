@@ -3,7 +3,10 @@ namespace Argon.Features.Cosmetics.Kinds;
 /// <summary>
 /// A treatment carries nothing: what it does is the client file matching its slug.
 /// </summary>
-public sealed class TextEffectOptionPayload;
+public sealed class TextEffectOptionPayload : ICosmeticWirePayload
+{
+    public ICosmeticPayload ToWire() => new PayloadTextEffect();
+}
 
 /// <summary>
 /// One treatment a display name may be drawn with — a gradient, a glow, something that shimmers.
