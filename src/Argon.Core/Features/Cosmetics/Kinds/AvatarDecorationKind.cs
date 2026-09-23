@@ -1,6 +1,6 @@
 namespace Argon.Features.Cosmetics.Kinds;
 
-public sealed class AvatarDecorationPayload : IValidatableCosmeticPayload
+public sealed class AvatarDecorationPayload : IValidatableCosmeticPayload, ICosmeticWirePayload
 {
     /// <summary>
     /// How far the avatar is inset inside the decoration, as a percentage of its own size. A frame
@@ -23,6 +23,8 @@ public sealed class AvatarDecorationPayload : IValidatableCosmeticPayload
         if (InsetPct > MaxInsetPct)
             report.Error($"insetPct is {InsetPct}, and the range is 0 to {MaxInsetPct}");
     }
+
+    public ICosmeticPayload ToWire() => new PayloadAvatarDecoration(InsetPct, Beneath);
 }
 
 /// <summary>

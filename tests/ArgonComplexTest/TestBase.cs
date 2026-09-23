@@ -369,6 +369,7 @@ public sealed class TestUserSession(
     public IIdentityInteraction  Identity  => Client.ForService<IIdentityInteraction>(services);
     public ISecurityInteraction  Security  => Client.ForService<ISecurityInteraction>(services);
     public IInventoryInteraction Inventory => Client.ForService<IInventoryInteraction>(services);
+    public ICosmeticsInteraction Cosmetics => Client.ForService<ICosmeticsInteraction>(services);
     public IUltimaInteraction    Ultima    => Client.ForService<IUltimaInteraction>(services);
     public IPrivacyInteraction   Privacy   => Client.ForService<IPrivacyInteraction>(services);
     public IUserChatInteractions Chats     => Client.ForService<IUserChatInteractions>(services);

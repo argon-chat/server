@@ -2,6 +2,7 @@ namespace Argon.Features.Cosmetics;
 
 using System.Collections.Frozen;
 using System.Text.Json.Serialization;
+using ion.runtime;
 
 /// <summary>
 /// What a frame's geometry is held to, so that a catalogue row cannot arrange itself over somebody
@@ -427,9 +428,16 @@ public sealed class CosmeticFrameRing : CosmeticFramePart
 /// <para>Everything a part carries is a number, an enum member or the slot of an uploaded file,
 /// which is what keeps a new frame a row somebody creates in the console rather than a release.</para>
 /// </remarks>
-public sealed class ProfileFramePayload : IValidatableCosmeticPayload
+public sealed class ProfileFramePayload : IValidatableCosmeticPayload, ICosmeticWirePayload
 {
     public CosmeticFramePart[]? Parts { get; set; }
+
+    /// <summary>
+    /// The frame as Ion carries it. Every optional number arrives with the default the client draws
+    /// it with, so the wire never says "absent" where the answer is known.
+    /// </summary>
+    public ICosmeticPayload ToWire()
+        => new PayloadProfileFrame(new IonArray<IFramePart>(Parts!.Select(FrameWire.PartOf).ToList()));
 
     public void Validate(ICosmeticPayloadReport report)
     {
@@ -447,4 +455,90 @@ public sealed class ProfileFramePayload : IValidatableCosmeticPayload
             parts[index].Validate(report, $"parts[{index}]");
         }
     }
+}
+
+/// <summary>
+/// A validated frame, turned into the typed parts Ion carries.
+/// </summary>
+/// <remarks>
+/// Only ever handed parts that passed <see cref="ProfileFramePayload.Validate"/>, so a field the
+/// validation requires is present here and the null-forgiving reads below are what that check bought.
+/// </remarks>
+internal static class FrameWire
+{
+    /// <summary>What the client draws when a part does not say.</summary>
+    private const ushort Opaque      = 100;
+    private const int    RingAngle   = 135;
+    private const int    MotionEvery = 4000;
+    private const int    SpriteFps   = 12;
+
+    public static IFramePart PartOf(CosmeticFramePart part)
+    {
+        var over    = part.Over ?? true;
+        var opacity = part.OpacityPct ?? Opaque;
+        var inset   = SidesOf(part.Inset);
+        var motion  = part.Motion is { Kind: { } kind } movement
+            ? new FrameMotion(kind, movement.Amount ?? 0, movement.PeriodMs ?? MotionEvery, movement.PhaseMs ?? 0)
+            : null;
+
+        return part switch
+        {
+            CosmeticFrameSurround band => new FrameSurround(over, opacity, inset, motion,
+                CosmeticAssetSlots.ToWire(band.Slot!.Value),
+                SidesOf(band.Slice)!,
+                SidesOf(band.Width)!,
+                SidesOf(band.Outset),
+                RepeatOf(band.Repeat ?? CosmeticFrameRepeat.Stretch),
+                band.Fill ?? false),
+
+            CosmeticFrameProp prop => new FrameProp(over, opacity, inset, motion,
+                CosmeticAssetSlots.ToWire(prop.Slot!.Value),
+                AnchorOf(prop.Anchor!.Value),
+                (ushort)prop.W!.Value,
+                (ushort)prop.H!.Value,
+                prop.Dx ?? 0,
+                prop.Dy ?? 0,
+                prop.Sprite is { } sprite
+                    ? new FrameSprite((ushort)sprite.Frames!.Value, (ushort)sprite.Columns!.Value,
+                        (ushort)(sprite.Fps ?? SpriteFps), (ushort)(sprite.Still ?? 0))
+                    : null),
+
+            CosmeticFrameRing ring => new FrameRing(over, opacity, inset, motion,
+                (ushort)ring.Thickness!.Value,
+                new IonArray<int>(Enumerable.Range(0, ring.Colors!.Count).Select(at => ring.Colors[at]).ToList()),
+                (ushort)(ring.Angle ?? RingAngle),
+                ring.GlowPct ?? 0),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(part), part.GetType().Name, "a frame part this build has no case for")
+        };
+    }
+
+    /// <summary>Four validated, non-negative sides, or null for sides that were not given.</summary>
+    private static FrameSides? SidesOf(int[]? sides)
+        => sides is { Length: CosmeticPayloadChecks.Sides }
+            ? new FrameSides((ushort)sides[0], (ushort)sides[1], (ushort)sides[2], (ushort)sides[3])
+            : null;
+
+    private static FrameRepeat RepeatOf(CosmeticFrameRepeat repeat) => repeat switch
+    {
+        CosmeticFrameRepeat.Stretch => FrameRepeat.Stretch,
+        CosmeticFrameRepeat.Repeat  => FrameRepeat.Repeat,
+        CosmeticFrameRepeat.Round   => FrameRepeat.Round,
+        CosmeticFrameRepeat.Space   => FrameRepeat.Space,
+        _                           => throw new ArgumentOutOfRangeException(nameof(repeat))
+    };
+
+    private static FrameAnchor AnchorOf(CosmeticFrameAnchor anchor) => anchor switch
+    {
+        CosmeticFrameAnchor.TopLeft     => FrameAnchor.TopLeft,
+        CosmeticFrameAnchor.Top         => FrameAnchor.Top,
+        CosmeticFrameAnchor.TopRight    => FrameAnchor.TopRight,
+        CosmeticFrameAnchor.Left        => FrameAnchor.Left,
+        CosmeticFrameAnchor.Center      => FrameAnchor.Center,
+        CosmeticFrameAnchor.Right       => FrameAnchor.Right,
+        CosmeticFrameAnchor.BottomLeft  => FrameAnchor.BottomLeft,
+        CosmeticFrameAnchor.Bottom      => FrameAnchor.Bottom,
+        CosmeticFrameAnchor.BottomRight => FrameAnchor.BottomRight,
+        _                               => throw new ArgumentOutOfRangeException(nameof(anchor))
+    };
 }

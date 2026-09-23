@@ -70,6 +70,7 @@ public sealed class CoreRole : IArgonRole
         features.Add<ArgonAuthorizationFeature>();
         features.Add<FileStorageFeature>();
         features.Add<OperatorAuthFeature>();
+        features.Add<CosmeticsFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
@@ -80,6 +81,8 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<ChannelGrain>();
         registry.AddToRef<UserGrain>();
         registry.AddToRef<UserSessionGrain>();
+        registry.AddToRef<CosmeticsGrain>();
+        registry.AddToRef<CosmeticsReadGrain>();
         registry.AddToRef<UserPresenceGrain>();
         registry.AddToRef<BotGatewayGrain>();
         registry.AddToRef<ServerInviteGrain>();

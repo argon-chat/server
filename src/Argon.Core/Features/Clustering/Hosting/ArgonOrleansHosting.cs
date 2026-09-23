@@ -98,6 +98,10 @@ public static class ArgonOrleansHosting
                 z.SerializerSettings                       ??= new JsonSerializerSettings();
                 z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
                 z.SerializerSettings.Converters.Add(new MessageEntityConverter());
+                // A union held inside an object is Newtonsoft's to write, and the type filter above
+                // does not reach it. Every union that can sit in a grain argument's graph is listed.
+                z.SerializerSettings.Converters.Add(new IonUnionConverter<IWornCosmetic>());
+                z.SerializerSettings.Converters.Add(new IonUnionConverter<ICosmeticPayload>());
                 z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
                 z.SerializerSettings.Converters.Add(new IonMaybeConverter());
                 z.SerializerSettings.Converters.Add(new IonArrayConverter());

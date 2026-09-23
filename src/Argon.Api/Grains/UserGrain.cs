@@ -97,7 +97,7 @@ public class UserGrain(
         await ctx.SaveChangesAsync(ct);
 
         var userDto = UserEntity.Map(user);
-        var profileDto = UserProfileEntity.Map(profile);
+        var profileDto = await WithCosmeticsAsync(UserProfileEntity.Map(profile));
 
         // Broadcast to all spaces
         var userServers = await GetMyServersIds(ct);
@@ -143,14 +143,48 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync(ct);
         var userId = this.GetPrimaryKey();
 
+        // What the subscription covered comes off before the profile is announced, so the
+        // announcement is the last word rather than one more thing to correct.
+        await GrainFactory.GetGrain<ICosmeticsGrain>(userId).RevalidateAsync();
+
         var user = await ctx.Users.AsNoTracking().FirstAsync(x => x.Id == userId, ct);
         var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId, ct);
 
         var userDto = UserEntity.Map(user);
-        var profileDto = UserProfileEntity.Map(profile);
+        var profileDto = await WithCosmeticsAsync(UserProfileEntity.Map(profile));
 
         var userServers = await GetMyServersIds(ct);
         await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
+    }
+
+    public async Task<ArgonUserProfile> AnnounceProfileAsync(IonArray<IWornCosmetic> worn)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        var userId = this.GetPrimaryKey();
+
+        var user    = await ctx.Users.AsNoTracking().FirstAsync(x => x.Id == userId);
+        var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId);
+
+        var userDto    = UserEntity.Map(user);
+        var profileDto = UserProfileEntity.Map(profile) with { cosmetics = worn };
+
+        await BroadcastToSpacesAsync(await GetMyServersIds(), userDto, userId, profileDto);
+
+        return profileDto;
+    }
+
+    /// <summary>
+    /// The profile with what this person is wearing, from the shared cache.
+    /// </summary>
+    /// <remarks>
+    /// Every profile this grain hands out goes through here. One that did not would reach a client as
+    /// a profile with nothing on, and the client would draw exactly that.
+    /// </remarks>
+    private async Task<ArgonUserProfile> WithCosmeticsAsync(ArgonUserProfile profile)
+    {
+        var worn = await GrainFactory.GetGrain<ICosmeticsReadGrain>(Guid.Empty).GetWornAsync([profile.userId]);
+
+        return profile with { cosmetics = worn[profile.userId] };
     }
 
     private async Task BroadcastToSpacesAsync(List<Guid> spaceIds, ArgonUser userDto, Guid userId, ArgonUserProfile profileDto, CancellationToken ct = default)
@@ -245,7 +279,7 @@ public class UserGrain(
            .AsNoTracking()
            .FirstAsync(x => x.UserId == this.GetPrimaryKey());
 
-        return profile.ToDto();
+        return await WithCosmeticsAsync(profile.ToDto());
     }
 
     public async Task<List<ArgonSpaceBase>> GetMyServers()
