@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using Argon.Features.EF;
 using Argon.Features.Cache;
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
@@ -1226,13 +1227,36 @@ public class ChannelGrain(
 
             await using var ctx = await context.CreateDbContextAsync();
 
-            await ctx.Database.ExecuteSqlInterpolatedAsync($@"
-INSERT INTO ""ChannelLastMessages"" (""ChannelId"", ""SpaceId"", ""LastMessageId"", ""UpdatedAt"")
-VALUES ({channelId}, {SpaceId}, {messageId}, {now})
-ON CONFLICT (""ChannelId"")
-DO UPDATE SET ""LastMessageId"" = EXCLUDED.""LastMessageId"",
-              ""UpdatedAt""     = EXCLUDED.""UpdatedAt""
-WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
+            for (var attempt = 0; ; attempt++)
+            {
+                var moved = await ctx.ChannelLastMessages
+                   .Where(m => m.ChannelId == channelId && m.LastMessageId < messageId)
+                   .ExecuteUpdateAsync(u => u
+                       .SetProperty(m => m.LastMessageId, messageId)
+                       .SetProperty(m => m.UpdatedAt, now));
+
+                if (moved > 0 || attempt > 0 || await ctx.ChannelLastMessages.AnyAsync(m => m.ChannelId == channelId))
+                    break;
+
+                ctx.ChannelLastMessages.Add(new ChannelLastMessageEntity
+                {
+                    ChannelId     = channelId,
+                    SpaceId       = SpaceId,
+                    LastMessageId = messageId,
+                    UpdatedAt     = now
+                });
+
+                try
+                {
+                    await ctx.SaveChangesAsync();
+                    break;
+                }
+                catch (DbUpdateException e) when (e.IsUniqueViolation())
+                {
+                    // Another flush created the row first; move it forward instead.
+                    ctx.ChangeTracker.Clear();
+                }
+            }
 
             return true;
         }
@@ -2023,19 +2047,7 @@ WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
         var toFlush = _dirtyReactions.ToList();
         _dirtyReactions.Clear();
 
-        var messageIds = new List<long>(toFlush.Count);
-        var payloads   = new List<string?>(toFlush.Count);
-
-        foreach (var messageId in toFlush)
-        {
-            if (!_reactionCache.TryGetValue(messageId, out var reactions))
-                continue;
-
-            messageIds.Add(messageId);
-            payloads.Add(reactions.Count == 0
-                ? null
-                : Newtonsoft.Json.JsonConvert.SerializeObject(reactions));
-        }
+        var messageIds = toFlush.Where(_reactionCache.ContainsKey).ToList();
 
         if (messageIds.Count == 0)
             return;
@@ -2043,12 +2055,18 @@ WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
         await using var ctx = await context.CreateDbContextAsync();
         var channelId = this.GetPrimaryKey();
 
-        await ctx.Database.ExecuteSqlInterpolatedAsync($"""
-            UPDATE "Messages" AS m
-            SET "Reactions" = v.reactions::jsonb
-            FROM unnest({messageIds.ToArray()}, {payloads.ToArray()}) AS v(id, reactions)
-            WHERE m."SpaceId" = {SpaceId} AND m."ChannelId" = {channelId} AND m."MessageId" = v.id
-            """);
+        var messages = await ctx.Messages
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && messageIds.Contains(m.MessageId))
+           .ToListAsync();
+
+        foreach (var message in messages)
+        {
+            var reactions = _reactionCache[message.MessageId];
+            message.Reactions = reactions.Count == 0 ? null : reactions.ToList();
+        }
+
+        // One batched round trip for every dirty message.
+        await ctx.SaveChangesAsync();
     }
 }
 
