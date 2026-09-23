@@ -62,6 +62,7 @@ public class AppHub(
     HybridCache cache,
     IArgonCacheDatabase cacheDb,
     HubConnectionRegistry registry,
+    IHubContext<AppHub> hubContext,
     ILogger<AppHub> logger) : Hub
 {
     /// <summary>
@@ -118,7 +119,7 @@ public class AppHub(
         // rotated its scid is only reachable through the credential ones.
         registry.Attach(new HubConnectionEntry(
             Context.ConnectionId, UserId, Guid.Parse(Context.User!.FindFirstValue("sid")!),
-            CredentialSessionIds(), TicketIssuedAt(), Context));
+            CredentialSessionIds(), TicketIssuedAt(), new SignalRRealtimeConnection(Context, hubContext)));
     }
 
     /// <summary>
@@ -588,8 +589,12 @@ public class AppHub(
 /// <summary>Result of <see cref="AppHub.Resume"/>. Serialized to the client over the hub protocol.</summary>
 public sealed record ResumeAck(bool NeedFullResync);
 
+// Every event goes to both transports with the same bytes and entry id. Ion first: it never throws on
+// a backplane failure, so a SignalR one cannot cost Ion clients their copy.
+// TODO(open unions): Ion frames carry the event as bytes until Ion unions are open; see RealtimeFrame.
 public class AppHubServer(
     IHubContext<AppHub> appHub,
+    IIonStreamConnections ion,
     BotEventPublisher botEventPublisher,
     IRealtimeReplayBuffer replay,
     ILogger<AppHubServer> logger)
@@ -604,6 +609,9 @@ public class AppHubServer(
         // Persist to the replay log first so the cursor (entry id) we hand the client is
         // durable: if it reconnects it can ask for everything after this id.
         var entryId = await replay.AppendSpaceAsync(spaceId, payload, ct);
+
+        await ion.Group($"spaces/{spaceId}")
+           .SendAsync<IRealtimeFrame>(new ForSpace(payload, spaceId, entryId), ct);
 
         await appHub.Clients.Group($"spaces/{spaceId}")
            .SendAsync("broadcastSpace", payload, spaceId, entryId, cancellationToken: ct);
@@ -626,6 +634,9 @@ public class AppHubServer(
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
         var payload = writer.Encode();
 
+        await ion.Group($"channels/{channelId}")
+           .SendAsync<IRealtimeFrame>(new ForChannel(payload, channelId), ct);
+
         await appHub.Clients.Group($"channels/{channelId}")
            .SendAsync("broadcastChannel", payload, channelId, cancellationToken: ct);
 
@@ -642,6 +653,9 @@ public class AppHubServer(
         var payload = writer.Encode();
 
         var entryId = await replay.AppendUserAsync(userId, payload, ct);
+
+        await ion.User(userId.ToString())
+           .SendAsync<IRealtimeFrame>(new ForSelf(payload, entryId), ct);
 
         await appHub.Clients.User(userId.ToString())
            .SendAsync("forSelf", payload, entryId, cancellationToken: ct);
@@ -691,7 +705,27 @@ public static class SignalRHubExtensions
                 x.Configuration.ChannelPrefix = new RedisChannel(
                     BackplaneChannelPrefix(builder.Configuration), RedisChannel.PatternMode.Literal);
             });
+
+        // The Ion half of the same bus, on the same Redis profile.
+        builder.Services
+           .AddIonStreamHub()
+           .AddIonRedisStreamsBackplane(o =>
+            {
+                var profiles = new RedisProfileRegistry(builder.Configuration);
+
+                o.ConfigurationFactory = () => profiles.BuildOptions(RedisProfiles.Backplane);
+                o.StreamKey            = IonBackplaneStreamKey(builder.Configuration);
+            });
+
+        // Only a node that serves the realtime stream reads the backplane; the rest just publish.
+        builder.Services.Replace(ServiceDescriptor.Singleton<IIonStreamBackplane>(sp =>
+            ServesRealtimeStreams(sp)
+                ? sp.GetRequiredService<RedisStreamsBackplane>()
+                : new PublishOnlyIonBackplane(sp.GetRequiredService<RedisStreamsBackplane>())));
     }
+
+    private static bool ServesRealtimeStreams(IServiceProvider services)
+        => services.GetService<IOptions<IonTransportOptions>>()?.Value.Services.ContainsKey(typeof(IEventBus)) == true;
 
     /// <summary>
     /// The Redis pub/sub namespace this region's SignalR backplane fans out on.
@@ -723,42 +757,36 @@ public static class SignalRHubExtensions
     /// </remarks>
     public static string BackplaneChannelPrefix(IConfiguration configuration)
     {
+        // Trailing separator so the region stays its own segment instead of running into the hub name
+        // the backplane appends after it.
+        return $"argon-bus:{BackplaneRegion(configuration)}:";
+    }
+
+    /// <summary>The Redis stream this region's Ion backplane runs on; per region like <see cref="BackplaneChannelPrefix"/>.</summary>
+    public static string IonBackplaneStreamKey(IConfiguration configuration)
+        => $"ion:streams:{BackplaneRegion(configuration)}";
+
+    private static string BackplaneRegion(IConfiguration configuration)
+    {
         var region = configuration[$"{ArgonRegionOptions.SectionName}:{nameof(ArgonRegionOptions.Self)}"];
 
-        // Blank is unset. Taken literally it would leave an empty segment in the prefix, which hands
+        // Blank is unset. Taken literally it would leave an empty segment in the name, which hands
         // every region that got its configuration wrong the same fan-out domain again — the exact
         // thing this is here to prevent.
         if (string.IsNullOrWhiteSpace(region))
             region = ArgonDatacenter.Current;
 
-        // Trailing separator so the region stays its own segment instead of running into the hub name
-        // the backplane appends after it.
-        return $"argon-bus:{region.Trim()}:";
+        return region.Trim();
     }
 
     /// <summary>
     /// The receiving half: the ticket scheme a client authenticates the socket with, the policy the
-    /// mapped hub requires, and the two background halves of revocation enforcement. Only a role that
-    /// clients connect to needs it.
+    /// mapped hub requires, and the connection tracking revocation needs. Only a role that clients
+    /// connect to needs it.
     /// </summary>
-    /// <remarks>
-    /// <para>The registry and the two services that drive it belong here rather than in
-    /// <see cref="AddRealtimeBus"/>, and the split is the same one the two methods already make: a
-    /// silo publishes events and holds no connections, so a registry there would always be empty and
-    /// a subscriber there would have nothing to abort. Only a node that <em>maps</em> the hub can
-    /// close a socket. See <see cref="AppHub"/> for the three layers.</para>
-    ///
-    /// <para><c>TryAdd</c> throughout so a role that reaches this twice — through
-    /// <c>AppHubFeature</c> and through whatever required it — does not end up running two
-    /// subscribers on one subject, which would abort every connection twice and log it twice.</para>
-    /// </remarks>
     public static void AddAppHubEndpoint(this WebApplicationBuilder builder)
     {
-        builder.Services.TryAddSingleton<HubConnectionRegistry>();
-        builder.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IHostedService, SessionRevocationSubscriber>());
-        builder.Services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IHostedService, HubConnectionSweeper>());
+        builder.AddRealtimeConnectionTracking();
 
         builder.Services.AddAuthentication()
            .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
@@ -773,6 +801,31 @@ public static class SignalRHubExtensions
             });
         });
     }
+
+    /// <summary>
+    /// Connection registry and revocation enforcement for nodes that accept realtime connections (hub
+    /// and Ion alike). TryAdd: both endpoints call it.
+    /// </summary>
+    public static void AddRealtimeConnectionTracking(this WebApplicationBuilder builder)
+    {
+        builder.Services.TryAddSingleton<HubConnectionRegistry>();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, SessionRevocationSubscriber>());
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, HubConnectionSweeper>());
+    }
+}
+
+/// <summary>Backplane of a node without stream connections: publishes, never reads.</summary>
+internal sealed class PublishOnlyIonBackplane(IIonStreamBackplane inner) : IIonStreamBackplane
+{
+    public ValueTask PublishAsync(IonBackplaneMessage message, CancellationToken ct = default)
+        => inner.PublishAsync(message, ct);
+
+    public Task StartAsync(string nodeId, Func<IonBackplaneMessage, ValueTask> handler, CancellationToken ct)
+        => Task.CompletedTask;
+
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 }
 
 public sealed class TicketAuthHandler(

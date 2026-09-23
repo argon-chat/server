@@ -27,6 +27,12 @@ public sealed class InstanceManifestOptions
     public string  ApiUrl { get; set; } = "https://api.argon.gl";
     public string  CdnUrl { get; set; } = "https://cdn.argon.gl";
 
+    /// <summary>
+    /// Where WebTransport clients open realtime streams, e.g. <c>https://api.argon.gl:4433</c> — the
+    /// <c>Kestrel:Argon:WebTransport</c> listener. Unset, clients use WebSockets on <see cref="ApiUrl"/>.
+    /// </summary>
+    public string? WebTransportUrl { get; set; }
+
     public string? LogoUrl     { get; set; }
     public string? AccentColor { get; set; } = "#3B82F6";
 

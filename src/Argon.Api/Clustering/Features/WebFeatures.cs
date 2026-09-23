@@ -10,6 +10,7 @@ using Argon.Features.Sentry;
 using Argon.Features.Storage;
 using Argon.Features.Web;
 using Argon.Features.WebSession;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
@@ -27,6 +28,8 @@ public sealed class KestrelFeature : IArgonFeature
         ctx.Builder.WebHost.ConfigureKestrel(kestrel =>
         {
             kestrel.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
+
+            ListenForWebTransport(kestrel, options.WebTransport);
 
             var tls = options.UseLocalhostCertificate ||
                       (options.UseFileCertificate &&
@@ -48,9 +51,48 @@ public sealed class KestrelFeature : IArgonFeature
                     listen.UseHttps(https => https.ServerCertificate =
                         X509Certificate2.CreateFromPemFile(options.CertificatePath, options.CertificateKeyPath));
 
-                listen.DisableAltSvcHeader = false;
+                listen.DisableAltSvcHeader = !options.AdvertiseHttp3;
                 listen.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
             });
+        });
+    }
+
+    // The WebTransport port bypasses the edge proxy, so it serves Ion stream sessions and nothing else.
+    public void Map(ArgonEndpointContext ctx)
+    {
+        if (ctx.Options<ArgonKestrelOptions>().WebTransport.Port is not { } port)
+            return;
+
+        ctx.App.Use((http, next) =>
+        {
+            if (http.Connection.LocalPort != port || IsIonWebTransport(http))
+                return next(http);
+
+            http.Response.StatusCode = StatusCodes.Status404NotFound;
+            return Task.CompletedTask;
+        });
+    }
+
+    private static bool IsIonWebTransport(HttpContext http)
+        => http.Features.Get<IHttpWebTransportFeature>()?.IsWebTransportRequest == true &&
+           http.Request.Path.StartsWithSegments("/ion") &&
+           http.Request.Path.Value!.EndsWith(".wt", StringComparison.Ordinal);
+
+    // HTTP/3 only, public certificate. Kestrel's HTTP/3 asks ServerCertificateSelector per handshake,
+    // so a renewed certificate is picked up without a restart.
+    private static void ListenForWebTransport(KestrelServerOptions kestrel, ArgonWebTransportOptions options)
+    {
+        if (options.Port is not { } port)
+            return;
+
+        var logger = kestrel.ApplicationServices?.GetService<ILoggerFactory>()?.CreateLogger<KestrelFeature>();
+        var certificate = new ReloadingPemCertificate(
+            options.CertificatePath!, options.KeyPath!, TimeSpan.FromMinutes(1), logger);
+
+        kestrel.ListenAnyIP(port, listen =>
+        {
+            listen.Protocols = HttpProtocols.Http3;
+            listen.UseHttps(https => https.ServerCertificateSelector = (_, _) => certificate.Current);
         });
     }
 

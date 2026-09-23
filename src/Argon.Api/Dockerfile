@@ -11,6 +11,20 @@ LABEL org.opencontainers.image.title="Argon.Api" \
 
 WORKDIR /app
 
+# Kestrel's HTTP/3 (and so WebTransport) runs on MsQuic, which the base image does not carry: without
+# it QUIC is silently unsupported. It comes from packages.microsoft.com for the image's own Ubuntu.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && . /etc/os-release \
+ && curl -fsSL -o /tmp/packages-microsoft-prod.deb \
+        "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" \
+ && dpkg -i /tmp/packages-microsoft-prod.deb \
+ && rm /tmp/packages-microsoft-prod.deb \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends libmsquic \
+ && apt-get purge -y --auto-remove curl \
+ && rm -rf /var/lib/apt/lists/*
+
 
 # Both front-ends: the Aegis sign-in widget and the developer console. One stage, because they are
 # one bun workspace — a single install resolves the dependencies they share instead of twice. Its

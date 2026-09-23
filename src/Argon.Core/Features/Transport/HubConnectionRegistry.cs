@@ -1,9 +1,8 @@
 namespace Argon.Core.Features.Transport;
 
-using Microsoft.AspNetCore.SignalR;
-
 /// <summary>
-/// One live hub connection on this node, and every identity a sign-out could name it by.
+/// One live realtime connection on this node — a SignalR one or an Ion stream — and every identity a
+/// sign-out could name it by.
 /// </summary>
 /// <param name="SessionId">
 /// The presence sid the ticket carries — the row on the devices screen, and what
@@ -18,10 +17,9 @@ using Microsoft.AspNetCore.SignalR;
 /// When the ticket was minted, for the floor a sign-out-everywhere writes. Null for a ticket with no
 /// <c>iat</c>, which the floor deliberately reads as older than any watermark.
 /// </param>
-/// <param name="Context">
-/// The live caller context, kept solely so <see cref="HubConnectionRegistry"/> can call
-/// <c>Abort()</c> on it. It is valid for as long as the connection is, and the connection removes
-/// itself from the registry on the way out.
+/// <param name="Connection">
+/// The live connection, kept solely so <see cref="HubConnectionRegistry"/> can say goodbye and close
+/// it. The connection removes itself from the registry on the way out.
 /// </param>
 public sealed record HubConnectionEntry(
     string              ConnectionId,
@@ -29,14 +27,14 @@ public sealed record HubConnectionEntry(
     Guid                SessionId,
     IReadOnlyList<Guid> CredentialSessionIds,
     DateTimeOffset?     TicketIssuedAt,
-    HubCallerContext    Context)
+    IRealtimeConnection Connection)
 {
     /// <summary>The presence sid first, then every credential id — what a revocation is matched against.</summary>
     public IReadOnlyList<Guid> Identities => [SessionId, .. CredentialSessionIds];
 }
 
 /// <summary>
-/// The live hub connections this node is holding, indexed by the two ids a revocation can name.
+/// The live realtime connections this node is holding, indexed by the two ids a revocation can name.
 /// </summary>
 /// <remarks>
 /// <para><b>Why it exists.</b> A revocation is a fact written in Redis, and every gate that reads it
@@ -47,11 +45,11 @@ public sealed record HubConnectionEntry(
 /// fifteen seconds away, and for a client that has been deliberately silenced, never. The tombstone
 /// was correct the whole time and nobody consulted it.</para>
 ///
-/// <para>Closing that needs a handle on the socket itself, and SignalR gives one only to the node
-/// holding it: <c>HubCallerContext.Abort()</c>. This is that handle, kept per node, written by
-/// <c>AppHub.OnConnectedAsync</c> after a successful attach and cleared by
-/// <c>OnDisconnectedAsync</c>. Nothing else may add to it — an entry for a connection that was never
-/// attached would be a handle to something the session does not believe in.</para>
+/// <para>Closing that needs a handle on the socket itself, and only the node holding it has one. This
+/// is that handle, kept per node, written by <c>AppHub.OnConnectedAsync</c> and
+/// <c>IonRealtimeHub.OnConnectedAsync</c> after a successful attach and cleared on disconnect.
+/// Nothing else may add to it — an entry for a connection that was never attached would be a handle
+/// to something the session does not believe in.</para>
 ///
 /// <para><b>Local by construction, and that is the whole design constraint.</b> A connection can only
 /// be aborted where it lives, so this can never be more than one node's share of a user's devices.
@@ -66,15 +64,11 @@ public sealed record HubConnectionEntry(
 /// once per connection — never on a message path — so a lock costs nothing worth measuring and is
 /// the version that is obviously correct.</para>
 /// </remarks>
-/// <param name="hub">
-/// The way to speak to a connection before closing it. Optional because the registry is also built
-/// where no hub is mapped — tests, a role that never registered SignalR — and a registry that cannot
-/// say goodbye still closes sockets exactly as before.
-/// </param>
-public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger, IHubContext<AppHub>? hub = null)
+public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
 {
     /// <summary>
-    /// The client method invoked on a connection right before it is closed for a sign-out.
+    /// The client method invoked on a hub connection right before it is closed for a sign-out; an Ion
+    /// stream gets a <see cref="SessionRevoked"/> frame instead.
     /// </summary>
     /// <remarks>
     /// Without it a closed socket is indistinguishable from a dropped one: the client answered a
@@ -85,9 +79,9 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger,
     public const string SessionRevokedMessage = "sessionRevoked";
 
     /// <summary>
-    /// The one argument <see cref="SessionRevokedMessage"/> carries: a reason <em>code</em>, never a
-    /// sentence. The client turns it into text in the user's own language; a string composed here
-    /// would be English on every screen and impossible to translate after the fact.
+    /// The reason a sign-out goodbye carries on either transport: a <em>code</em>, never a sentence.
+    /// The client turns it into text in the user's own language; a string composed here would be
+    /// English on every screen and impossible to translate after the fact.
     /// </summary>
     public const string SignedOutReason = "session_signed_out";
 
@@ -219,10 +213,10 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger,
 
         try
         {
-            entry.Context.Abort();
+            entry.Connection.Close(SignedOutReason);
 
             logger.LogInformation(
-                "Closed hub connection {ConnectionId} of session {SessionId} for user {UserId}: {Why}",
+                "Closed realtime connection {ConnectionId} of session {SessionId} for user {UserId}: {Why}",
                 entry.ConnectionId, entry.SessionId, entry.UserId, why);
 
             return true;
@@ -232,7 +226,7 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger,
             // A connection that is already dead throws here, and that is the outcome we wanted. It is
             // reported rather than raised because the caller is a NATS handler or a timer, neither of
             // which has anywhere useful to put a failure.
-            logger.LogDebug(e, "Could not close hub connection {ConnectionId} of session {SessionId}",
+            logger.LogDebug(e, "Could not close realtime connection {ConnectionId} of session {SessionId}",
                 entry.ConnectionId, entry.SessionId);
 
             return false;
@@ -243,26 +237,22 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger,
     /// Tells the connection why it is about to be closed. Best effort, bounded, never throws.
     /// </summary>
     /// <remarks>
-    /// Sent through the hub context rather than the caller context because the latter can only
-    /// abort; and awaited, because a message posted and immediately followed by an abort is a message
-    /// that may never leave the buffer. The tombstone is already committed by the time this runs, so
-    /// a goodbye that does not arrive costs the client one refused ticket request and nothing else.
-    /// The <c>why</c> the callers pass is for this node's log; the wire carries the code.
+    /// Awaited, because a message posted and immediately followed by an abort is a message that may
+    /// never leave the buffer. The tombstone is already committed by the time this runs, so a goodbye
+    /// that does not arrive costs the client one refused ticket request and nothing else. The
+    /// <c>why</c> the callers pass is for this node's log; the wire carries the code.
     /// </remarks>
     private async Task SayGoodbyeAsync(HubConnectionEntry entry)
     {
-        if (hub is null)
-            return;
-
         try
         {
             using var timeout = new CancellationTokenSource(GoodbyeTimeout);
 
-            await hub.Clients.Client(entry.ConnectionId).SendAsync(SessionRevokedMessage, SignedOutReason, timeout.Token);
+            await entry.Connection.SayGoodbyeAsync(SignedOutReason, timeout.Token);
         }
         catch (Exception e)
         {
-            logger.LogDebug(e, "Could not tell hub connection {ConnectionId} of session {SessionId} it was signed out",
+            logger.LogDebug(e, "Could not tell realtime connection {ConnectionId} of session {SessionId} it was signed out",
                 entry.ConnectionId, entry.SessionId);
         }
     }

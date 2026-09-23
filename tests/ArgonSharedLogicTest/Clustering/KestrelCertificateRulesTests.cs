@@ -96,4 +96,55 @@ public class KestrelCertificateRulesTests
     [Test]
     public void A_role_that_serves_no_tls_is_left_alone()
         => Assert.That(Validate(("Kestrel:Argon:Port", "5002")), Is.Empty);
+
+    [Test]
+    public void A_webtransport_listener_with_its_certificate_is_accepted()
+        => WithPem((certificate, key) => Assert.That(Validate(
+            ("Kestrel:Argon:Port", "5002"),
+            ("Kestrel:Argon:WebTransport:Port", "4433"),
+            ("Kestrel:Argon:WebTransport:CertificatePath", certificate),
+            ("Kestrel:Argon:WebTransport:KeyPath", key)), Is.Empty));
+
+    [Test]
+    public void A_webtransport_listener_without_a_certificate_is_refused()
+        => Assert.That(Validate(
+                ("Kestrel:Argon:Port", "5002"),
+                ("Kestrel:Argon:WebTransport:Port", "4433")).Select(d => d.Message),
+            Has.Some.Contains("CertificatePath").And.Some.Contains("KeyPath"));
+
+    /// <summary>
+    /// A listener configured in code makes Kestrel ignore <c>ASPNETCORE_URLS</c>, so turning
+    /// WebTransport on there would quietly take the main listener away.
+    /// </summary>
+    [Test]
+    public void A_webtransport_listener_beside_a_main_listener_from_the_environment_is_refused()
+        => WithPem((certificate, key) => Assert.That(Validate(
+                ("Kestrel:Argon:WebTransport:Port", "4433"),
+                ("Kestrel:Argon:WebTransport:CertificatePath", certificate),
+                ("Kestrel:Argon:WebTransport:KeyPath", key)).Select(d => d.Message),
+            Has.Some.Contains("ASPNETCORE_URLS")));
+
+    [Test]
+    public void A_webtransport_listener_on_the_main_port_is_refused()
+        => WithPem((certificate, key) => Assert.That(Validate(
+                ("Kestrel:Argon:Port", "5002"),
+                ("Kestrel:Argon:WebTransport:Port", "5002"),
+                ("Kestrel:Argon:WebTransport:CertificatePath", certificate),
+                ("Kestrel:Argon:WebTransport:KeyPath", key)), Is.Not.Empty));
+
+    private static void WithPem(Action<string, string> test)
+    {
+        var certificate = Path.GetTempFileName();
+        var key         = Path.GetTempFileName();
+
+        try
+        {
+            test(certificate, key);
+        }
+        finally
+        {
+            File.Delete(certificate);
+            File.Delete(key);
+        }
+    }
 }

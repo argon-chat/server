@@ -1,6 +1,5 @@
 namespace Argon.Services.Ion;
 
-using System.Buffers;
 using System.Formats.Cbor;
 using Argon.Features.Auth;
 using Argon.Features.Logic;
@@ -10,7 +9,8 @@ public class IonTicketExchangeImpl(
     IArgonCacheDatabase cache,
     IServiceProvider provider,
     IUserPresenceService presence,
-    IOptions<ClientAppsOptions> clientApps) : IIonTicketExchange
+    IOptions<ClientAppsOptions> clientApps,
+    ILogger<IonTicketExchangeImpl> logger) : IIonTicketExchange
 {
     public async Task<ReadOnlyMemory<byte>> OnExchangeCreateAsync(IIonCallContext callContext)
     {
@@ -23,18 +23,22 @@ public class IonTicketExchangeImpl(
         if (req.SessionId is null)
             throw new InvalidOperationException($"SessionId is null");
 
+        // The ids and the mint time a realtime stream is judged by for revocation, as PickTicket
+        // stamps them into the hub ticket.
+        var credentials = await EventBusImpl.CredentialIdentitiesAsync(
+            cache, logger, req.UserId!.Value, req.SessionId.Value, CancellationToken.None);
+
         var ticket = new ArgonIonTicket(req.UserId!.Value, req.Ip, req.Ray, req.ClientName, "", req.AppId, req.SessionId.Value, req.MachineId,
-            req.Region);
+            req.Region,
+            credentials.Select(x => Guid.TryParse(x, out var id) ? id : Guid.Empty).Where(x => x != Guid.Empty).ToArray(),
+            DateTimeOffset.UtcNow);
         var writer = new CborWriter();
         IonFormatterStorage<ArgonIonTicket>.Write(writer, ticket);
 
         var ticketId = ArgonId.New();
 
-        using var mem = MemoryPool<byte>.Shared.Rent(writer.BytesWritten);
-
-        writer.Encode(mem.Memory.Span);
-
-        await cache.StringSetAsync($"ion_exchange_{ticketId}", Convert.ToBase64String(mem.Memory.Span), TimeSpan.FromMinutes(1));
+        // Exactly the encoded bytes: a rented buffer is larger, and its tail is whatever it held last.
+        await cache.StringSetAsync($"ion_exchange_{ticketId}", Convert.ToBase64String(writer.Encode()), TimeSpan.FromMinutes(1));
 
         // The ticket is where a session becomes describable: it is issued once per connection and
         // already carries the client string and the country that the devices screen needs to name the

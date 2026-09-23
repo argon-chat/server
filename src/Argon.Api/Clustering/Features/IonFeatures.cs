@@ -36,15 +36,19 @@ public sealed class IonEndpointsFeature : IArgonFeature
 
 public sealed class IonProtocolFeature : IArgonFeature
 {
+    // RealtimeBusFeature: EventBus.Realtime replays from the bus's log and receives through its backplane.
     public static void Describe(IFeatureDescriptor d)
         => d.Named("ion")
             .Describing("Ion RPC services for the first-party clients")
             .Requires<ArgonAuthorizationFeature>()
             .Requires<IonEndpointsFeature>()
+            .Requires<RealtimeBusFeature>()
             .After<RoutingFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
     {
+        ctx.Builder.AddIonRealtimeEndpoint();
+
         ctx.Ion(x =>
         {
             x.AddInterceptor<ArgonTransactionInterceptor>();

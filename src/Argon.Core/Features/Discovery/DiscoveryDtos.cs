@@ -16,7 +16,8 @@ public sealed record InstanceManifestDto(
 public sealed record ManifestInstanceDto(string Id, string Name, string Kind);
 
 // Only what the client consumes. Voice/WebRTC is granted per-connection; SignalR is derived from api.
-public sealed record ManifestEndpointsDto(string Api, string Cdn);
+// WebTransport is null where the instance offers none.
+public sealed record ManifestEndpointsDto(string Api, string Cdn, string? WebTransport);
 
 public sealed record ManifestBrandingDto(string DisplayName, string? LogoUrl, string? AccentColor);
 

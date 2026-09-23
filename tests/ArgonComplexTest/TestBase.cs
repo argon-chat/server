@@ -92,7 +92,7 @@ public abstract class TestBase
            .Generate();
     }
 
-    private Task<WebSocket> WsFactory(Uri uri, CancellationToken ct, string[]? protocols)
+    protected Task<WebSocket> WsFactory(Uri uri, CancellationToken ct, string[]? protocols)
     {
         var socket = FactoryAsp.Server.CreateWebSocketClient();
         protocols ??= [];

@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using Argon.Core.Features.Transport;
 using Argon.Features.Auth;
 using Argon.Features.Logic;
 
@@ -13,8 +14,24 @@ public class EventBusImpl(
     IConfiguration configuration,
     IUserPresenceService presence,
     IArgonCacheDatabase cache,
-    IOptions<ClientAppsOptions> clientApps) : IEventBus
+    IOptions<ClientAppsOptions> clientApps,
+    IIonStreamContextAccessor streams,
+    IonRealtimeHub realtime) : IEventBus, IIonStreamLifecycle
 {
+    public IAsyncEnumerable<IRealtimeFrame> Realtime(IAsyncEnumerable<IRealtimeCommand>? commands, CancellationToken ct = default)
+        => realtime.RunAsync(
+            streams.Context ?? throw new InvalidOperationException("EventBus.Realtime is served as a stream only"),
+            commands, ct);
+
+    public Task OnConnectedAsync(IIonStreamContext context)
+        => IsRealtime(context) ? realtime.OnConnectedAsync(context) : Task.CompletedTask;
+
+    public Task OnDisconnectedAsync(IIonStreamContext context, IonDisconnectInfo info)
+        => IsRealtime(context) ? realtime.OnDisconnectedAsync(context) : Task.CompletedTask;
+
+    private static bool IsRealtime(IIonStreamContext context)
+        => context.Method.Name == nameof(IEventBus.Realtime);
+
     public IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, CancellationToken ct = default)
     {
         throw new NotImplementedException();
@@ -77,7 +94,7 @@ public class EventBusImpl(
             new(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
         };
 
-        foreach (var credentialSessionId in await CredentialIdentitiesAsync(userId, sid, ct))
+        foreach (var credentialSessionId in await CredentialIdentitiesAsync(cache, logger, userId, sid, ct))
             claims.Add(new Claim(SessionRevocation.CredentialTicketClaim, credentialSessionId));
 
         var token = new JwtSecurityToken(
@@ -137,12 +154,15 @@ public class EventBusImpl(
     /// <para>Best effort on the store: a ticket is how a client connects at all, and a Redis blip
     /// must not become an outage. The cost of losing the mapping half is that revocation falls back
     /// to the token half, which is the stronger of the two anyway.</para>
+    ///
+    /// <para>The Ion stream ticket carries the same set; see <c>IonTicketExchangeImpl</c>.</para>
     /// </remarks>
-    private async Task<IReadOnlyCollection<string>> CredentialIdentitiesAsync(Guid userId, Guid sid, CancellationToken ct)
+    internal static async Task<IReadOnlyCollection<string>> CredentialIdentitiesAsync(
+        IArgonCacheDatabase cache, ILogger logger, Guid userId, Guid sid, CancellationToken ct)
     {
         var identities = new HashSet<string>(StringComparer.Ordinal);
 
-        if (this.GetRequestContext().Props.TryGetValue(SessionRevocation.CredentialSessionProperty, out var fromToken)
+        if (ArgonRequestContext.Current.Props.TryGetValue(SessionRevocation.CredentialSessionProperty, out var fromToken)
             && !string.IsNullOrWhiteSpace(fromToken))
             identities.Add(fromToken);
 

@@ -27,6 +27,34 @@ public sealed class ArgonKestrelOptions : IValidatableFeatureOptions
         }
 
         RequireSomethingToPresent(report);
+        ValidateWebTransport(report);
+    }
+
+    /// <summary>
+    /// A WebTransport listener needs its own certificate, and a main listener that survives it.
+    /// </summary>
+    /// <remarks>
+    /// Kestrel drops <c>ASPNETCORE_URLS</c> the moment any listener is configured in code, so a
+    /// WebTransport port on a role whose main listener came from there would silently take the main
+    /// listener away.
+    /// </remarks>
+    private void ValidateWebTransport(IFeatureConfigurationReport report)
+    {
+        if (WebTransport.Port is not { } port)
+            return;
+
+        report.RequireRange(port, 1, 65535, "WebTransport:Port");
+        report.RequireFile(WebTransport.CertificatePath, "WebTransport:CertificatePath");
+        report.RequireFile(WebTransport.KeyPath, "WebTransport:KeyPath");
+
+        report.Require(port != (Port ?? DefaultTlsPort), "WebTransport:Port",
+            "is the main listener's port, whose HTTP/3 already binds that UDP port");
+
+        report.Require(Port is not null || UseFileCertificate || UseLocalhostCertificate ||
+                       report.Read<Dictionary<string, KestrelEndpointSection>>("Kestrel:Endpoints").Count > 0,
+            "WebTransport:Port",
+            "is set while the main listener comes from ASPNETCORE_URLS, which Kestrel ignores once a listener " +
+            "is configured in code; set Port as well");
     }
 
     /// <summary>
@@ -96,6 +124,35 @@ public sealed class ArgonKestrelOptions : IValidatableFeatureOptions
 
     public string CertificatePath    { get; set; } = "/etc/tls/tls.crt";
     public string CertificateKeyPath { get; set; } = "/etc/tls/tls.key";
+
+    /// <summary>
+    /// Advertise HTTP/3 (<c>Alt-Svc</c>) on the main TLS listener. Off where that listener sits behind
+    /// a TCP-only proxy: its clients would be pointed at a UDP port nobody forwards.
+    /// </summary>
+    public bool AdvertiseHttp3 { get; set; } = true;
+
+    public ArgonWebTransportOptions WebTransport { get; set; } = new();
+}
+
+/// <summary>
+/// A dedicated HTTP/3-only listener for WebTransport clients, reached directly rather than through the
+/// proxy in front of the main one — so it presents a publicly trusted certificate of its own.
+/// </summary>
+public sealed class ArgonWebTransportOptions
+{
+    /// <summary>The UDP port. Unset keeps WebTransport off.</summary>
+    public int? Port { get; set; }
+
+    /// <summary>PEM certificate for the public host name. Re-read when it changes on disk.</summary>
+    public string? CertificatePath { get; set; }
+
+    /// <summary>PEM private key of <see cref="CertificatePath"/>.</summary>
+    public string? KeyPath { get; set; }
+}
+
+internal sealed class KestrelEndpointSection
+{
+    public string? Url { get; set; }
 }
 
 /// <summary>

@@ -369,18 +369,7 @@ public static class SessionRevocation
     {
         try
         {
-            var state = await ReadStateAsync(store, cache, userId, ct);
-
-            if (state.Names(identities))
-                return true;
-
-            foreach (var identity in identities)
-            {
-                if (await IsLegacyRevokedAsync(store, cache, userId, identity, ct))
-                    return true;
-            }
-
-            return IsBelowFloor(state.Floor, issuedAt);
+            return await IsRevokedOrThrowAsync(store, cache, userId, identities, issuedAt, ct);
         }
         catch (Exception e)
         {
@@ -390,5 +379,31 @@ public static class SessionRevocation
 
             return failClosed;
         }
+    }
+
+    /// <summary>
+    /// <see cref="IsRevokedAsync"/> without a failure policy: a store that cannot answer throws, for a
+    /// caller that has to tell "signed out" apart from "cannot tell right now".
+    /// </summary>
+    public static async Task<bool> IsRevokedOrThrowAsync(
+        IArgonCacheDatabase store,
+        HybridCache?        cache,
+        Guid                userId,
+        IReadOnlyList<Guid> identities,
+        DateTimeOffset?     issuedAt,
+        CancellationToken   ct = default)
+    {
+        var state = await ReadStateAsync(store, cache, userId, ct);
+
+        if (state.Names(identities))
+            return true;
+
+        foreach (var identity in identities)
+        {
+            if (await IsLegacyRevokedAsync(store, cache, userId, identity, ct))
+                return true;
+        }
+
+        return IsBelowFloor(state.Floor, issuedAt);
     }
 }

@@ -51,7 +51,8 @@ public static class DiscoveryFeature
         return Results.Ok(new InstanceManifestDto(
             SchemaVersion: m.SchemaVersion,
             Instance: new ManifestInstanceDto(m.InstanceId, m.DisplayName, m.Kind),
-            Endpoints: new ManifestEndpointsDto(m.ApiUrl, m.CdnUrl),
+            Endpoints: new ManifestEndpointsDto(m.ApiUrl, m.CdnUrl,
+                string.IsNullOrWhiteSpace(m.WebTransportUrl) ? null : m.WebTransportUrl),
             Branding: new ManifestBrandingDto(m.DisplayName, m.LogoUrl, m.AccentColor),
             Features: new ManifestFeaturesDto(m.RegistrationEnabled, m.QrLoginEnabled, m.SsoUrl),
             Legal: new ManifestLegalDto(m.TermsUrl, m.PrivacyUrl),

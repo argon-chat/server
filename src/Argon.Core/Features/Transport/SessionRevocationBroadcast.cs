@@ -102,7 +102,7 @@ public sealed class NatsSessionRevocationBroadcaster(
 /// and the grain that ends a session runs on a silo that holds none of them, so the only thing that
 /// can reach the socket is a message every node listens to.</para>
 ///
-/// <para>Runs only where the hub is mapped — see <c>SignalRHubExtensions.AddAppHubEndpoint</c> — and
+/// <para>Runs only where clients connect — see <c>SignalRHubExtensions.AddRealtimeConnectionTracking</c> — and
 /// resubscribes for as long as the process lives. A dropped subscription is the one failure that
 /// would be silent and permanent: nothing else on this path ever fails, so the symptom would be
 /// sign-outs that quietly take a sweep instead of a moment, indefinitely.</para>
