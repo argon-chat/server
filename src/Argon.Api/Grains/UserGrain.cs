@@ -291,6 +291,7 @@ public class UserGrain(
         // and the channel's overwrites.
         var resolved = await ctx.Channels
            .AsNoTracking()
+           .AsSingleQuery()
            .Where(c => c.Id == channelId)
            .Select(c => new
             {

@@ -28,6 +28,7 @@ public class ArgonPermissionProvider(
         // todo cache
         await using var ctx = await context.CreateDbContextAsync();
         var serverMember = await ctx.UsersToServerRelations
+           .AsNoTracking()
            .Include(sm => sm.SpaceMemberArchetypes)
            .ThenInclude(smr => smr.Archetype)
            .FirstOrDefaultAsync(sm => sm.SpaceId == spaceId && sm.UserId == userId);

@@ -1507,7 +1507,7 @@ WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
+        return await ctx.Channels.AsNoTracking().FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 
     public async ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default)

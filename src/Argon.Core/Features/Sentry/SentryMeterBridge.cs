@@ -67,7 +67,7 @@ public sealed class SentryMeterBridge(
     private readonly ConcurrentDictionary<string, int> droppedThisWindow = new(StringComparer.Ordinal);
 
     private MeterListener? listener;
-    private Timer?         flushTimer;
+    private PeriodicTimer? flushTimer;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -103,9 +103,8 @@ public sealed class SentryMeterBridge(
         // histogram sample rates from what the last window saw. Keeping them on the same tick makes
         // this interval the resolution of everything the bridge reports, which is one number to
         // reason about rather than three.
-        flushTimer = new Timer(
-            _ => Flush(),
-            null, settings.ObservableInterval, settings.ObservableInterval);
+        flushTimer = new PeriodicTimer(settings.ObservableInterval);
+        _          = FlushOnEveryTickAsync(flushTimer);
 
         logger.LogInformation(
             "Sentry meter bridge listening to {Meters} (denying {Denied}), flushing every {Interval}; "
@@ -118,6 +117,21 @@ public sealed class SentryMeterBridge(
             settings.DistributionSamplesPerFlush);
 
         return Task.CompletedTask;
+    }
+
+    private async Task FlushOnEveryTickAsync(PeriodicTimer timer)
+    {
+        while (await timer.WaitForNextTickAsync())
+        {
+            try
+            {
+                Flush();
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Sentry meter bridge flush failed; the next tick will try again");
+            }
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

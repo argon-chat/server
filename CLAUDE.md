@@ -34,6 +34,21 @@ What guards it:
 - The one sanctioned connection on a client role is `AegisKeyRingDbContext` on `aegis`, a context
   that maps the data-protection key ring and nothing else. It is not the main database.
 
+## Banned APIs (enforced by the build)
+
+`ExecuteSql*`, `SqlQuery*` and `FromSql*` are banned in `src/` (`src/BannedSymbols.txt`, analyzer
+RS0030, severity error in `.editorconfig`): raw SQL does not follow a renamed property. Use
+`ExecuteUpdateAsync(s => s.SetProperty(x => x.N, x => x.N + d))`, `ExecuteDeleteAsync`, LINQ, and
+tracked `Attach` + one `SaveChanges` for batches. SQL that LINQ cannot express (system catalogs,
+`AS OF SYSTEM TIME`) goes into a typed helper in `src/Argon.Core/Features/EF/EngineSpecificQueries.cs`
+— that folder and `Migrations/` are the only places the rule is switched off.
+
+The same file bans legacy .NET Framework APIs and footguns: `BinaryFormatter` and friends,
+`System.Timers.Timer`/`System.Threading.Timer` (use `PeriodicTimer` or grain timers), `WebClient`/
+`WebRequest`, non-generic collections, `*CryptoServiceProvider`/`*Managed`, `DateTime.Now`/
+`DateTimeOffset.Now` (use `UtcNow`), sync-over-async `.Result`/`.Wait()`, `GC.Collect`. Each error
+says what to use instead. Add to the list rather than suppressing a hit.
+
 ## A new integration fixture must be added to the shard partition (mandatory)
 
 `tests/ArgonComplexTest` is run in parallel shards, and the fixture-to-shard partition is a literal

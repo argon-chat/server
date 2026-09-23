@@ -428,6 +428,7 @@ public class SecurityGrain(
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
             var entities = await db.Passkeys
+                .AsNoTracking()
                 .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync(ct);
@@ -692,7 +693,7 @@ public class SecurityGrain(
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            var setting = await db.AutoDeleteSettings.FirstOrDefaultAsync(s => s.UserId == UserId, ct);
+            var setting = await db.AutoDeleteSettings.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == UserId, ct);
 
             // Default to 12 months if not set
             return setting is null
@@ -744,6 +745,7 @@ public class SecurityGrain(
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
             var passkeys = await db.Passkeys
+                .AsNoTracking()
                 .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted && p.CredentialId != null)
                 .ToListAsync(ct);
 

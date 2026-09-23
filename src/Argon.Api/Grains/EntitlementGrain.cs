@@ -39,6 +39,7 @@ public class EntitlementGrain(
         var spaceId = this.GetPrimaryKey();
 
         var members = await ctx.UsersToServerRelations
+           .AsNoTracking()
            .Where(m => m.SpaceId == spaceId)
            .Include(m => m.SpaceMemberArchetypes)
            .ToListAsync();
@@ -404,7 +405,7 @@ public class EntitlementGrain(
     public async Task<List<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(Guid channelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
-        var e = await ctx.Channels.Include(x => x.EntitlementOverwrites)
+        var e = await ctx.Channels.AsNoTracking().Include(x => x.EntitlementOverwrites)
            .FirstOrDefaultAsync(x => x.SpaceId == this.GetPrimaryKey() && x.Id == channelId);
         return e is null ? [] : e.EntitlementOverwrites.Select(x => x.ToDto()).ToList();
     }

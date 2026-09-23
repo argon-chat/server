@@ -72,7 +72,7 @@ public class RedisDistributedCache(
         TimeSpan? expiry;
         if (absExpr.HasValue)
         {
-            var timeSpan = absExpr.Value - DateTimeOffset.Now;
+            var timeSpan = absExpr.Value - DateTimeOffset.UtcNow;
             expiry = timeSpan <= sldExpr ? timeSpan : sldExpr;
         }
         else
@@ -91,7 +91,7 @@ public class RedisDistributedCache(
         TimeSpan? expiry;
         if (absExpr.HasValue)
         {
-            var timeSpan = absExpr.Value - DateTimeOffset.Now;
+            var timeSpan = absExpr.Value - DateTimeOffset.UtcNow;
             expiry = timeSpan <= sldExpr ? timeSpan : sldExpr;
         }
         else

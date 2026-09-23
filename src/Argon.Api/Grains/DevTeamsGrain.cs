@@ -44,6 +44,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                       .AsNoTracking()
                       .Include(t => t.Members).ThenInclude(m => m.User)
                       .Include(t => t.Applications)
+                      .AsSplitQuery()
                       .FirstOrDefaultAsync(t => t.TeamId == teamId, ct)
                    ?? throw new InvalidOperationException("Team not found.");
 
@@ -256,10 +257,10 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
         var strategy = db.Database.CreateExecutionStrategy();
 
-        await strategy.ExecuteAsync(async () =>
+        await strategy.ExecuteAsync(async token =>
         {
             db.ChangeTracker.Clear();
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            await using var tx = await db.Database.BeginTransactionAsync(token);
 
             var invite = await db.TeamInvites
                .FirstOrDefaultAsync(x =>
@@ -268,7 +269,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                         !x.Revoked &&
                         !x.Accepted &&
                         x.ExpireAt > DateTimeOffset.UtcNow,
-                    ct);
+                    token);
 
             if (invite is null)
                 throw new InvalidOperationException("Invite not found or expired.");
@@ -276,13 +277,13 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             invite.Accepted = true;
 
             var alreadyMember = await db.MemberTeamEntities
-               .AnyAsync(m => m.TeamId == teamId && m.UserId == userId, ct);
+               .AnyAsync(m => m.TeamId == teamId && m.UserId == userId, token);
 
             if (alreadyMember)
             {
                 invite.Revoked = true;
-                await db.SaveChangesAsync(ct);
-                await tx.CommitAsync(ct);
+                await db.SaveChangesAsync(token);
+                await tx.CommitAsync(token);
                 return;
             }
 
@@ -296,9 +297,9 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                 JoinedAt  = DateTime.UtcNow
             });
 
-            await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-        });
+            await db.SaveChangesAsync(token);
+            await tx.CommitAsync(token);
+        }, ct);
     }
 
     public async Task DeclineTeamInviteAsync(Guid userId, Guid teamId, CancellationToken ct = default)

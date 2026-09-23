@@ -595,7 +595,7 @@ public class ArgonAuthorizationService(
     {
         await using var db              = await dbFactory.CreateDbContextAsync(ct);
         var             normalizedEmail = data.email?.ToLowerInvariant();
-        var             user            = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
+        var             user            = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
 
         if (user is null)
             return "";

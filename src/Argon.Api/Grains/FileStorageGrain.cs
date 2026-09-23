@@ -253,33 +253,22 @@ public class FileStorageGrain(
     /// the same either way, so throwing would only turn "the file is not yours" into a probe for
     /// whether a file id exists.</para>
     ///
-    /// <para>The clamp stays, for the case ownership cannot decide: a file the owner releases twice.
-    /// (Defect ACC-08, pinned by
-    /// <c>AccountPeripheralTests.Releasing_a_file_twice_leaves_its_reference_count_at_zero</c> —
-    /// <c>AccountDeletionGrain</c> released the avatar by id and then walked every file the account
-    /// owns, the avatar included.) It is a compensation rather than a guard because the count is only
-    /// knowable after the fact: <c>ReferenceCountService</c> updates the row in one statement and
-    /// returns what it wrote, so reading first and deciding after would be the race this is meant to
-    /// survive. The compensation puts back exactly the one reference this call took — not the whole
-    /// overshoot — so concurrent releases each undo their own and the row converges on zero instead of
-    /// being pushed back up by whichever one saw the deepest negative.</para>
+    /// <para>A file the owner releases twice stays at zero (ACC-08, pinned by
+    /// <c>AccountPeripheralTests.Releasing_a_file_twice_leaves_its_reference_count_at_zero</c>):
+    /// <c>ReferenceCountService</c> only decrements a count that can afford it.</para>
     /// </remarks>
     public async Task DecrementRefAsync(Guid fileId, CancellationToken ct = default)
     {
         if (!await OwnedByCallerAsync(fileId, "release", ct))
             return;
 
-        var remaining = await refCount.DecrementAsync(fileId, 1, ct);
+        var released = await refCount.DecrementAsync(fileId, 1, ct);
         StorageInstruments.RefDecrements.Add(1);
 
-        if (remaining >= 0)
-            return;
-
-        logger.LogWarning(
-            "Reference release took file {FileId} to {RefCount}; clamping back to zero. "
-          + "Something released a reference it did not hold.", fileId, remaining);
-
-        await refCount.IncrementAsync(fileId, 1, ct);
+        if (!released)
+            logger.LogWarning(
+                "Reference release for file {FileId} found no reference to release; the count stays at zero. "
+              + "Something released a reference it did not hold.", fileId);
     }
 
     /// <summary>
@@ -323,7 +312,7 @@ public class FileStorageGrain(
     public async Task<FileInfoResponse?> GetFileInfoAsync(Guid fileId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var file = await db.Files.FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
+        var file = await db.Files.AsNoTracking().FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
         if (file is null) return null;
 
         var downloadUrl = s3.GetFileDownloadUrl(file.Id);
@@ -336,7 +325,7 @@ public class FileStorageGrain(
     public async Task<string?> GetDownloadUrlAsync(Guid fileId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var file = await db.Files.FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
+        var file = await db.Files.AsNoTracking().FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
         if (file is null) return null;
 
         return s3.GetFileDownloadUrl(file.Id);

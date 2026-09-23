@@ -90,7 +90,7 @@ public class ConversationService(
     public async Task<ConversationEntity?> GetConversationAsync(Guid conversationId, CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
-        return await ctx.Conversations.FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+        return await ctx.Conversations.AsNoTracking().FirstOrDefaultAsync(c => c.Id == conversationId, ct);
     }
 
     public async Task<ConversationEntity?> FindConversationAsync(Guid user1, Guid user2, CancellationToken ct = default)

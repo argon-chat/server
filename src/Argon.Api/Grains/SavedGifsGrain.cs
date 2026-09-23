@@ -22,6 +22,7 @@ public class SavedGifsGrain(
         await using var db = await context.CreateDbContextAsync(ct);
 
         var entities = await db.SavedGifs
+            .AsNoTracking()
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.AddedAt)
             .Skip(page * perPage)

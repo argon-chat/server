@@ -86,7 +86,6 @@ public static class DatabaseFeature
                     errorCodesToAdd: ["40001"]);
                 npgsql.MaxBatchSize(database.MaxBatchSize);
                 npgsql.ConfigureDataSource(q => q.EnableDynamicJson().UseJsonNet());
-                npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
             })
            .ReplaceService<IHistoryRepository, NoLockHistoryRepository>()
            .ConfigureWarnings(w => w.Ignore(RelationalEventId.AmbientTransactionWarning))

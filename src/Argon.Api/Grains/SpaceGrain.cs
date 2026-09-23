@@ -1056,7 +1056,7 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        if (!await entitlementChecker.HasAccessAsync(ctx, spaceId, callerId, ArgonEntitlement.ManageChannels))
+        if (!await entitlementChecker.HasAccessAsync(ctx, spaceId, callerId, ArgonEntitlement.ManageChannels, ct))
             return DuplicateChannelError.INSUFFICIENT_PERMISSIONS;
 
         var source = await ctx.Set<ChannelEntity>()

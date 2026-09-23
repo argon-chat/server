@@ -493,12 +493,12 @@ public class UserChatGrain(
         CancellationToken ct)
     {
         var strategy = ctx.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        await strategy.ExecuteAsync(async token =>
         {
             ctx.ChangeTracker.Clear();
-            await using var transaction = await ctx.Database.BeginTransactionAsync(ct);
+            await using var transaction = await ctx.Database.BeginTransactionAsync(token);
             await action();
-            await transaction.CommitAsync(ct);
-        });
+            await transaction.CommitAsync(token);
+        }, ct);
     }
 }

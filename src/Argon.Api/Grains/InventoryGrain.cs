@@ -247,14 +247,14 @@ public class InventoryGrain(
 
         try
         {
-            var used = await ctx.Database.CreateExecutionStrategy().ExecuteAsync<UsedItem?>(async () =>
+            var used = await ctx.Database.CreateExecutionStrategy().ExecuteAsync<UsedItem?>(async token =>
             {
                 ctx.ChangeTracker.Clear();
-                await using var trx = await ctx.Database.BeginTransactionAsync(ct);
+                await using var trx = await ctx.Database.BeginTransactionAsync(token);
 
                 var usableItem = await ctx.Set<ArgonItemEntity>()
                    .Include(i => i.Scenario)
-                   .FirstOrDefaultAsync(i => i.Id == itemId && i.OwnerId == userId, cancellationToken: ct);
+                   .FirstOrDefaultAsync(i => i.Id == itemId && i.OwnerId == userId, cancellationToken: token);
 
                 if (usableItem is null) return null;
                 if (!usableItem.IsUsable) return null;
@@ -272,7 +272,7 @@ public class InventoryGrain(
                     }
                     case QualifierBox qualifierBox:
                     {
-                        var grantedId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct);
+                        var grantedId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, token);
                         if (grantedId is null)
                             return null;
 
@@ -281,7 +281,7 @@ public class InventoryGrain(
                     }
                     case MultipleQualifierBox multipleQualifierBox:
                     {
-                        grantedItemIds = await UseMultipleQualifierBox(ctx, multipleQualifierBox, userId, usableItem, ct);
+                        grantedItemIds = await UseMultipleQualifierBox(ctx, multipleQualifierBox, userId, usableItem, token);
                         if (grantedItemIds.Count == 0)
                             return null;
 
@@ -291,11 +291,11 @@ public class InventoryGrain(
                         return null;
                 }
 
-                await ctx.SaveChangesAsync(ct);
-                await trx.CommitAsync(ct);
+                await ctx.SaveChangesAsync(token);
+                await trx.CommitAsync(token);
 
                 return new UsedItem(usableItem.Id, usableItem.TemplateId, usableItem.Scenario as PremiumScenario, grantedItemIds);
-            });
+            }, ct);
 
             if (used is null)
                 return false;

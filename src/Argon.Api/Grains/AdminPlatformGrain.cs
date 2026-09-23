@@ -6,6 +6,7 @@ using Argon.Features.Email;
 using Argon.Grains.Interfaces;
 using ConsoleContracts;
 using ion.runtime;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Caching.Hybrid;
 using Npgsql;
 using Orleans.Concurrency;
@@ -58,10 +59,10 @@ public sealed class AdminPlatformGrain(
     {
         // Outside the historical transaction: the estimates are catalogue metadata, not table data, and
         // have nothing to gain from reading in the past.
-        Dictionary<string, long> estimates;
+        Dictionary<IEntityType, long> estimates;
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
-            estimates = await EstimateRowCountsAsync(db,
-                [TableOf(db.Users), TableOf(db.Spaces), TableOf(db.Channels), TableOf(db.Messages)], ct);
+            estimates = await db.EstimateRowCountsAsync(databaseProvider.Kind,
+                [db.Users.EntityType, db.Spaces.EntityType, db.Channels.EntityType, db.Messages.EntityType], ct);
 
         if (databaseProvider.Kind is DatabaseProviderKind.CockroachDb)
         {
@@ -78,7 +79,7 @@ public sealed class AdminPlatformGrain(
         return await ReadPlatformStatsAsync(estimates, historical: false, ct);
     }
 
-    private async Task<PlatformStats> ReadPlatformStatsAsync(IReadOnlyDictionary<string, long> estimates, bool historical,
+    private async Task<PlatformStats> ReadPlatformStatsAsync(IReadOnlyDictionary<IEntityType, long> estimates, bool historical,
         CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -87,10 +88,9 @@ public sealed class AdminPlatformGrain(
         // query below is an untracked aggregate, so a retry has no state of the failed attempt to trip on.
         return await db.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
         {
-            await using var tx = historical ? await db.Database.BeginTransactionAsync(token) : null;
-
-            if (tx is not null)
-                await db.Database.ExecuteSqlRawAsync("SET TRANSACTION AS OF SYSTEM TIME '-10s'", token);
+            await using var tx = historical
+                ? await db.Database.BeginHistoricalReadAsync(databaseProvider.Kind, TimeSpan.FromSeconds(10), token)
+                : null;
 
             var stats = await CountPlatformAsync(db, estimates, token);
 
@@ -101,11 +101,11 @@ public sealed class AdminPlatformGrain(
         }, ct);
     }
 
-    private static async Task<PlatformStats> CountPlatformAsync(ApplicationDbContext db, IReadOnlyDictionary<string, long> estimates,
+    private static async Task<PlatformStats> CountPlatformAsync(ApplicationDbContext db, IReadOnlyDictionary<IEntityType, long> estimates,
         CancellationToken ct)
     {
         async Task<long> TotalAsync<T>(DbSet<T> set) where T : class
-            => estimates.TryGetValue(TableOf(set), out var rows) && rows >= ExactCountBelow
+            => estimates.TryGetValue(set.EntityType, out var rows) && rows >= ExactCountBelow
                 ? rows
                 : await set.LongCountAsync(ct);
 
@@ -178,46 +178,6 @@ public sealed class AdminPlatformGrain(
         );
     }
 
-    /// <summary>
-    /// The optimizer's row count for each named table that has one.
-    /// </summary>
-    /// <remarks>
-    /// CockroachDB keeps it per table in <c>crdb_internal.table_row_statistics</c> (current database
-    /// only), refreshed by automatic statistics collection; PostgreSQL in <c>pg_class.reltuples</c>,
-    /// which is <c>-1</c> until the table has first been analysed. A table with no estimate is simply
-    /// absent from the answer, and is counted.
-    /// </remarks>
-    private async Task<Dictionary<string, long>> EstimateRowCountsAsync(ApplicationDbContext db, string[] tables,
-        CancellationToken ct)
-    {
-        var query = databaseProvider.Kind is DatabaseProviderKind.CockroachDb
-            ? db.Database.SqlQuery<TableRowEstimate>(
-                $"""
-                 SELECT table_name AS "Name", estimated_row_count AS "Rows"
-                 FROM crdb_internal.table_row_statistics
-                 WHERE estimated_row_count IS NOT NULL AND table_name = ANY({tables})
-                 """)
-            : db.Database.SqlQuery<TableRowEstimate>(
-                $"""
-                 SELECT c.relname AS "Name", c.reltuples::bigint AS "Rows"
-                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-                 WHERE n.nspname = current_schema() AND c.reltuples >= 0 AND c.relname = ANY({tables})
-                 """);
-
-        var rows = await query.ToListAsync(ct);
-
-        return rows.DistinctBy(r => r.Name).ToDictionary(r => r.Name, r => r.Rows);
-    }
-
-    private static string TableOf<T>(DbSet<T> set) where T : class
-        => set.EntityType.GetTableName()!;
-
-    private sealed class TableRowEstimate
-    {
-        public string Name { get; init; } = "";
-        public long   Rows { get; init; }
-    }
-
     public async Task<DatabaseDiagnostics> PingDatabaseAsync(CancellationToken ct = default)
     {
         try
@@ -226,7 +186,7 @@ public sealed class AdminPlatformGrain(
 
             var stopwatch = Stopwatch.StartNew();
 
-            await db.Database.ExecuteSqlRawAsync("SELECT 1", ct);
+            await db.Users.AsNoTracking().AnyAsync(ct);
 
             stopwatch.Stop();
 

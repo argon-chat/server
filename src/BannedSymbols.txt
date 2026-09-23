@@ -1,0 +1,95 @@
+// Raw SQL: grains and services use EF; engine-specific SQL lives in src/Argon.Core/Features/EF.
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSql(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString,System.Threading.CancellationToken);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolated(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString,System.Threading.CancellationToken);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRaw(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Object[]);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRaw(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Collections.Generic.IEnumerable{System.Object});Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Threading.CancellationToken);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Object[]);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRawAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Collections.Generic.IEnumerable{System.Object},System.Threading.CancellationToken);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.SqlQuery``1(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.SqlQueryRaw``1(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Object[]);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSql``1(Microsoft.EntityFrameworkCore.DbSet{``0},System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlInterpolated``1(Microsoft.EntityFrameworkCore.DbSet{``0},System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlRaw``1(Microsoft.EntityFrameworkCore.DbSet{``0},System.String,System.Object[]);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
+
+// Legacy .NET Framework APIs and footguns.
+T:System.Runtime.Serialization.Formatters.Binary.BinaryFormatter;Binary serialization is unsafe and removed; use System.Text.Json or the Orleans serializer
+T:System.Runtime.Serialization.Formatter;Legacy formatter serialization; use System.Text.Json or the Orleans serializer
+T:System.Runtime.Serialization.IFormatter;Legacy formatter serialization; use System.Text.Json or the Orleans serializer
+T:System.Runtime.Serialization.Json.DataContractJsonSerializer;Legacy JSON serializer; use System.Text.Json
+T:System.Timers.Timer;Legacy event timer; use PeriodicTimer or an Orleans grain timer/reminder
+T:System.Threading.Timer;Callback timer; use PeriodicTimer or an Orleans grain timer/reminder
+T:System.ComponentModel.BackgroundWorker;Legacy event-based async; use Task/BackgroundService
+T:System.Net.WebClient;Obsolete; use IHttpClientFactory/HttpClient
+T:System.Net.WebRequest;Obsolete; use IHttpClientFactory/HttpClient
+T:System.Net.HttpWebRequest;Obsolete; use IHttpClientFactory/HttpClient
+T:System.Net.FtpWebRequest;Obsolete; use a maintained FTP client if FTP is ever needed
+T:System.Net.ServicePointManager;Obsolete, has no effect on HttpClient; configure SocketsHttpHandler
+T:System.Net.Mail.SmtpClient;Not recommended by Microsoft; use MailKit
+T:System.Collections.ArrayList;Non-generic collection; use List<T>
+T:System.Collections.Hashtable;Non-generic collection; use Dictionary<TKey,TValue>
+T:System.Collections.SortedList;Non-generic collection; use SortedList<TKey,TValue>
+T:System.Collections.Queue;Non-generic collection; use Queue<T>
+T:System.Collections.Stack;Non-generic collection; use Stack<T>
+T:System.Collections.Specialized.StringCollection;Non-generic collection; use List<string>
+T:System.Collections.Specialized.NameValueCollection;Non-generic collection; use Dictionary or QueryHelpers
+T:System.Collections.Specialized.HybridDictionary;Non-generic collection; use Dictionary<TKey,TValue>
+T:System.Collections.Specialized.ListDictionary;Non-generic collection; use Dictionary<TKey,TValue>
+T:System.Collections.Specialized.OrderedDictionary;Non-generic collection; use System.Collections.Generic.OrderedDictionary<TKey,TValue>
+T:System.Threading.ReaderWriterLock;Legacy lock; use ReaderWriterLockSlim or Lock
+T:System.Security.SecureString;Not secure on .NET Core; don't use
+T:System.Security.Cryptography.RNGCryptoServiceProvider;Obsolete; use RandomNumberGenerator
+T:System.Security.Cryptography.MD5CryptoServiceProvider;Obsolete; use the static HashData APIs
+T:System.Security.Cryptography.SHA1CryptoServiceProvider;Obsolete; use the static HashData APIs
+T:System.Security.Cryptography.SHA256CryptoServiceProvider;Obsolete; use SHA256.HashData
+T:System.Security.Cryptography.SHA384CryptoServiceProvider;Obsolete; use SHA384.HashData
+T:System.Security.Cryptography.SHA512CryptoServiceProvider;Obsolete; use SHA512.HashData
+T:System.Security.Cryptography.SHA1Managed;Obsolete; use the static HashData APIs
+T:System.Security.Cryptography.SHA256Managed;Obsolete; use SHA256.HashData
+T:System.Security.Cryptography.SHA384Managed;Obsolete; use SHA384.HashData
+T:System.Security.Cryptography.SHA512Managed;Obsolete; use SHA512.HashData
+T:System.Security.Cryptography.AesManaged;Obsolete; use Aes.Create or AesGcm
+T:System.Security.Cryptography.AesCryptoServiceProvider;Obsolete; use Aes.Create or AesGcm
+T:System.Security.Cryptography.RijndaelManaged;Obsolete; use Aes.Create or AesGcm
+T:System.Security.Cryptography.Rijndael;Obsolete; use Aes.Create or AesGcm
+T:System.Security.Cryptography.DES;Broken cipher; use AesGcm
+T:System.Security.Cryptography.DESCryptoServiceProvider;Broken cipher; use AesGcm
+T:System.Security.Cryptography.RC2;Broken cipher; use AesGcm
+T:System.Security.Cryptography.RC2CryptoServiceProvider;Broken cipher; use AesGcm
+T:System.Security.Cryptography.TripleDESCryptoServiceProvider;Obsolete; use AesGcm
+T:System.Data.DataSet;Legacy ADO.NET; use EF
+T:System.Data.DataTable;Legacy ADO.NET; use EF
+M:System.Threading.Thread.Abort;Not supported on .NET Core
+M:System.Threading.Thread.Abort(System.Object);Not supported on .NET Core
+M:System.Threading.Thread.Suspend;Not supported on .NET Core
+M:System.Threading.Thread.Resume;Not supported on .NET Core
+P:System.Threading.Tasks.Task`1.Result;Sync-over-async; await it
+M:System.Threading.Tasks.Task.Wait;Sync-over-async; await it
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan);Sync-over-async; await it
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan,System.Threading.CancellationToken);Sync-over-async; await it
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken);Sync-over-async; await it
+M:System.Threading.Tasks.Task.Wait(System.Int32);Sync-over-async; await it
+M:System.Threading.Tasks.Task.Wait(System.Int32,System.Threading.CancellationToken);Sync-over-async; await it
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[]);Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAll(System.ReadOnlySpan{System.Threading.Tasks.Task});Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.TimeSpan);Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32);Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAll(System.Collections.Generic.IEnumerable{System.Threading.Tasks.Task},System.Threading.CancellationToken);Sync-over-async; use Task.WhenAll
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[]);Sync-over-async; use Task.WhenAny
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.TimeSpan);Sync-over-async; use Task.WhenAny
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Threading.CancellationToken);Sync-over-async; use Task.WhenAny
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32);Sync-over-async; use Task.WhenAny
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[],System.Int32,System.Threading.CancellationToken);Sync-over-async; use Task.WhenAny
+P:System.DateTime.Now;Server-local time; use DateTimeOffset.UtcNow or TimeProvider
+P:System.DateTime.Today;Server-local time; use DateTimeOffset.UtcNow or TimeProvider
+P:System.DateTimeOffset.Now;Server-local time; use DateTimeOffset.UtcNow or TimeProvider
+P:System.Environment.TickCount;Wraps after 24.9 days; use Environment.TickCount64 or Stopwatch
+M:System.GC.Collect(System.Int32);Let the GC decide
+M:System.GC.Collect;Let the GC decide
+M:System.GC.Collect(System.Int32,System.GCCollectionMode);Let the GC decide
+M:System.GC.Collect(System.Int32,System.GCCollectionMode,System.Boolean);Let the GC decide
+M:System.GC.Collect(System.Int32,System.GCCollectionMode,System.Boolean,System.Boolean);Let the GC decide

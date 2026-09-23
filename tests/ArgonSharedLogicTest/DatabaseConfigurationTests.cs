@@ -120,6 +120,15 @@ public class DatabaseConfigurationTests
     }
 
     [Test]
+    public void A_query_splits_only_when_it_asks_to()
+    {
+        var relational = RelationalOptionsExtension.Extract(Configure(development: false));
+
+        // Unset rather than SingleQuery, so EF keeps warning about a query that loads two collections without choosing.
+        Assert.That(relational.QuerySplittingBehavior, Is.Null);
+    }
+
+    [Test]
     public void The_shipped_connection_string_carries_no_error_detail()
     {
         var path = Path.Combine(TestContext.CurrentContext.TestDirectory, "appsettings.json");

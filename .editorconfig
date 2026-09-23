@@ -412,3 +412,13 @@ dotnet_style_prefer_inferred_tuple_names = true:suggestion
 dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
 dotnet_style_prefer_compound_assignment = true:suggestion
 dotnet_style_prefer_simplified_interpolation = true:suggestion
+
+# Raw SQL is banned outside the EF infrastructure (src/BannedSymbols.txt, analyzer RS0030).
+[*.cs]
+dotnet_diagnostic.RS0030.severity = error
+
+[src/Argon.Core/{Features/EF,Migrations}/**.cs]
+dotnet_diagnostic.RS0030.severity = none
+
+[src/Argon.Core/Features/Aegis/AegisKeyRingMigrations.cs]
+dotnet_diagnostic.RS0030.severity = none

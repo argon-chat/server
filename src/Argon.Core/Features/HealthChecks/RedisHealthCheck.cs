@@ -64,7 +64,7 @@ public sealed class RedisProbeConnections(RedisProfileRegistry registry) : IAsyn
         try
         {
             if (lazy.IsValueCreated && lazy.Value.IsCompletedSuccessfully)
-                await lazy.Value.Result.DisposeAsync();
+                await (await lazy.Value).DisposeAsync();
         }
         catch
         {

@@ -388,10 +388,10 @@ public class FriendsGrain(
         try
         {
             var strategy = ctx.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await strategy.ExecuteAsync(async token =>
             {
                 ctx.ChangeTracker.Clear();
-                await using var tx = await ctx.Database.BeginTransactionAsync(ct);
+                await using var tx = await ctx.Database.BeginTransactionAsync(token);
 
                 const string friendshipTable = FriendshipEntity.TableName;
                 const string reqTable        = FriendRequestEntity.TableName;
@@ -413,7 +413,7 @@ public class FriendsGrain(
 
                 var frRows = await ctx.Database.ExecuteSqlRawAsync(sqlDeleteFriendship, [
                     meUserId, userId
-                ], ct);
+                ], token);
 
                 logger.LogInformation("Deleted {Count} friendship rows during block", frRows);
 
@@ -428,12 +428,12 @@ public class FriendsGrain(
 
                 var reqRows = await ctx.Database.ExecuteSqlRawAsync(sqlDeleteRequests, [
                     meUserId, userId
-                ], ct);
+                ], token);
 
                 logger.LogInformation("Deleted {Count} friend request rows during block", reqRows);
 
                 var exists = await ctx.UserBlocklist
-                   .AnyAsync(x => x.UserId == meUserId && x.BlockedId == userId, ct);
+                   .AnyAsync(x => x.UserId == meUserId && x.BlockedId == userId, token);
 
                 if (exists)
                 {
@@ -449,13 +449,13 @@ public class FriendsGrain(
                         BlockedId = userId,
                         CreatedAt = DateTimeOffset.UtcNow
                     });
-                    await ctx.SaveChangesAsync(ct);
+                    await ctx.SaveChangesAsync(token);
 
                     logger.LogInformation("Successfully blocked user: {User} -> {Blocked}", meUserId, userId);
                 }
 
-                await tx.CommitAsync(ct);
-            });
+                await tx.CommitAsync(token);
+            }, ct);
         }
         catch (Exception ex)
         {

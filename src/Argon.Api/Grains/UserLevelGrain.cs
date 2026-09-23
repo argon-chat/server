@@ -260,7 +260,7 @@ public class UserLevelGrain(
             await using var ctx = await context.CreateDbContextAsync();
 
             var userId = this.GetPrimaryKey();
-            var levelData = await ctx.UserLevels.FirstOrDefaultAsync(x => x.UserId == userId);
+            var levelData = await ctx.UserLevels.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId);
 
             if (levelData is not null)
             {

@@ -13,7 +13,7 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         _keys.TryAdd(key, 0);
         return cache.SetAsync(key, Encoding.UTF8.GetBytes(value), new DistributedCacheEntryOptions
         {
-            AbsoluteExpiration = DateTimeOffset.Now + expiration
+            AbsoluteExpiration = DateTimeOffset.UtcNow + expiration
         }, ct);
     }
 

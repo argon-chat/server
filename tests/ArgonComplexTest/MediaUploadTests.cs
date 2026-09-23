@@ -427,11 +427,15 @@ public class MediaUploadTests : TestBase
 
         await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => counter.IncrementAsync(live, 1, ct)));
 
-        var afterRelease = await counter.DecrementAsync(live, 2, ct);
+        var released     = await counter.DecrementAsync(live, 2, ct);
+        var overdrawn    = await counter.DecrementAsync(live, 100, ct);
+        var afterRelease = await counter.GetRefCountAsync(live, ct);
 
         Assert.Multiple(() =>
         {
-            Assert.That(afterRelease, Is.EqualTo(15), "a concurrent retain was lost, or the release returned a stale count");
+            Assert.That(released, Is.True);
+            Assert.That(overdrawn, Is.False, "a release larger than the count went through");
+            Assert.That(afterRelease, Is.EqualTo(15), "a concurrent retain was lost, or a release went below zero");
             Assert.ThrowsAsync<KeyNotFoundException>(() => counter.IncrementAsync(Guid.NewGuid(), 1, ct));
             Assert.ThrowsAsync<KeyNotFoundException>(() => counter.IncrementAsync(collected, 1, ct),
                 "a counter the collector soft-deleted came back to life");
