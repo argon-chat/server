@@ -24,6 +24,8 @@ jobs:
       database: postgres
       coverage: true
       threshold: 50
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # The same suite against the engine production actually runs. Slower to start, and the only
   # place the CockroachDB-specific migration DDL (LOCALITY, row TTL) is exercised at all.

@@ -14,6 +14,8 @@ jobs:
       database: postgres
       coverage: true
       threshold: 50
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # Seconds, and unrelated to the above: the bootstrapper is TypeScript and the install scripts are
   # shell. It gates the publish because the bootstrapper image *is* this code.
