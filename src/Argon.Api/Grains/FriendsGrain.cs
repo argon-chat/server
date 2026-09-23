@@ -4,7 +4,6 @@ using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Core.Entities.Data;
 using Orleans.Concurrency;
-using System.Linq.Expressions;
 
 [StatelessWorker]
 public class FriendsGrain(
@@ -205,21 +204,7 @@ public class FriendsGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        const string table = FriendshipEntity.TableName;
-
-        var colUserId   = Q<FriendshipEntity>(x => x.UserId);
-        var colFriendId = Q<FriendshipEntity>(x => x.FriendId);
-
-        var sql =
-            $"""
-             delete from {table}
-             where ({colUserId} = @p0 and {colFriendId} = @p1)
-                or ({colUserId} = @p1 and {colFriendId} = @p0)
-             """;
-
-        var affected = await ctx.Database.ExecuteSqlRawAsync(sql, [
-            meUserId, userId
-        ], ct);
+        var affected = await Between(ctx.Friends.IgnoreQueryFilters(), meUserId, userId).ExecuteDeleteAsync(ct);
 
         await NotifyAsync(meUserId, new FriendshipRemovedEvent(userId));
         await NotifyAsync(userId, new FriendshipRemovedEvent(meUserId));
@@ -393,42 +378,19 @@ public class FriendsGrain(
                 ctx.ChangeTracker.Clear();
                 await using var tx = await ctx.Database.BeginTransactionAsync(token);
 
-                const string friendshipTable = FriendshipEntity.TableName;
-                const string reqTable        = FriendRequestEntity.TableName;
-
-                var fUserId   = Q<FriendshipEntity>(x => x.UserId);
-                var fFriendId = Q<FriendshipEntity>(x => x.FriendId);
-
-                var rReqId = Q<FriendRequestEntity>(x => x.RequesterId);
-                var rTarId = Q<FriendRequestEntity>(x => x.TargetId);
 
                 logger.LogDebug("Deleting friendships {UserId}<->{FriendId}", meUserId, userId);
 
-                var sqlDeleteFriendship =
-                    $"""
-                     delete from {friendshipTable}
-                     where ({fUserId} = @p0 and {fFriendId} = @p1)
-                        or ({fUserId} = @p1 and {fFriendId} = @p0)
-                     """;
-
-                var frRows = await ctx.Database.ExecuteSqlRawAsync(sqlDeleteFriendship, [
-                    meUserId, userId
-                ], token);
+                var frRows = await Between(ctx.Friends.IgnoreQueryFilters(), meUserId, userId).ExecuteDeleteAsync(token);
 
                 logger.LogInformation("Deleted {Count} friendship rows during block", frRows);
 
                 logger.LogDebug("Deleting friend requests between {User} and {Target}", meUserId, userId);
 
-                var sqlDeleteRequests =
-                    $"""
-                     delete from {reqTable}
-                     where ({rReqId} = @p0 and {rTarId} = @p1)
-                        or ({rReqId} = @p1 and {rTarId} = @p0)
-                     """;
-
-                var reqRows = await ctx.Database.ExecuteSqlRawAsync(sqlDeleteRequests, [
-                    meUserId, userId
-                ], token);
+                var reqRows = await ctx.FriendRequest
+                   .IgnoreQueryFilters()
+                   .Where(r => (r.RequesterId == meUserId && r.TargetId == userId) || (r.RequesterId == userId && r.TargetId == meUserId))
+                   .ExecuteDeleteAsync(token);
 
                 logger.LogInformation("Deleted {Count} friend request rows during block", reqRows);
 
@@ -577,21 +539,6 @@ public class FriendsGrain(
     }
 
 
-    private static string Q<T>(Expression<Func<T, object?>> expr)
-    {
-        var name = ExtractMemberName(expr.Body);
-        return $"\"{name}\"";
-    }
-
-    private static string ExtractMemberName(Expression expr)
-    {
-        expr = expr is UnaryExpression { NodeType: ExpressionType.Convert } u
-            ? u.Operand
-            : expr;
-        return expr switch
-        {
-            MemberExpression m => m.Member.Name,
-            _                  => throw new NotSupportedException($"Unsupported expression: {expr}")
-        };
-    }
+    private static IQueryable<FriendshipEntity> Between(IQueryable<FriendshipEntity> friends, Guid a, Guid b)
+        => friends.Where(f => (f.UserId == a && f.FriendId == b) || (f.UserId == b && f.FriendId == a));
 }
