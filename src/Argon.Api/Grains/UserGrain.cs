@@ -679,7 +679,7 @@ public class UserGrain(
          || user.LockDownExpiration is { } expiry && expiry <= DateTimeOffset.UtcNow)
             return new LockedAuthStatus(null, null, false, LockdownSeverity.Low);
 
-        return new LockedAuthStatus(user.LockdownReason, user.LockDownExpiration?.UtcDateTime ?? DateTime.Now.AddYears(20),
+        return new LockedAuthStatus(user.LockdownReason, user.LockDownExpiration?.UtcDateTime ?? DateTime.UtcNow.AddYears(20),
             user.LockDownIsAppealable, DetermineSeverity(user.LockdownReason));
 
         LockdownSeverity DetermineSeverity(LockdownReason reason)

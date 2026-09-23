@@ -149,7 +149,7 @@ public sealed class AppManagementService(
         accessor.HttpContext.Response.Cookies.Append("ArgonSecure", key, new CookieOptions
         {
             Domain   = ".argon.gl",
-            Expires  = DateTimeOffset.Now.AddDays(7),
+            Expires  = DateTimeOffset.UtcNow.AddDays(7),
             HttpOnly = true,
             Secure   = true,
             Path     = "/",

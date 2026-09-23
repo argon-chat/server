@@ -59,7 +59,7 @@ public class InventoryGrain(
             Id = ArgonId.New(),
             OwnerId = userId,
             ReceivedFrom = null,
-            CreatedAt = DateTimeOffset.Now
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         ctx.Set<ArgonItemEntity>().Add(item);
@@ -88,7 +88,7 @@ public class InventoryGrain(
             Id            = ArgonId.New(),
             OwnerId       = UserEntity.SystemUser,
             ReceivedFrom  = null,
-            CreatedAt     = DateTimeOffset.Now,
+            CreatedAt     = DateTimeOffset.UtcNow,
             TemplateId    = templateId,
             IsUsable      = isUsable,
             IsAffectBadge = isAffectToBadge,
@@ -117,7 +117,7 @@ public class InventoryGrain(
             Id            = ArgonId.New(),
             OwnerId       = UserEntity.SystemUser,
             ReceivedFrom  = null,
-            CreatedAt     = DateTimeOffset.Now,
+            CreatedAt     = DateTimeOffset.UtcNow,
             TemplateId    = caseTemplateId,
             IsUsable      = true,
             IsAffectBadge = false,
@@ -456,7 +456,7 @@ public class InventoryGrain(
                 OwnerId = userId,
                 RedemptionId = redemption.Id,
                 ReceivedFrom = null,
-                CreatedAt = DateTimeOffset.Now
+                CreatedAt = DateTimeOffset.UtcNow
             };
 
             ctx.Set<ArgonItemEntity>().Add(item);
