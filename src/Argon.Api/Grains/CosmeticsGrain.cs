@@ -17,8 +17,9 @@ using Services.L1L2;
 /// changes their avatar — this grain never talks to the hub itself, and never builds a profile per
 /// space, because without per-space looks the answer is the same in all of them.</para>
 ///
-/// <para>Whether something may be worn is decided here, when it goes on, and asked again by
-/// <see cref="RevalidateAsync"/> when it can have changed. The read path never asks — see
+/// <para>Whether something may be worn is decided here, when it goes on, and asked again when it can
+/// have changed: by <see cref="RevalidateAsync"/> as a subscription ends, and on a reminder set for
+/// the moment the soonest grant anything worn depends on runs out. The read path never asks — see
 /// <see cref="CosmeticWear"/>.</para>
 ///
 /// <para>Every kind this build ships is worn one at a time, so everything goes in slot 0. The column
@@ -27,9 +28,25 @@ using Services.L1L2;
 public sealed class CosmeticsGrain(
     IDbContextFactory<ApplicationDbContext> context,
     CosmeticKindRegistry registry,
-    ICosmeticsCache cache) : Grain, ICosmeticsGrain
+    ICosmeticsCache cache,
+    ILogger<CosmeticsGrain> logger) : Grain, ICosmeticsGrain, IRemindable
 {
     private const int Slot = 0;
+
+    /// <summary>Fires when a grant something is worn on runs out, and takes it off.</summary>
+    private const string LapseReminder = "cosmetics-grant-lapse";
+
+    /// <summary>
+    /// How soon the lapse reminder fires again when a tick does not finish. A tick that does finish
+    /// sets it anew or removes it, so the period is only ever a retry.
+    /// </summary>
+    private static readonly TimeSpan LapseRetryPeriod = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// The furthest ahead the lapse reminder is set. A grant that runs longer is looked at from there
+    /// and the reminder set again — well inside the seven weeks a timer can wait at all.
+    /// </summary>
+    private static readonly TimeSpan LongestLapseWait = TimeSpan.FromDays(7);
 
     private Guid UserId => this.GetPrimaryKey();
 
@@ -90,7 +107,51 @@ public sealed class CosmeticsGrain(
         return await AnnounceAsync();
     }
 
-    public async Task RevalidateAsync()
+    public async Task<IonArray<IWornCosmetic>> RevalidateAsync()
+    {
+        if (await TakeOffLapsedAsync())
+            await cache.SignalWornInvalidationAsync(UserId);
+
+        await ArmLapseAsync();
+
+        // Read on this silo, after this silo's own drop: the caller's silo may not have heard it yet.
+        return (await Reader.GetWornAsync([UserId]))[UserId];
+    }
+
+    public async Task ReceiveReminder(string reminderName, TickStatus status)
+    {
+        if (reminderName != LapseReminder)
+            return;
+
+        if (await TakeOffLapsedAsync())
+            await AnnounceAsync();
+        else
+            await ArmLapseAsync();
+    }
+
+    public async Task EraseAsync()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        await ctx.CosmeticEquips
+           .Where(row => row.UserId == UserId)
+           .ExecuteDeleteAsync();
+
+        // A grant is an ArgonEntity, and a soft-deleted one is still a row that names this person.
+        await ctx.CosmeticOwnerships
+           .IgnoreQueryFilters()
+           .Where(grant => grant.UserId == UserId)
+           .ExecuteDeleteAsync();
+
+        // Nothing is worn any more, so this removes the reminder rather than setting one.
+        await ArmLapseAsync();
+        await cache.SignalWornInvalidationAsync(UserId);
+    }
+
+    /// <summary>
+    /// Takes off whatever this person may no longer wear, and says whether anything came off.
+    /// </summary>
+    private async Task<bool> TakeOffLapsedAsync()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -99,7 +160,7 @@ public sealed class CosmeticsGrain(
            .ToListAsync();
 
         if (rows.Count is 0)
-            return;
+            return false;
 
         var premium = await HasPremiumAsync(ctx);
         var grants  = await ActiveGrantsAsync(ctx);
@@ -142,10 +203,11 @@ public sealed class CosmeticsGrain(
         }
 
         if (!changed)
-            return;
+            return false;
 
         await ctx.SaveChangesAsync();
-        await cache.SignalWornInvalidationAsync(UserId);
+
+        return true;
     }
 
     private async Task<IEquipResult> EquipItemAsync(Guid cosmeticId)
@@ -248,8 +310,8 @@ public sealed class CosmeticsGrain(
     }
 
     /// <summary>
-    /// Drops this person's cached answer everywhere and has their profile announced with what they now
-    /// have on.
+    /// Drops this person's cached answer everywhere, sets the lapse reminder for what they now have
+    /// on, and has their profile announced with it.
     /// </summary>
     /// <remarks>
     /// The cache is dropped before the read, so the read is a miss and resolves from the rows just
@@ -258,11 +320,64 @@ public sealed class CosmeticsGrain(
     private async Task<IEquipResult> AnnounceAsync()
     {
         await cache.SignalWornInvalidationAsync(UserId);
+        await ArmLapseAsync();
 
         var worn    = await Reader.GetWornAsync([UserId]);
         var profile = await GrainFactory.GetGrain<IUserGrain>(UserId).AnnounceProfileAsync(worn[UserId]);
 
         return new SuccessEquip(profile);
+    }
+
+    /// <summary>
+    /// Sets the lapse reminder for the soonest grant anything worn depends on, or removes it when
+    /// nothing worn depends on one that runs out.
+    /// </summary>
+    /// <remarks>
+    /// <para>Worked out from everything worn rather than from the change just made, because that is
+    /// what the reminder guards: swapping a frame can leave it waiting on a grant nothing uses any
+    /// more, and a composed name can hang on several.</para>
+    ///
+    /// <para>Never allowed to fail the caller, for the reason <c>AccountDeletionGrain</c>'s poll is
+    /// not: the change before it is committed and announced either way. A reminder that could not be
+    /// set costs the automatic lapse only until the next change or revalidation sets it.</para>
+    /// </remarks>
+    private async Task ArmLapseAsync()
+    {
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync();
+
+            var rows = await ctx.CosmeticEquips
+               .AsNoTracking()
+               .Where(row => row.UserId == UserId)
+               .ToListAsync();
+
+            var named  = rows.SelectMany(CosmeticWornProjection.Named).ToHashSet();
+            var grants = await ActiveGrantsAsync(ctx);
+
+            // Null for a permanent grant, and Min skips nulls: only a grant that ends can lapse.
+            var soonest = grants
+               .Where(grant => named.Contains(grant.Key))
+               .Min(grant => grant.Value);
+
+            if (soonest is not { } lapse)
+            {
+                if (await this.GetReminder(LapseReminder) is { } armed)
+                    await this.UnregisterReminder(armed);
+
+                return;
+            }
+
+            var wait = lapse - DateTimeOffset.UtcNow;
+
+            await this.RegisterOrUpdateReminder(LapseReminder,
+                wait < TimeSpan.Zero ? TimeSpan.Zero : wait > LongestLapseWait ? LongestLapseWait : wait,
+                LapseRetryPeriod);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not set the cosmetics lapse reminder for user {UserId}", UserId);
+        }
     }
 
     /// <summary>The checks every change shares: the kind exists and is switched on.</summary>

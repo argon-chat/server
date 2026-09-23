@@ -18,18 +18,17 @@ public sealed class CosmeticsReadGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IGrainFactory grainFactory,
     CosmeticKindRegistry registry,
-    HybridCache cache) : Grain, ICosmeticsReadGrain
+    HybridCache cache,
+    WornDropLedger drops) : Grain, ICosmeticsReadGrain
 {
-    /// <summary>
-    /// Asks the cache without ever running a query or writing anything back, so a miss comes back as
-    /// null and the caller can gather every miss into one read.
-    /// </summary>
-    private static readonly HybridCacheEntryOptions Probe = new()
-    {
-        Flags = HybridCacheEntryFlags.DisableUnderlyingData
-              | HybridCacheEntryFlags.DisableLocalCacheWrite
-              | HybridCacheEntryFlags.DisableDistributedCacheWrite
-    };
+    /// <summary>How many cache round trips one read keeps in flight at once.</summary>
+    /// <remarks>
+    /// Bounded both ways. A member list is hundreds of people, and every one of them missing from
+    /// memory is a trip to Redis: all at once is a burst on the connection every other caller shares,
+    /// and one at a time is hundreds of round trips back to back. Sixteen, as <c>UserGrain</c>'s
+    /// fan-outs are.
+    /// </remarks>
+    private const int CacheConcurrency = 16;
 
     /// <remarks>
     /// Cached as its Ion encoding, like what people wear: its payloads are a union, which the cache's
@@ -51,40 +50,56 @@ public sealed class CosmeticsReadGrain(
         return IonFormatterStorage<CosmeticCatalogue>.Read(new System.Formats.Cbor.CborReader(bytes));
     }
 
+    /// <remarks>
+    /// <para>Looked up one by one and loaded all together, because <c>HybridCache</c> has no batch
+    /// read and a factory per person would be a query per person on a cold member list.</para>
+    ///
+    /// <para>Written back only for the people nobody dropped while the query ran, as
+    /// <see cref="WornDropLedger"/> tells it — see <see cref="ICosmeticsCache"/> for the race that
+    /// guards against. Whoever was dropped is still answered from the rows just read: the change's own
+    /// announcement follows with the new look, and nothing stale is left behind for anybody else.</para>
+    /// </remarks>
     public async Task<Dictionary<Guid, IonArray<IWornCosmetic>>> GetWornAsync(List<Guid> userIds)
     {
         var distinct = userIds.Distinct().ToList();
+        var worn     = new Dictionary<Guid, IonArray<IWornCosmetic>>(distinct.Count);
+        var misses   = new List<Guid>();
 
-        // Probed side by side: a member list whose entries have fallen out of this silo's memory but
-        // are still in Redis would otherwise be one Redis round trip per member, one after another.
-        var probes = await Task.WhenAll(distinct.Select(async userId => (UserId: userId,
-            Hit: await cache.GetOrCreateAsync<byte[]?>(ICosmeticsCache.WornKey(userId),
-                static _ => ValueTask.FromResult<byte[]?>(null), Probe))));
-
-        var worn   = new Dictionary<Guid, IonArray<IWornCosmetic>>(distinct.Count);
-        var misses = new List<Guid>();
-
-        foreach (var (userId, hit) in probes)
+        foreach (var chunk in distinct.Chunk(CacheConcurrency))
         {
-            if (hit is null)
-                misses.Add(userId);
-            else
-                worn[userId] = WornCosmeticsWire.Read(hit);
+            var found = await Task.WhenAll(chunk.Select(async userId => (UserId: userId,
+                Hit: await cache.GetOrCreateAsync<byte[]?>(ICosmeticsCache.WornKey(userId),
+                    static _ => ValueTask.FromResult<byte[]?>(null), ICosmeticsCache.WornLookupOptions,
+                    ICosmeticsCache.WornTags(userId)))));
+
+            foreach (var (userId, hit) in found)
+            {
+                if (hit is null)
+                    misses.Add(userId);
+                else
+                    worn[userId] = WornCosmeticsWire.Read(hit);
+            }
         }
 
         if (misses.Count is 0)
             return worn;
 
+        var before = misses.ToDictionary(userId => userId, drops.Of);
         var loaded = await LoadWornAsync(misses);
+
+        foreach (var chunk in loaded.Chunk(CacheConcurrency))
+        {
+            await Task.WhenAll(chunk
+               .Where(pair => drops.Of(pair.Key) == before[pair.Key])
+               .Select(pair => cache.SetAsync(ICosmeticsCache.WornKey(pair.Key),
+                    WornCosmeticsWire.Write(pair.Value), ICosmeticsCache.WornOptions,
+                    ICosmeticsCache.WornTags(pair.Key)).AsTask()));
+        }
 
         foreach (var (userId, answer) in loaded)
         {
             worn[userId] = answer;
         }
-
-        await Task.WhenAll(loaded.Select(pair => cache.SetAsync(ICosmeticsCache.WornKey(pair.Key),
-            WornCosmeticsWire.Write(pair.Value), ICosmeticsCache.WornOptions,
-            [ICosmeticsCache.AllTag, ICosmeticsCache.WornTag(pair.Key)]).AsTask()));
 
         return worn;
     }

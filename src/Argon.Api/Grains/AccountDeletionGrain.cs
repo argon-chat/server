@@ -93,6 +93,16 @@ public class AccountDeletionGrain(
         /// </remarks>
         public const int Spaces        = 11;
 
+        /// <summary>What the account wore and the cosmetics it held, erased through their grain.</summary>
+        /// <remarks>
+        /// Through <c>CosmeticsGrain</c> rather than a delete in <see cref="PrivateData"/>, for the
+        /// reason <see cref="Memberships"/> goes through <c>SpaceGrain</c>: what somebody wears is
+        /// served from a cache on every silo, only that grain drops it, and it does not live on this
+        /// role. Appended like <see cref="Spaces"/>, so a deletion interrupted by the release that
+        /// added it resumes with it not yet done.
+        /// </remarks>
+        public const int Cosmetics     = 12;
+
         /// <summary>
         /// The steps that erase nothing about the account, and that a cancellation may discard.
         /// </summary>
@@ -1084,6 +1094,8 @@ public class AccountDeletionGrain(
 
             // 5. Hard-delete private data
             await RunStepAsync(Step.PrivateData, DeletePrivateDataAsync);
+
+            await RunStepAsync(Step.Cosmetics, () => grainFactory.GetGrain<ICosmeticsGrain>(UserId).EraseAsync());
 
             // 6. Leave every space, through the grain that owns the roster
             await RunStepAsync(Step.Spaces, DeleteOwnedSpacesAsync);

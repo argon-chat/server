@@ -2,9 +2,12 @@ namespace ArgonComplexTest.Tests;
 
 using Argon;
 using Argon.Entities;
+using Argon.Services.L1L2;
+using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -50,10 +53,14 @@ public class CosmeticEquipTests : TestBase
         ctx.Cosmetics.Add(item);
         await ctx.SaveChangesAsync(ct);
 
+        // The catalogue is cached in Redis as well, and a reused container keeps Redis between runs:
+        // a row written behind the cache's back would otherwise stay unlisted until the entry expired.
+        await FactoryAsp.Services.GetRequiredService<HybridCache>().RemoveAsync(ICosmeticsCache.CatalogueKey, ct);
+
         return item;
     }
 
-    private async Task GrantAsync(Guid userId, Guid cosmeticId, CancellationToken ct)
+    private async Task GrantAsync(Guid userId, Guid cosmeticId, CancellationToken ct, DateTimeOffset? expiresAt = null)
     {
         await using var ctx = await FactoryAsp.Services
            .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
@@ -63,7 +70,8 @@ public class CosmeticEquipTests : TestBase
         {
             Id             = Guid.NewGuid(),
             UserId         = userId,
-            CosmeticItemId = cosmeticId
+            CosmeticItemId = cosmeticId,
+            ExpiresAt      = expiresAt
         });
 
         await ctx.SaveChangesAsync(ct);
@@ -181,6 +189,26 @@ public class CosmeticEquipTests : TestBase
 
         Assert.That(await session.Cosmetics.Equip(new WornItem(frame.Id), ct), Is.InstanceOf<SuccessEquip>());
         Assert.That((await session.Cosmetics.GetMyCosmetics(ct)).owned.Select(o => o.cosmeticId), Does.Contain(frame.Id));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task What_a_grant_allowed_comes_off_when_the_grant_runs_out(CancellationToken ct = default)
+    {
+        var (wearer, onlooker, spaceId) = await TwoInASpaceAsync(ct);
+        var frame = await PublishAsync("profile.frame", "lapsing",
+            """{"parts":[{"type":"ring","thickness":2,"colors":[-10496]}]}""",
+            CosmeticAcquisitionMode.OperatorGrant, ct: ct);
+
+        await GrantAsync(wearer.UserId, frame.Id, ct, expiresAt: DateTimeOffset.UtcNow.AddSeconds(10));
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornItem(frame.Id), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(Items(await SeenBy(onlooker, spaceId, wearer.UserId, ct)), Is.EqualTo(new[] { frame.Id }));
+
+        // Nobody touches anything after this: what takes the frame off is the reminder the equip set.
+        var seen = await Poll.ForValueAsync(() => SeenBy(onlooker, spaceId, wearer.UserId, ct),
+            worn => worn.Count is 0, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(1), ct);
+
+        Assert.That(Items(seen), Is.Empty, "the frame stayed on after the grant that allowed it ran out");
     }
 
     [Test, CancelAfter(120_000)]

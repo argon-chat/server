@@ -310,6 +310,7 @@ public sealed class CosmeticsFeature : IArgonFeature
     public void Configure(ArgonFeatureContext ctx)
     {
         ctx.Services.AddSingleton(CosmeticKindRegistry.FromAssembly(typeof(ICosmeticKind).Assembly));
+        ctx.Services.AddSingleton<WornDropLedger>();
         ctx.Services.AddScoped<ICosmeticsCache, HybridCosmeticsCache>();
         ctx.Services.AddHostedService<HybridCosmeticsCacheAdapter>();
     }

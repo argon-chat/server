@@ -144,14 +144,15 @@ public class UserGrain(
         var userId = this.GetPrimaryKey();
 
         // What the subscription covered comes off before the profile is announced, so the
-        // announcement is the last word rather than one more thing to correct.
-        await GrainFactory.GetGrain<ICosmeticsGrain>(userId).RevalidateAsync();
+        // announcement is the last word rather than one more thing to correct. What is left comes
+        // from the answer, not from this silo's cache, which may not have heard the drop yet.
+        var worn = await GrainFactory.GetGrain<ICosmeticsGrain>(userId).RevalidateAsync();
 
         var user = await ctx.Users.AsNoTracking().FirstAsync(x => x.Id == userId, ct);
         var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId, ct);
 
         var userDto = UserEntity.Map(user);
-        var profileDto = await WithCosmeticsAsync(UserProfileEntity.Map(profile));
+        var profileDto = UserProfileEntity.Map(profile) with { cosmetics = worn };
 
         var userServers = await GetMyServersIds(ct);
         await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);

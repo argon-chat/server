@@ -28,12 +28,24 @@ public interface ICosmeticsGrain : IGrainWithGuidKey
     Task<IEquipResult> UnequipAsync(string kindKey);
 
     /// <summary>
-    /// Takes off whatever this person may no longer wear, after something they held has lapsed.
+    /// Takes off whatever this person may no longer wear, after something they held has lapsed, and
+    /// answers with what they have on afterwards.
     /// </summary>
     /// <remarks>
-    /// Called from <c>UserGrain</c> as a subscription ends, before it announces the profile — so it
-    /// must never call back into <c>UserGrain</c>, which is waiting on it.
+    /// <para>Called from <c>UserGrain</c> as a subscription ends, before it announces the profile — so
+    /// it must never call back into <c>UserGrain</c>, which is waiting on it.</para>
+    ///
+    /// <para>The answer is what the caller announces. Read here, on the silo that has just dropped the
+    /// cached copy, it is the new look; read through the caller's own silo, it can be the old one until
+    /// that silo hears of the drop.</para>
     /// </remarks>
     [Alias(nameof(RevalidateAsync))]
-    Task RevalidateAsync();
+    Task<IonArray<IWornCosmetic>> RevalidateAsync();
+
+    /// <summary>
+    /// Deletes everything this person wears and holds, and drops the cached copy everywhere. For
+    /// account deletion.
+    /// </summary>
+    [Alias(nameof(EraseAsync))]
+    Task EraseAsync();
 }
