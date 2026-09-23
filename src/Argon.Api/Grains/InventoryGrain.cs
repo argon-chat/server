@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using Argon.Features.EF;
 using Api.Entities.Data;
 using Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
@@ -410,80 +411,113 @@ public class InventoryGrain(
 
     public async Task<RedeemError?> RedeemCodeAsync(string code, CancellationToken ct = default)
     {
-        await using var ctx = await context.CreateDbContextAsync(ct);
-        var coupon = await ctx.Coupons
-           .Include(c => c.Redemptions)
-           .Include(c => c.ReferenceItemEntity)
-           .FirstOrDefaultAsync(c => c.Code == code, ct);
-
-        if (coupon == null)
-            return RedeemError.NOT_FOUND;
-
-        if (!coupon.IsActive)
-            return RedeemError.INACTIVE;
-
-        var now = DateTime.UtcNow;
-        if (now < coupon.ValidFrom || now > coupon.ValidTo)
-            return RedeemError.EXPIRED;
-
-        if (coupon.RedemptionCount >= coupon.MaxRedemptions)
-            return RedeemError.LIMIT_REACHED;
-
         var userId = this.GetUserId();
 
-        if (coupon.Redemptions.Any(r => r.UserId == userId))
-            return RedeemError.ALREADY;
+        await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var redemption = new ArgonCouponRedemptionEntity
+        var (error, item) = await ctx.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
         {
-            Id         = ArgonId.New(),
-            CouponId   = coupon.Id,
-            Coupon     = coupon,
-            UserId     = userId,
-            RedeemedAt = now
-        };
+            ctx.ChangeTracker.Clear();
 
-        await ctx.CouponRedemption.AddAsync(redemption, ct);
+            await using var tx = await ctx.Database.BeginTransactionAsync(token);
 
-        if (coupon.ReferenceItemEntityId.HasValue)
-        {
-            var referenceItem = await ctx.Items.FirstAsync(x => x.Id == coupon.ReferenceItemEntityId, ct);
+            var coupon = await ctx.Coupons
+               .AsNoTracking()
+               .FirstOrDefaultAsync(c => c.Code == code, token);
 
-            var item = referenceItem with
+            if (coupon == null)
+                return (RedeemError.NOT_FOUND, (ArgonItemEntity?)null);
+
+            if (!coupon.IsActive)
+                return (RedeemError.INACTIVE, null);
+
+            var now = DateTime.UtcNow;
+            if (now < coupon.ValidFrom || now > coupon.ValidTo)
+                return (RedeemError.EXPIRED, null);
+
+            if (await ctx.CouponRedemption.AnyAsync(r => r.CouponId == coupon.Id && r.UserId == userId, token))
+                return (RedeemError.ALREADY, null);
+
+            // Claimed in the WHERE, so concurrent redemptions cannot take the coupon past its limit.
+            var claimed = await ctx.Coupons
+               .Where(c => c.Id == coupon.Id && c.RedemptionCount < c.MaxRedemptions)
+               .ExecuteUpdateAsync(u => u.SetProperty(c => c.RedemptionCount, c => c.RedemptionCount + 1), token);
+
+            if (claimed == 0)
+                return (RedeemError.LIMIT_REACHED, null);
+
+            var redemption = new ArgonCouponRedemptionEntity
             {
-                IsReference = false,
-                Id = ArgonId.New(),
-                OwnerId = userId,
-                RedemptionId = redemption.Id,
-                ReceivedFrom = null,
-                CreatedAt = DateTimeOffset.UtcNow
+                Id         = ArgonId.New(),
+                CouponId   = coupon.Id,
+                UserId     = userId,
+                RedeemedAt = now
             };
 
-            ctx.Set<ArgonItemEntity>().Add(item);
-            redemption.Items.Add(item);
-            coupon.RedemptionCount++;
+            ctx.CouponRedemption.Add(redemption);
 
-            await ctx.SaveChangesAsync(ct);
+            ArgonItemEntity? granted = null;
 
-            await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
-            await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct: ct);
+            if (coupon.ReferenceItemEntityId.HasValue)
+            {
+                var referenceItem = await ctx.Items.AsNoTracking().FirstAsync(x => x.Id == coupon.ReferenceItemEntityId, token);
 
-            if (!item.IsAffectBadge) return null;
+                granted = referenceItem with
+                {
+                    IsReference  = false,
+                    Id           = ArgonId.New(),
+                    OwnerId      = userId,
+                    RedemptionId = redemption.Id,
+                    ReceivedFrom = null,
+                    CreatedAt    = DateTimeOffset.UtcNow
+                };
+
+                ctx.Set<ArgonItemEntity>().Add(granted);
+            }
+
+            await ctx.SaveChangesAsync(token);
+            await tx.CommitAsync(token);
+
+            return ((RedeemError?)null, granted);
+        }, ct);
+
+        if (error is not null || item is null)
+            return error;
+
+        await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
+        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct: ct);
+
+        if (item.IsAffectBadge)
+        {
             await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);
+            await ctx.SaveChangesAsync(ct);
         }
-        else
-            coupon.RedemptionCount++;
-
-        await ctx.SaveChangesAsync(ct);
 
         return null;
     }
 
-    private async Task EnsureUnreadAsync(ApplicationDbContext ctx, Guid ownerId, Guid inventoryItemId, string templateId, CancellationToken ct)
-        => await ctx.Database.ExecuteSqlInterpolatedAsync($@"
-        INSERT INTO ""UnreadInventoryItems"" (""OwnerUserId"", ""InventoryItemId"", ""TemplateId"", ""CreatedAt"")
-        VALUES ({ownerId}, {inventoryItemId}, {templateId}, {DateTimeOffset.UtcNow})
-        ON CONFLICT (""OwnerUserId"", ""InventoryItemId"") DO NOTHING;", ct);
+    private static async Task EnsureUnreadAsync(ApplicationDbContext ctx, Guid ownerId, Guid inventoryItemId, string templateId, CancellationToken ct)
+    {
+        if (await ctx.UnreadInventoryItems.AnyAsync(u => u.OwnerUserId == ownerId && u.InventoryItemId == inventoryItemId, ct))
+            return;
+
+        var unread = ctx.UnreadInventoryItems.Add(new ArgonItemNotificationEntity
+        {
+            OwnerUserId     = ownerId,
+            InventoryItemId = inventoryItemId,
+            TemplateId      = templateId,
+            CreatedAt       = DateTimeOffset.UtcNow
+        });
+
+        try
+        {
+            await ctx.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException e) when (e.IsUniqueViolation())
+        {
+            unread.State = EntityState.Detached;
+        }
+    }
 
     private async Task AddBadgeToProfileAsync(ApplicationDbContext ctx, Guid userId, string templateId, CancellationToken ct)
     {

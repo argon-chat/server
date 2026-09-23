@@ -138,10 +138,11 @@ public class ChannelLastMessageTests
     [Test]
     public void No_source_file_writes_the_channel_rows_counter()
     {
-        // "SetProperty(c => c.LastMessageId" in any spelling of the lambda parameter. This is the
-        // exact form ChannelGrain used before the counter moved.
-        var bulkUpdate = new Regex(@"SetProperty\s*\(\s*(\w+)\s*=>\s*\1\s*\.\s*LastMessageId",
-            RegexOptions.Compiled);
+        // "SetProperty(c => c.LastMessageId" in any spelling of the lambda parameter, in a statement
+        // that starts from the Channels set — the exact form ChannelGrain used before the counter moved.
+        // ChannelLastMessages is written the same way and is the table that is meant to be.
+        var bulkUpdate = new Regex(@"\.Channels\b[^;]*?SetProperty\s*\(\s*(\w+)\s*=>\s*\1\s*\.\s*LastMessageId",
+            RegexOptions.Compiled | RegexOptions.Singleline);
 
         // A hand-written UPDATE against the channel table. \W absorbs whatever quoting the literal
         // happened to use — "Channels" in a raw string, ""Channels"" in a verbatim one, \"Channels\"

@@ -427,6 +427,30 @@ public class AdminConsoleTests : TestBase
         Assert.That(duplicate.success, Is.False, "coupon codes are the redemption key and must stay unique");
     }
 
+    [Test, CancelAfter(120_000)]
+    public async Task RedeemCode_ConcurrentRedemptionsStopAtTheCouponLimit(CancellationToken ct = default)
+    {
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var code    = $"RACE{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        var created = await admin.CreateCoupon(
+            new CreateCouponInput(code, "race", DateTime.UtcNow.AddDays(-1), DateTime.UtcNow.AddDays(1), 2, null), ct);
+        Assert.That(created.success, Is.True, created.error);
+
+        var sessions = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => CreateSessionAsync(ct)));
+        var results  = await Task.WhenAll(sessions.Select(s => s.Inventory.RedeemCode(code, ct)));
+
+        var coupon = (await admin.GetCoupons(ct)).coupons.Values.Single(c => c.code == code);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(results.OfType<SuccessRedeem>().Count(), Is.EqualTo(2));
+            Assert.That(results.OfType<FailedRedeem>().Select(f => f.error), Is.All.EqualTo(RedeemError.LIMIT_REACHED));
+            Assert.That(coupon.redemptionCount, Is.EqualTo(2), "the coupon was redeemed past its limit");
+        });
+    }
+
     // ── Premium / subscription administration ───────────────────────────────────────────────────
 
     [Test, CancelAfter(120_000)]
