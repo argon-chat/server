@@ -1,7 +1,6 @@
 namespace Argon.Features.Repositories;
 
 using Shared;
-using System.Data;
 
 public interface IServerRepository
 {
@@ -25,8 +24,13 @@ public class ServerRepository(IDbContextFactory<ApplicationDbContext> context) :
         {
             ctx.ChangeTracker.Clear();
 
-            // Serializable so that two concurrent creations by one user cannot both pass the count.
-            await using var transaction = await ctx.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await ctx.Database.BeginTransactionAsync();
+
+            // Locking the creator's row first queues concurrent creations by the same user behind this
+            // one, so the count below sees what they committed instead of racing them into retries.
+            await ctx.Users
+               .Where(u => u.Id == initiator)
+               .ExecuteUpdateAsync(u => u.SetProperty(x => x.UpdatedAt, x => x.UpdatedAt));
 
             var owned = await ctx.Spaces.CountAsync(s => s.CreatorId == initiator);
             if (owned >= MaxOwnedSpacesPerUser)
