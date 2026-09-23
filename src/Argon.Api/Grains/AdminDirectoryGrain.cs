@@ -56,6 +56,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
 
         var space = await db.Spaces
            .AsNoTracking()
+           .AsSplitQuery()
            .Include(s => s.Channels.Where(c => !c.IsDeleted))
            .Include(s => s.ChannelGroups.Where(g => !g.IsDeleted))
            .Include(s => s.Archetypes.Where(a => !a.IsDeleted))
@@ -420,6 +421,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         if (Guid.TryParse(query, out var teamId))
         {
             var team = await db.TeamEntities
+               .AsSplitQuery()
                .Include(t => t.Members)
                .Include(t => t.Applications)
                .FirstOrDefaultAsync(t => t.TeamId == teamId && !t.IsDeleted, ct);
@@ -431,6 +433,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         // Search by name
         var normalizedQuery = query.Trim().ToLowerInvariant();
         var byName = await db.TeamEntities
+           .AsSplitQuery()
            .Include(t => t.Members)
            .Include(t => t.Applications)
            .FirstOrDefaultAsync(t => !t.IsDeleted && t.NormalizedName == normalizedQuery, ct);
@@ -446,6 +449,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
 
         var team = await db.TeamEntities
            .AsNoTracking()
+           .AsSplitQuery()
            .Include(t => t.Owner)
            .Include(t => t.Members).ThenInclude(m => m.User)
            .Include(t => t.Applications)
