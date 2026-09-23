@@ -123,9 +123,9 @@ public class BadgeAggregationService(
 
         await Task.WhenAll(readStatesTask, muteTask, badgeCountsTask);
 
-        var readStates   = readStatesTask.Result;
-        var muteSettings = muteTask.Result;
-        var badgeCounts  = badgeCountsTask.Result;
+        var readStates   = await readStatesTask;
+        var muteSettings = await muteTask;
+        var badgeCounts  = await badgeCountsTask;
 
         var mutedTargets = muteSettings
             .Where(m => m.MuteLevel == MuteLevel.All)

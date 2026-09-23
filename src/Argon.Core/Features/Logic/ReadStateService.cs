@@ -2,8 +2,10 @@ namespace Argon.Core.Features.Logic;
 
 using Argon.Core.Entities.Data;
 using Argon.Entities;
+using Argon.Features.EF;
 using Argon.Services;
 using StackExchange.Redis;
+using System.Data;
 
 public class ReadStateService(
     IDbContextFactory<ApplicationDbContext> contextFactory,
@@ -13,10 +15,8 @@ public class ReadStateService(
     private const int CacheDbId = 6;
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromHours(2);
 
-    // Rows one upsert may write, which keeps a statement well inside CockroachDB's intent limits.
+    // Rows one transaction may write, which keeps it well inside CockroachDB's intent limits.
     public const int RowsPerStatement = 5000;
-
-    private static readonly Guid LastUuid = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     private static string GetCacheKey(Guid userId) => $"read_state:{userId}";
     /// <summary>
@@ -54,39 +54,64 @@ public class ReadStateService(
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
-        // An ack that does not move the mark forward updates nothing and returns no row.
-        var acked = await ctx.Database.SqlQuery<Guid?>($"""
-            INSERT INTO "ChannelReadStates" ("UserId", "ChannelId", "SpaceId", "LastReadMessageId", "MentionCount", "UpdatedAt")
-            VALUES ({userId}, {channelId},
-                    COALESCE(CAST({spaceId} AS uuid),
-                             (SELECT c."SpaceId" FROM "Channels" c WHERE c."Id" = {channelId} AND c."IsDeleted" = false)),
-                    {messageId}, 0, now())
-            ON CONFLICT ("UserId", "ChannelId") DO UPDATE
-            SET "LastReadMessageId" = EXCLUDED."LastReadMessageId",
-                "MentionCount"      = 0,
-                "UpdatedAt"         = EXCLUDED."UpdatedAt",
-                "SpaceId"           = COALESCE("ChannelReadStates"."SpaceId", EXCLUDED."SpaceId")
-            WHERE "ChannelReadStates"."LastReadMessageId" < EXCLUDED."LastReadMessageId"
-            RETURNING "SpaceId" AS "Value"
-            """).ToListAsync(ct);
+        spaceId ??= await ctx.Channels
+           .Where(c => c.Id == channelId)
+           .Select(c => (Guid?)c.SpaceId)
+           .FirstOrDefaultAsync(ct);
 
-        if (acked.Count == 0)
+        // A stale ack moves nothing and leaves the cache alone.
+        if (!await MoveMarkForwardAsync(ctx, userId, channelId, spaceId, messageId, ct))
             return;
 
-        await UpdateCacheEntryAsync(userId, channelId, messageId, 0, acked[0]);
+        await UpdateCacheEntryAsync(userId, channelId, messageId, 0, spaceId);
+    }
+
+    private static async Task<bool> MoveMarkForwardAsync(ApplicationDbContext ctx, Guid userId, Guid channelId, Guid? spaceId,
+        long messageId, CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var moved = await ctx.ChannelReadStates
+               .Where(r => r.UserId == userId && r.ChannelId == channelId && r.LastReadMessageId < messageId)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(r => r.LastReadMessageId, messageId)
+                   .SetProperty(r => r.MentionCount, 0)
+                   .SetProperty(r => r.SpaceId, r => r.SpaceId ?? spaceId)
+                   .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+            if (moved > 0)
+                return true;
+
+            if (attempt > 0 || await ctx.ChannelReadStates.AnyAsync(r => r.UserId == userId && r.ChannelId == channelId, ct))
+                return false;
+
+            ctx.ChannelReadStates.Add(new ChannelReadStateEntity
+            {
+                UserId            = userId,
+                ChannelId         = channelId,
+                SpaceId           = spaceId,
+                LastReadMessageId = messageId,
+                MentionCount      = 0
+            });
+
+            try
+            {
+                await ctx.SaveChangesAsync(ct);
+                return true;
+            }
+            catch (DbUpdateException e) when (e.IsUniqueViolation())
+            {
+                // Another first ack for this channel got there first; move its mark instead.
+                ctx.ChangeTracker.Clear();
+            }
+        }
     }
 
     public async Task IncrementMentionsAsync(Guid userId, Guid channelId, Guid? spaceId, int delta = 1, CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
-        await ctx.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO "ChannelReadStates" ("UserId", "ChannelId", "SpaceId", "LastReadMessageId", "MentionCount", "UpdatedAt")
-            VALUES ({userId}, {channelId}, CAST({spaceId} AS uuid), 0, {delta}, now())
-            ON CONFLICT ("UserId", "ChannelId") DO UPDATE
-            SET "MentionCount" = "ChannelReadStates"."MentionCount" + EXCLUDED."MentionCount",
-                "UpdatedAt"    = EXCLUDED."UpdatedAt"
-            """, ct);
+        await AddMentionsAsync(ctx, channelId, spaceId, [userId], delta, ct);
 
         await InvalidateCacheAsync(userId);
     }
@@ -95,22 +120,12 @@ public class ReadStateService(
     {
         if (userIds.Count == 0) return;
 
-        // Distinct because one upsert statement may not touch the same row twice.
         var distinct = userIds.Distinct().ToArray();
 
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
         foreach (var chunk in distinct.Chunk(RowsPerStatement))
-        {
-            await ctx.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO "ChannelReadStates" ("UserId", "ChannelId", "SpaceId", "LastReadMessageId", "MentionCount", "UpdatedAt")
-                SELECT t.id, {channelId}, {spaceId}, 0, 1, now()
-                FROM unnest({chunk}) AS t(id)
-                ON CONFLICT ("UserId", "ChannelId") DO UPDATE
-                SET "MentionCount" = "ChannelReadStates"."MentionCount" + 1,
-                    "UpdatedAt"    = EXCLUDED."UpdatedAt"
-                """, ct);
-        }
+            await AddMentionsAsync(ctx, channelId, spaceId, chunk, 1, ct);
 
         await using var conn = redis.Rent();
         var cache = conn.GetDatabase(CacheDbId);
@@ -120,77 +135,91 @@ public class ReadStateService(
         logger.LogDebug("BatchIncrementMentions: {Count} users for channel {ChannelId}", distinct.Length, channelId);
     }
 
+    /// <summary>
+    /// Adds <paramref name="delta"/> mentions for each user, creating the rows they lack. Serializable, so a
+    /// concurrent first mention conflicts and is retried by the execution strategy instead of being lost.
+    /// </summary>
+    private static Task AddMentionsAsync(ApplicationDbContext ctx, Guid channelId, Guid? spaceId, IReadOnlyCollection<Guid> userIds,
+        int delta, CancellationToken ct)
+        => ctx.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
+        {
+            ctx.ChangeTracker.Clear();
+
+            await using var tx = await ctx.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
+
+            var rows     = ctx.ChannelReadStates.Where(r => r.ChannelId == channelId && userIds.Contains(r.UserId));
+            var existing = await rows.Select(r => r.UserId).ToListAsync(token);
+
+            if (existing.Count > 0)
+                await rows.ExecuteUpdateAsync(s => s
+                    .SetProperty(r => r.MentionCount, r => r.MentionCount + delta)
+                    .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), token);
+
+            var missing = userIds.Except(existing).ToList();
+
+            if (missing.Count > 0)
+            {
+                ctx.ChannelReadStates.AddRange(missing.Select(userId => new ChannelReadStateEntity
+                {
+                    UserId            = userId,
+                    ChannelId         = channelId,
+                    SpaceId           = spaceId,
+                    LastReadMessageId = 0,
+                    MentionCount      = delta
+                }));
+
+                await ctx.SaveChangesAsync(token);
+            }
+
+            await tx.CommitAsync(token);
+        }, ct);
+
     public Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, CancellationToken ct = default)
         => BumpEveryoneMentionsAsync(spaceId, channelId, senderId, RowsPerStatement, ct);
 
     /// <summary>
-    /// The members are walked in <c>UserId</c> order, one upsert per slice of
+    /// The members are walked in <c>UserId</c> order, one transaction per slice of
     /// <paramref name="rowsPerStatement"/>, so no single transaction writes every member row of a large space.
     /// </summary>
     public async Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, int rowsPerStatement, CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
-        // The nil uuid sorts below every member id and the all-ones uuid above every one.
+        var now   = DateTimeOffset.UtcNow;
         var after = Guid.Empty;
 
         while (true)
         {
-            var bound = await ctx.Database.SqlQuery<Guid>($"""
-                SELECT m."UserId" AS "Value"
-                FROM "UsersToServerRelations" m
-                WHERE m."SpaceId" = {spaceId}
-                  AND m."IsDeleted" = false
-                  AND m."UserId" > {after}
-                ORDER BY m."UserId"
-                OFFSET {rowsPerStatement - 1L} LIMIT 1
-                """).ToListAsync(ct);
+            // Mirrors MuteSettingsService.FilterMutedUsersAsync and the SuppressEveryone check in
+            // ChannelGrain.ProcessMentionsAsync.
+            var slice = await ctx.UsersToServerRelations
+               .Where(m => m.SpaceId == spaceId && m.UserId > after && m.UserId != senderId)
+               .Where(m => !ctx.MuteSettings.Any(mu => mu.UserId == m.UserId
+                                                     && (mu.TargetId == channelId || mu.TargetId == spaceId)
+                                                     && mu.MuteLevel == MuteLevel.All
+                                                     && (mu.MuteExpiresAt == null || mu.MuteExpiresAt > now)))
+               .Where(m => !ctx.MuteSettings.Any(su => su.UserId == m.UserId
+                                                     && su.SuppressEveryone
+                                                     && (su.TargetId == spaceId || su.TargetId == channelId)))
+               .OrderBy(m => m.UserId)
+               .Select(m => m.UserId)
+               .Take(rowsPerStatement)
+               .ToListAsync(ct);
 
-            var last = bound.Count == 0;
-            var upTo = last ? LastUuid : bound[0];
-
-            // Member enumeration plus the mute(All)/suppress-everyone exclusion all run in SQL, so the
-            // member list is never materialized in the silo heap. Semantics mirror IncrementMentionsAsync:
-            //   existing row -> MentionCount += 1, UpdatedAt = now
-            //   missing row  -> LastReadMessageId = 0, MentionCount = 1, UpdatedAt = now
-            // The mute/suppress predicates mirror MuteSettingsService.FilterMutedUsersAsync and the
-            // SuppressEveryone query in ChannelGrain.ProcessMentionsAsync. IsDeleted is filtered
-            // explicitly because raw SQL bypasses the global soft-delete query filter.
-            await ctx.Database.ExecuteSqlInterpolatedAsync($@"
-INSERT INTO ""ChannelReadStates"" (""UserId"", ""ChannelId"", ""SpaceId"", ""LastReadMessageId"", ""MentionCount"", ""UpdatedAt"")
-SELECT m.""UserId"", {channelId}, {spaceId}, 0, 1, now()
-FROM ""UsersToServerRelations"" m
-WHERE m.""SpaceId"" = {spaceId}
-  AND m.""IsDeleted"" = false
-  AND m.""UserId"" > {after}
-  AND m.""UserId"" <= {upTo}
-  AND m.""UserId"" <> {senderId}
-  AND NOT EXISTS (
-      SELECT 1 FROM ""MuteSettings"" mu
-      WHERE mu.""UserId"" = m.""UserId""
-        AND (mu.""TargetId"" = {channelId} OR mu.""TargetId"" = {spaceId})
-        AND mu.""MuteLevel"" = {(int)MuteLevel.All}
-        AND (mu.""MuteExpiresAt"" IS NULL OR mu.""MuteExpiresAt"" > now()))
-  AND NOT EXISTS (
-      SELECT 1 FROM ""MuteSettings"" su
-      WHERE su.""UserId"" = m.""UserId""
-        AND su.""SuppressEveryone"" = true
-        AND (su.""TargetId"" = {spaceId} OR su.""TargetId"" = {channelId}))
-ON CONFLICT (""UserId"", ""ChannelId"")
-DO UPDATE SET ""MentionCount"" = ""ChannelReadStates"".""MentionCount"" + 1,
-              ""UpdatedAt"" = EXCLUDED.""UpdatedAt""", ct);
-
-            if (last)
+            if (slice.Count == 0)
                 break;
 
-            after = upTo;
+            await AddMentionsAsync(ctx, channelId, spaceId, slice, 1, ct);
+
+            if (slice.Count < rowsPerStatement)
+                break;
+
+            after = slice[^1];
         }
 
-        // No per-user cache invalidation here: this path only runs for very large spaces where
-        // enumerating affected users would defeat the heap-free goal. Those read_state caches
-        // refresh on their 2h TTL. Spaces below the inline cap keep immediate invalidation via
-        // BatchIncrementMentionsAsync (see ChannelGrain.ProcessMentionsAsync).
-        logger.LogDebug("BumpEveryoneMentions (set-based) for channel {ChannelId} in space {SpaceId}", channelId, spaceId);
+        // No per-user cache invalidation here: this path only runs for very large spaces. Those
+        // read_state caches refresh on their 2h TTL; smaller spaces go through BatchIncrementMentionsAsync.
+        logger.LogDebug("BumpEveryoneMentions for channel {ChannelId} in space {SpaceId}", channelId, spaceId);
     }
 
     public async Task<List<ReadStateEntry>> GetReadStatesForSpaceAsync(Guid userId, Guid spaceId, CancellationToken ct = default)
