@@ -50,6 +50,9 @@ on:
           pinned defects are still open — and expect that run to be red while any of them are.
         type: boolean
         default: false
+    secrets:
+      CODECOV_TOKEN:
+        required: false
 
 jobs:
   # The matrix has to be a literal list and GitHub has no range expression, so one tiny job turns
@@ -190,6 +193,17 @@ jobs:
       - name: Merge coverage and apply the threshold
         shell: pwsh
         run: ./scipts/run-tests.ps1 -MergeCoverageFrom shard-coverage -Threshold ${{ inputs.threshold }}
+
+      # `!cancelled()` so a run under the threshold still reports; a red shard's number is not kept.
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && needs.test.result == 'success' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: artifacts/coverage/Cobertura.xml
+          disable_search: true
+          flags: ${{ inputs.database }}
+          fail_ci_if_error: false
 
       # Only a run whose every shard passed has a number worth comparing or keeping: a red shard
       # leaves coverage short (a cancelled master run once recorded 20%).

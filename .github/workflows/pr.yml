@@ -69,3 +69,5 @@ jobs:
       threshold: 50
       ratchet: true
       ratchetTolerance: 0.1
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

@@ -1,0 +1,13 @@
+# The gate is tests.yml (threshold + ratchet); Codecov only reports.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "condensed_header, diff, flags, files"
+  require_changes: true
