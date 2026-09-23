@@ -5,7 +5,6 @@ using Argon.Entities;
 using Argon.Features.EF;
 using Argon.Services;
 using StackExchange.Redis;
-using System.Data;
 
 public class ReadStateService(
     IDbContextFactory<ApplicationDbContext> contextFactory,
@@ -136,43 +135,56 @@ public class ReadStateService(
     }
 
     /// <summary>
-    /// Adds <paramref name="delta"/> mentions for each user, creating the rows they lack. Serializable, so a
-    /// concurrent first mention conflicts and is retried by the execution strategy instead of being lost.
+    /// Adds <paramref name="delta"/> mentions for each user, creating the rows they lack. The increment is a
+    /// single UPDATE, so racing writers wait on the row lock instead of failing serialization.
     /// </summary>
-    private static Task AddMentionsAsync(ApplicationDbContext ctx, Guid channelId, Guid? spaceId, IReadOnlyCollection<Guid> userIds,
+    private static async Task AddMentionsAsync(ApplicationDbContext ctx, Guid channelId, Guid? spaceId, IReadOnlyCollection<Guid> userIds,
         int delta, CancellationToken ct)
-        => ctx.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
+    {
+        var pending = userIds;
+
+        while (pending.Count > 0)
         {
             ctx.ChangeTracker.Clear();
 
-            await using var tx = await ctx.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
-
-            var rows     = ctx.ChannelReadStates.Where(r => r.ChannelId == channelId && userIds.Contains(r.UserId));
-            var existing = await rows.Select(r => r.UserId).ToListAsync(token);
+            var existing = await ctx.ChannelReadStates
+               .Where(r => r.ChannelId == channelId && pending.Contains(r.UserId))
+               .Select(r => r.UserId)
+               .ToListAsync(ct);
 
             if (existing.Count > 0)
-                await rows.ExecuteUpdateAsync(s => s
-                    .SetProperty(r => r.MentionCount, r => r.MentionCount + delta)
-                    .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), token);
+                await ctx.ChannelReadStates
+                   .Where(r => r.ChannelId == channelId && existing.Contains(r.UserId))
+                   .ExecuteUpdateAsync(s => s
+                       .SetProperty(r => r.MentionCount, r => r.MentionCount + delta)
+                       .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), ct);
 
-            var missing = userIds.Except(existing).ToList();
+            var missing = pending.Except(existing).ToList();
 
-            if (missing.Count > 0)
+            if (missing.Count == 0)
+                return;
+
+            ctx.ChannelReadStates.AddRange(missing.Select(userId => new ChannelReadStateEntity
             {
-                ctx.ChannelReadStates.AddRange(missing.Select(userId => new ChannelReadStateEntity
-                {
-                    UserId            = userId,
-                    ChannelId         = channelId,
-                    SpaceId           = spaceId,
-                    LastReadMessageId = 0,
-                    MentionCount      = delta
-                }));
+                UserId            = userId,
+                ChannelId         = channelId,
+                SpaceId           = spaceId,
+                LastReadMessageId = 0,
+                MentionCount      = delta
+            }));
 
-                await ctx.SaveChangesAsync(token);
+            try
+            {
+                await ctx.SaveChangesAsync(ct);
+                return;
             }
-
-            await tx.CommitAsync(token);
-        }, ct);
+            catch (DbUpdateException e) when (e.IsUniqueViolation())
+            {
+                // Another first mention created some of these rows; count ours on them as an update.
+                pending = missing;
+            }
+        }
+    }
 
     public Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, CancellationToken ct = default)
         => BumpEveryoneMentionsAsync(spaceId, channelId, senderId, RowsPerStatement, ct);
