@@ -87,14 +87,17 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
     /// instead, which on a shorter name returns a truncated string rather than nothing — the same
     /// malformed room was then reported as an unparseable guid there and skipped outright here. One
     /// reader for every branch, so a room name is malformed in exactly one way.
+    /// <para>A name longer than 73 characters is not a voice channel's room (a suffixed side room, a
+    /// meeting) and is ignored rather than read as the channel its prefix names.</para>
     /// </remarks>
     private static (Guid? SpaceId, Guid? ChannelId, Guid? UserId) ParseRoomParticipant(WebhookEvent ev)
     {
         var roomName  = ev.Room?.Name ?? "";
         var identity  = ev.Participant?.Identity ?? "";
 
-        var spaceStr   = roomName.Length >= 36 ? roomName[..36] : "";
-        var channelStr = roomName.Length >= 73 ? roomName.Substring(37, 36) : "";
+        var isChannelRoom = roomName.Length == 73;
+        var spaceStr      = isChannelRoom ? roomName[..36] : "";
+        var channelStr    = isChannelRoom ? roomName.Substring(37, 36) : "";
 
         Guid? spaceId   = Guid.TryParse(spaceStr, out var s) ? s : null;
         Guid? channelId = Guid.TryParse(channelStr, out var c) ? c : null;

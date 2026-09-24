@@ -9,8 +9,49 @@ public enum SfuPermissionKind
     DefaultBot
 }
 
+/// <summary>What a participant may publish and whether it may listen, on top of its kind's grants.</summary>
+[Flags]
+public enum SfuMediaRights
+{
+    None        = 0,
+    Microphone  = 1 << 0,
+    Camera      = 1 << 1,
+    ScreenShare = 1 << 2,
+    Listen      = 1 << 3,
+    All         = Microphone | Camera | ScreenShare | Listen
+}
+
 public record SfuPermission
 {
+    public static VideoGrants For(SfuPermissionKind flag, string roomId, SfuMediaRights rights)
+    {
+        var grants = For(flag, roomId);
+        if (rights == SfuMediaRights.All)
+            return grants;
+
+        // LiveKit reads an empty source list as "any source", so no source at all has to be CanPublish = false.
+        var sources = PublishSources(rights);
+        grants.CanPublish        = sources.Count > 0;
+        grants.CanPublishSources = sources.Select(x => x.ToFormatString()).ToList();
+        grants.CanSubscribe      = rights.HasFlag(SfuMediaRights.Listen);
+        return grants;
+    }
+
+    public static List<TrackSource> PublishSources(SfuMediaRights rights)
+    {
+        var sources = new List<TrackSource>();
+        if (rights.HasFlag(SfuMediaRights.Microphone))
+            sources.Add(TrackSource.Microphone);
+        if (rights.HasFlag(SfuMediaRights.Camera))
+            sources.Add(TrackSource.Camera);
+        if (rights.HasFlag(SfuMediaRights.ScreenShare))
+        {
+            sources.Add(TrackSource.ScreenShare);
+            sources.Add(TrackSource.ScreenShareAudio);
+        }
+        return sources;
+    }
+
     public static VideoGrants For(SfuPermissionKind flag, string roomId)
         => flag switch
         {

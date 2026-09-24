@@ -1,6 +1,7 @@
 namespace ArgonComplexTest;
 
 using Argon.Core.Features.Integrations.Xsolla;
+using Livekit.Server.Sdk.Dotnet;
 using Argon.Features.Clustering;
 using Argon.Features.EF;
 using Argon.Features.Testing;
@@ -33,6 +34,10 @@ public sealed record ArgonTestHostSettings(
 
 public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicationFactory<Program>
 {
+    public const string SfuCommandUrl = "http://localhost:7880";
+    public const string SfuClientId   = "test-api-key";
+    public const string SfuSecret     = "test-secret-key-that-is-long-enough-to-be-256-bits-minimum-for-livekit";
+
     public ArgonTestHostSettings Settings => settings;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -57,6 +62,13 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         {
             services.AddSingleton<FakeXsollaService>();
             services.AddSingleton<IXsollaService>(sp => sp.GetRequiredService<FakeXsollaService>());
+
+            // No SFU runs in the suite; its Twirp API is answered and recorded in-process instead.
+            services.AddSingleton<FakeLiveKit>();
+            services.AddScoped(sp => new RoomServiceClient(SfuCommandUrl, SfuClientId, SfuSecret,
+                new HttpClient(sp.GetRequiredService<FakeLiveKit>(), disposeHandler: false)));
+            services.AddScoped(sp => new EgressServiceClient(SfuCommandUrl, SfuClientId, SfuSecret,
+                new HttpClient(sp.GetRequiredService<FakeLiveKit>(), disposeHandler: false)));
 
             // Somewhere for outgoing mail to land. There is no SMTP server in the suite and every
             // test address is under .local, which resolves to nothing, so EmailManager drops each
@@ -149,9 +161,14 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("Storage:Cdn:RedirectCacheSeconds", "300");
         builder.UseSetting("Storage:UseSsl", "false");
 
-        builder.UseSetting("CallKit:Sfu:CommandUrl", "http://localhost:7880");
-        builder.UseSetting("CallKit:Sfu:ClientId", "test-api-key");
-        builder.UseSetting("CallKit:Sfu:Secret", "test-secret-key-that-is-long-enough-to-be-256-bits-minimum-for-livekit");
+        builder.UseSetting("CallKit:Sfu:CommandUrl", SfuCommandUrl);
+        builder.UseSetting("CallKit:Sfu:ClientId", SfuClientId);
+        builder.UseSetting("CallKit:Sfu:Secret", SfuSecret);
+        builder.UseSetting("CallKit:Sfu:S3:Endpoint", "http://localhost:9000");
+        builder.UseSetting("CallKit:Sfu:S3:Bucket", "recordings");
+        builder.UseSetting("CallKit:Sfu:S3:AccessKey", "test");
+        builder.UseSetting("CallKit:Sfu:S3:Secret", "test");
+        builder.UseSetting("CallKit:Sfu:S3:Region", "us-east-1");
 
         // Nothing answers at that URL; see RoleHost for why the SFU check is kept off the startup probe.
         builder.UseSetting("Probes:Dependencies:Overrides:sfu:Startup", "Degrade");

@@ -81,7 +81,7 @@ public sealed class MessagesFeature : IArgonFeature
 /// constructor looking for services its role forgot to register.</para>
 ///
 /// <para>It came due on <c>voice</c>, which takes this feature for <c>CallGrain</c> and
-/// <c>SipGrain</c> and never took the bus. Hanging up a call answered <c>500</c> with
+/// <c>UssdGrain</c> and never took the bus. Hanging up a call answered <c>500</c> with
 /// "No service for type AppHubServer has been registered" — raised inside the notify, after the call
 /// had already been torn down, so the hangup half-succeeded and the caller was told it failed.</para>
 ///

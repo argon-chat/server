@@ -56,6 +56,7 @@ export const allEntitlements: EntitlementInfo[] = [
   { bit: 1n << 42n, key: 'BanMember',        label: 'Ban Members',        description: 'Allows banning users from the space',   category: 'moderation', dangerous: true },
   { bit: 1n << 43n, key: 'MuteMember',       label: 'Mute Members',       description: 'Allows muting users in voice channels', category: 'moderation', dangerous: true },
   { bit: 1n << 44n, key: 'KickMember',       label: 'Kick Members',       description: 'Allows kicking users from the space',   category: 'moderation', dangerous: true },
+  { bit: 1n << 45n, key: 'DeafenMember',     label: 'Deafen Members',     description: 'Allows deafening users in voice channels', category: 'moderation', dangerous: true },
 
   // Admin
   { bit: 1n << 50n, key: 'ManageChannels',  label: 'Manage Channels',    description: 'Allows creating, editing, and deleting channels', category: 'admin', dangerous: true },

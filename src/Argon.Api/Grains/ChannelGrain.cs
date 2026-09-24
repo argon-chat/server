@@ -56,6 +56,7 @@ public class ChannelGrain(
     private ArgonRoomId   ChannelId => new(SpaceId, this.GetPrimaryKey());
 
     private readonly Dictionary<Guid, IGrainTimer> _botTypingTimers = new();
+    private readonly Dictionary<Guid, IGrainTimer> _moveEvictions   = new();
 
     // ── Reaction buffer ──────────────────────────────────────
     private readonly Dictionary<long, List<MessageReactionData>> _reactionCache = new();
@@ -368,14 +369,169 @@ public class ChannelGrain(
             return false;
         }
 
-        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
-           .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
+        if (!state.State.Users.ContainsKey(memberId))
+        {
+            ChannelGrainInstrument.MemberKicks.Add(1,
+                new KeyValuePair<string, object?>("result", "not_in_channel"));
+            return false;
+        }
+
+        await VoiceControl.KickParticipantAsync(new ArgonUserId(memberId), ChannelId);
+        // The webhook is not configured everywhere, so the roster cannot wait for participant_left.
+        await Leave(memberId);
 
         ChannelGrainInstrument.MemberKicks.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
 
-        return result;
+        return true;
     }
+
+    public async Task<IMoveVoiceMemberResult> MoveVoiceMember(Guid memberId, Guid targetChannelId)
+    {
+        var error = await TryMoveVoiceMemberAsync(memberId, targetChannelId);
+
+        ChannelGrainInstrument.MemberMoves.Add(1,
+            new KeyValuePair<string, object?>("result", error.ToString().ToLowerInvariant()));
+
+        return error == MoveVoiceMemberError.NONE
+            ? new SuccessMoveVoiceMember()
+            : new FailedMoveVoiceMember(error);
+    }
+
+    private async Task<MoveVoiceMemberError> TryMoveVoiceMemberAsync(Guid memberId, Guid targetChannelId)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        if (targetChannelId == channelId)
+            return MoveVoiceMemberError.SAME_CHANNEL;
+        if (!state.State.Users.ContainsKey(memberId))
+            return MoveVoiceMemberError.MEMBER_NOT_IN_CHANNEL;
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.MoveMember))
+            return MoveVoiceMemberError.INSUFFICIENT_PERMISSIONS;
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var targetType = await ctx.Channels.AsNoTracking()
+           .Where(c => c.Id == targetChannelId && c.SpaceId == SpaceId && !c.IsDeleted)
+           .Select(c => (ChannelType?)c.ChannelType)
+           .FirstOrDefaultAsync();
+
+        if (targetType is null)
+            return MoveVoiceMemberError.TARGET_NOT_FOUND;
+        if (targetType != ChannelType.Voice)
+            return MoveVoiceMemberError.TARGET_IS_NOT_VOICE;
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, targetChannelId, callerId, ArgonEntitlement.MoveMember))
+            return MoveVoiceMemberError.INSUFFICIENT_PERMISSIONS;
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, targetChannelId, memberId, ArgonEntitlement.Connect))
+            return MoveVoiceMemberError.MEMBER_CANNOT_JOIN_TARGET;
+
+        await appHubServer.ForUser(new VoiceMoveRequested(SpaceId, channelId, targetChannelId, callerId), memberId);
+        ArmMoveEviction(memberId);
+
+        return MoveVoiceMemberError.NONE;
+    }
+
+    /// <summary>How long a moved member's client has to leave this room before it is removed.</summary>
+    public static TimeSpan MoveGrace { get; set; } = TimeSpan.FromSeconds(10);
+
+    // LIVEKIT-FORK: self-hosted LiveKit has no MoveParticipant, so the client reconnects on
+    // VoiceMoveRequested and this evicts one that did not. Goes away once the SFU moves participants.
+    private void ArmMoveEviction(Guid memberId)
+    {
+        if (_moveEvictions.Remove(memberId, out var previous))
+            previous.Dispose();
+
+        _moveEvictions[memberId] = this.RegisterGrainTimer(async _ =>
+        {
+            if (_moveEvictions.Remove(memberId, out var timer))
+                timer.Dispose();
+            if (!state.State.Users.ContainsKey(memberId))
+                return;
+
+            await VoiceControl.KickParticipantAsync(new ArgonUserId(memberId), ChannelId);
+            await Leave(memberId);
+        }, new GrainTimerCreationOptions(MoveGrace, Timeout.InfiniteTimeSpan));
+    }
+
+    public async Task UpdateVoiceState(ChannelMemberState requested)
+    {
+        if (!state.State.Users.TryGetValue(this.GetUserId(), out var member))
+            return;
+
+        await SetMemberStateAsync(member, (member.state & ServerVoiceFlags) | (requested & SelfVoiceFlags));
+    }
+
+    public async Task ApplyVoiceRestriction(Guid memberId, bool muted, bool deafened)
+    {
+        if (!state.State.Users.TryGetValue(memberId, out var member))
+            return;
+
+        await SetMemberStateAsync(member, (member.state & SelfVoiceFlags) | ServerFlagsFor(muted, deafened));
+        await VoiceControl.UpdateParticipantRightsAsync(new ArgonUserId(memberId), ChannelId,
+            await MediaRightsAsync(memberId, muted, deafened));
+    }
+
+    public Task ReleaseMember(Guid userId)
+        => Leave(userId);
+
+    private const ChannelMemberState SelfVoiceFlags =
+        ChannelMemberState.MUTED | ChannelMemberState.MUTED_HEADPHONES | ChannelMemberState.STREAMING;
+
+    private const ChannelMemberState ServerVoiceFlags =
+        ChannelMemberState.MUTED_BY_SERVER | ChannelMemberState.MUTED_HEADPHONES_BY_SERVER;
+
+    private static ChannelMemberState ServerFlagsFor(bool muted, bool deafened)
+        => (muted ? ChannelMemberState.MUTED_BY_SERVER : ChannelMemberState.NONE)
+         | (deafened ? ChannelMemberState.MUTED_HEADPHONES_BY_SERVER : ChannelMemberState.NONE);
+
+    private async Task SetMemberStateAsync(RealtimeChannelUser member, ChannelMemberState next)
+    {
+        if (member.state == next)
+            return;
+
+        state.State.Users[member.userId] = member with { state = next };
+        await Fire(new VoiceMemberStateChanged(SpaceId, this.GetPrimaryKey(), member.userId, next));
+    }
+
+    private async Task<(bool Muted, bool Deafened)> ReadVoiceRestrictionAsync(Guid userId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        var member = await ctx.UsersToServerRelations.AsNoTracking()
+           .Where(m => m.SpaceId == SpaceId && m.UserId == userId && !m.IsDeleted)
+           .Select(m => new { m.IsVoiceMuted, m.IsVoiceDeafened })
+           .FirstOrDefaultAsync();
+
+        return (member?.IsVoiceMuted ?? false, member?.IsVoiceDeafened ?? false);
+    }
+
+    private async Task<SfuMediaRights> MediaRightsAsync(Guid userId, bool muted, bool deafened)
+    {
+        var channelId = this.GetPrimaryKey();
+        var rights    = deafened ? SfuMediaRights.None : SfuMediaRights.Listen;
+
+        if (!muted && !deafened
+         && await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.Speak))
+            rights |= SfuMediaRights.Microphone;
+        if (await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.Video))
+            rights |= SfuMediaRights.Camera;
+        if (await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.Stream))
+            rights |= SfuMediaRights.ScreenShare;
+
+        return rights;
+    }
+
+    /// <summary>A member is in one voice channel per space: joining here drops them from the last one.</summary>
+    private async Task LeavePreviousVoiceChannelAsync(Guid userId)
+    {
+        var slot = await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).GetUserVoiceSlotAsync(userId);
+        if (slot is null || slot.ChannelId == this.GetPrimaryKey())
+            return;
+
+        // One-way: two members swapping channels at once would otherwise wait on each other's grain.
+        await this.GrainFactory.GetGrain<IChannelGrain>(slot.ChannelId).ReleaseMember(userId);
+    }
+
+    private IVoiceControlGrain VoiceControl => this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty);
 
     public async Task<bool> BeginRecord(CancellationToken ct = default)
     {
@@ -431,19 +587,27 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.Connect))
+            return JoinToChannelError.INSUFFICIENT_PERMISSIONS;
+
         if (state.State.UserJoinTimes.TryGetValue(userId, out _))
         {
             await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(userId);
             state.State.Users.Remove(userId);
             await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
-            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
+            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId, this.GetPrimaryKey());
         }
+        else
+            await LeavePreviousVoiceChannelAsync(userId);
 
         // Settle XP for existing users before adding new one
         await SettleXpForAllUsersAsync();
 
-        state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
+        var (muted, deafened) = await ReadVoiceRestrictionAsync(userId);
+        var flags             = ServerFlagsFor(muted, deafened);
+
+        state.State.Users.Add(userId, new RealtimeChannelUser(userId, flags));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
         await state.WriteStateAsync();
 
@@ -451,6 +615,8 @@ public class ChannelGrain(
         _ = TrackCallJoinedAsync(userId);
 
         await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        if (flags != ChannelMemberState.NONE)
+            await Fire(new VoiceMemberStateChanged(SpaceId, this.GetPrimaryKey(), userId, flags));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
 
         if (state.State.Users.Count > 0)
@@ -461,8 +627,8 @@ public class ChannelGrain(
         
         ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
 
-        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
-            new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermissionKind.DefaultUser);
+        return await VoiceControl.IssueAuthorizationTokenAsync(new ArgonUserId(userId), ChannelId, SfuPermissionKind.DefaultUser,
+            await MediaRightsAsync(userId, muted, deafened));
     }
 
     public async Task<Either<DrawingSessionDescriptor, DrawingDenyKind>> StartDrawingSession()
@@ -538,8 +704,10 @@ public class ChannelGrain(
         }
 
         state.State.Users.Remove(userId);
+        if (_moveEvictions.Remove(userId, out var eviction))
+            eviction.Dispose();
         await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
-        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
+        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId, this.GetPrimaryKey());
         await state.WriteStateAsync();
 
         // End the streamer's drawing session if they left the channel.
@@ -569,11 +737,16 @@ public class ChannelGrain(
 
         await SettleXpForAllUsersAsync();
 
-        state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
+        var (muted, deafened) = await ReadVoiceRestrictionAsync(userId);
+        var flags             = ServerFlagsFor(muted, deafened);
+
+        state.State.Users.Add(userId, new RealtimeChannelUser(userId, flags));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
         await state.WriteStateAsync();
 
         await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        if (flags != ChannelMemberState.NONE)
+            await Fire(new VoiceMemberStateChanged(SpaceId, this.GetPrimaryKey(), userId, flags));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
 
         if (state.State.Users.Count > 0)

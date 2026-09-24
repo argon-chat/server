@@ -128,6 +128,8 @@ $presenceFixtures = @(
 # CosmeticEquipTests (added 2026-09-23, with worn cosmetics) goes the same way and for the same
 # reason: eight tests of the same session-and-space shape, into the lighter shard.
 # IonRealtimeTests (added 2026-09-23, with the Ion realtime stream) likewise, into the first shard.
+# VoiceModerationTests, LiveKitWebhookTests and UssdTests (added 2026-09-24, with voice moderation;
+# ~15 s together, measured) likewise, into the first shard.
 $generalShards = @(
     @(   # ~237 s serial
         'AccountConsoleTests'
@@ -146,6 +148,7 @@ $generalShards = @(
         'IdentityTests'
         'InviteCardEndpointTests'
         'IonRealtimeTests'
+        'LiveKitWebhookTests'
         'MediaUploadTests'
         'ModerationTests'
         'NotificationCounterTests'
@@ -158,6 +161,8 @@ $generalShards = @(
         'SpaceAndChannelTests'
         'SpaceSnapshotTests'
         'SpaceTests'
+        'UssdTests'
+        'VoiceModerationTests'
     ),
     @(   # ~272 s serial
         'AegisOAuthTests'

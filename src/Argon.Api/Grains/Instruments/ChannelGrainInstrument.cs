@@ -49,6 +49,14 @@ public static class ChannelGrainInstrument
         InstrumentNames.ChannelMemberKicks,
         description: "Total number of channel member kicks");
 
+    public static readonly Counter<long> MemberMoves = Meter.CreateCounter<long>(
+        InstrumentNames.ChannelMemberMoves,
+        description: "Voice member moves requested by moderators, tagged by result");
+
+    public static readonly Counter<long> VoiceModerations = Meter.CreateCounter<long>(
+        InstrumentNames.ChannelVoiceModerations,
+        description: "Server mute/deafen changes, tagged by the resulting flags");
+
     public static readonly Counter<long> ReactionsAdded = Meter.CreateCounter<long>(
         InstrumentNames.ChannelReactionsAdded,
         description: "Total number of reactions added");

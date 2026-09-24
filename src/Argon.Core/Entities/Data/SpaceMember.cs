@@ -11,6 +11,12 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
     /// <summary>Id of the <see cref="SpaceInvite"/> the member joined through, if any (null for owners / direct joins).</summary>
     public ulong? JoinedViaInviteId { get; set; }
 
+    /// <summary>Server mute: the member may not publish a microphone in any voice channel of the space.</summary>
+    public bool IsVoiceMuted { get; set; }
+
+    /// <summary>Server deafen: the member hears nothing, and cannot speak either, in any voice channel of the space.</summary>
+    public bool IsVoiceDeafened { get; set; }
+
     public virtual UserEntity  User  { get; set; }
     public virtual SpaceEntity Space { get; set; }
 

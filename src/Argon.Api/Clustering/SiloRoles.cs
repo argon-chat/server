@@ -119,7 +119,7 @@ public sealed class VoiceRole : IArgonRole
 {
     public static ArgonRoleId Id => ArgonRoleId.Voice;
 
-    public string Description => "voice control, calls, SIP";
+    public string Description => "voice control, calls, USSD";
     public bool   IsClient    => false;
 
     public void OnFeatures(IArgonFeatureRegistry features)
@@ -140,9 +140,9 @@ public sealed class VoiceRole : IArgonRole
     {
         registry.AddToRef<VoiceControlGrain>();
         registry.AddToRef<CallGrain>();
-        registry.AddToRef<SipGrain>();
+        registry.AddToRef<UssdGrain>();
 
-        registry.AcceptRemote<IFeatureFlagGrain>("single call site in SipGrain; not worth co-hosting core's flags");
+        registry.AcceptRemote<IFeatureFlagGrain>("single call site in UssdGrain; not worth co-hosting core's flags");
     }
 }
 

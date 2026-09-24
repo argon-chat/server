@@ -252,6 +252,9 @@ public abstract class TestBase
     protected FakeXsollaService GetFakeXsolla()
         => FactoryAsp.Services.GetRequiredService<FakeXsollaService>();
 
+    protected FakeLiveKit GetFakeLiveKit()
+        => FactoryAsp.Services.GetRequiredService<FakeLiveKit>();
+
     protected IGrainFactory GetGrainFactory()
         => FactoryAsp.Services.GetRequiredService<IGrainFactory>();
 

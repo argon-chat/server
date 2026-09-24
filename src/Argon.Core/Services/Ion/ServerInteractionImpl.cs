@@ -94,6 +94,10 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task<SpaceDeletionState> GetSpaceDeletionState(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceDeletionGrain>(spaceId).GetStateAsync();
 
+    public async Task<IVoiceModerationResult> SetMemberVoiceModeration(Guid spaceId, Guid memberId, bool? muted, bool? deafened,
+        CancellationToken ct = default)
+        => await this.GetGrain<ISpaceGrain>(spaceId).SetMemberVoiceModeration(memberId, muted, deafened, ct);
+
     public async Task<ArgonUser> PrefetchUser(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchUser(userId, ct);
 

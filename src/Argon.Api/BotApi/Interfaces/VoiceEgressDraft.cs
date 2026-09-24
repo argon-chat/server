@@ -55,7 +55,7 @@ public sealed class VoiceEgressDraft(IGrainFactory grains, IOptions<CallKitOptio
                         new ArgonUserId(ctx.GetBotAsUserId()),
                         roomId,
                         SfuPermissionKind.DefaultBot,
-                        ctx.RequestAborted);
+                        ct: ctx.RequestAborted);
 
                 return new SubscribeTrackResponse(
                     token,

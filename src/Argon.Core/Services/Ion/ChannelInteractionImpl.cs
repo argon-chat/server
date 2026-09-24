@@ -191,6 +191,13 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
     public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).KickMemberFromChannel(memberId);
 
+    public async Task<IMoveVoiceMemberResult> MoveVoiceMember(Guid spaceId, Guid channelId, Guid memberId, Guid targetChannelId,
+        CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).MoveVoiceMember(memberId, targetChannelId);
+
+    public async Task UpdateVoiceState(Guid spaceId, Guid channelId, ChannelMemberState state, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).UpdateVoiceState(state);
+
     public async Task<IStartDrawingResult> StartDrawingSession(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IChannelGrain>(channelId).StartDrawingSession();

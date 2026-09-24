@@ -183,8 +183,13 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(OnUserJoinedVoiceAsync))]
     Task OnUserJoinedVoiceAsync(Guid userId, Guid channelId, DateTimeOffset joinedAt);
 
+    /// <summary>Forgets the user's slot only while it still points at <paramref name="channelId"/>.</summary>
     [Alias(nameof(OnUserLeftVoiceAsync))]
-    Task OnUserLeftVoiceAsync(Guid userId);
+    Task OnUserLeftVoiceAsync(Guid userId, Guid channelId);
+
+    /// <summary>Server mute/deafen of a member: stored on the membership and applied to their voice channel.</summary>
+    [Alias(nameof(SetMemberVoiceModeration))]
+    Task<IVoiceModerationResult> SetMemberVoiceModeration(Guid memberId, bool? muted, bool? deafened, CancellationToken ct = default);
 
     [Alias(nameof(GetUserVoiceSlotAsync))]
     Task<VoiceSlot?> GetUserVoiceSlotAsync(Guid userId);

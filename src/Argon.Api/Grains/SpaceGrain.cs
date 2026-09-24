@@ -18,6 +18,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.GrainDirectory;
 using Persistence.States;
 using Services.L1L2;
+using Instruments;
 using System.Linq;
 
 public class SpaceGrain(
@@ -1600,11 +1601,56 @@ public class SpaceGrain(
         return state.WriteStateAsync();
     }
 
-    public Task OnUserLeftVoiceAsync(Guid userId)
+    public Task OnUserLeftVoiceAsync(Guid userId, Guid channelId)
     {
-        if (!state.State.VoiceMembers.Remove(userId))
+        // A late leave from the previous room must not erase the slot of the room the user is in now.
+        if (!state.State.VoiceMembers.TryGetValue(userId, out var slot) || slot.ChannelId != channelId)
             return Task.CompletedTask;
+
+        state.State.VoiceMembers.Remove(userId);
         return state.WriteStateAsync();
+    }
+
+    public async Task<IVoiceModerationResult> SetMemberVoiceModeration(Guid memberId, bool? muted, bool? deafened,
+        CancellationToken ct = default)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        if (muted.HasValue && !await entitlementChecker.HasAccessAsync(ctx, spaceId, callerId, ArgonEntitlement.MuteMember, ct))
+            return new FailedVoiceModeration(VoiceModerationError.INSUFFICIENT_PERMISSIONS);
+        if (deafened.HasValue && !await entitlementChecker.HasAccessAsync(ctx, spaceId, callerId, ArgonEntitlement.DeafenMember, ct))
+            return new FailedVoiceModeration(VoiceModerationError.INSUFFICIENT_PERMISSIONS);
+
+        var member = await ctx.UsersToServerRelations
+           .FirstOrDefaultAsync(m => m.SpaceId == spaceId && m.UserId == memberId && !m.IsDeleted, ct);
+        if (member is null)
+            return new FailedVoiceModeration(VoiceModerationError.MEMBER_NOT_FOUND);
+
+        var ownerId = await ctx.Spaces.Where(s => s.Id == spaceId).Select(s => s.CreatorId).FirstAsync(ct);
+        if (memberId == ownerId && callerId != ownerId)
+            return new FailedVoiceModeration(VoiceModerationError.CANNOT_MODERATE_OWNER);
+
+        var nextMuted    = muted ?? member.IsVoiceMuted;
+        var nextDeafened = deafened ?? member.IsVoiceDeafened;
+
+        if (nextMuted != member.IsVoiceMuted || nextDeafened != member.IsVoiceDeafened)
+        {
+            member.IsVoiceMuted    = nextMuted;
+            member.IsVoiceDeafened = nextDeafened;
+            await ctx.SaveChangesAsync(ct);
+
+            ChannelGrainInstrument.VoiceModerations.Add(1,
+                new KeyValuePair<string, object?>("muted", nextMuted),
+                new KeyValuePair<string, object?>("deafened", nextDeafened));
+
+            if (state.State.VoiceMembers.TryGetValue(memberId, out var slot))
+                await grainFactory.GetGrain<IChannelGrain>(slot.ChannelId).ApplyVoiceRestriction(memberId, nextMuted, nextDeafened);
+        }
+
+        return new SuccessVoiceModeration(nextMuted, nextDeafened);
     }
 
     public Task<VoiceSlot?> GetUserVoiceSlotAsync(Guid userId)

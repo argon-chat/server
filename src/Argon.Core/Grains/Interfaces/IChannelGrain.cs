@@ -86,6 +86,25 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<bool> KickMemberFromChannel(Guid memberId);
 
     /// <summary>
+    /// Tells a member of this voice channel to reconnect to <paramref name="targetChannelId"/>, and
+    /// evicts them from this room if they are still here after <c>ChannelGrain.MoveGrace</c>.
+    /// </summary>
+    [Alias(nameof(MoveVoiceMember))]
+    Task<IMoveVoiceMemberResult> MoveVoiceMember(Guid memberId, Guid targetChannelId);
+
+    /// <summary>The caller's own mute/deafen/stream flags; the server-set flags are kept as they are.</summary>
+    [Alias(nameof(UpdateVoiceState))]
+    Task UpdateVoiceState(ChannelMemberState state);
+
+    /// <summary>Applies a space-wide server mute/deafen to a member currently in this channel.</summary>
+    [OneWay, Alias(nameof(ApplyVoiceRestriction))]
+    Task ApplyVoiceRestriction(Guid memberId, bool muted, bool deafened);
+
+    /// <summary><see cref="Leave"/> without waiting: used when the member joined another voice channel.</summary>
+    [OneWay, Alias(nameof(ReleaseMember))]
+    Task ReleaseMember(Guid userId);
+
+    /// <summary>
     /// Opens a screencast drawing session for the caller's active share. Validates the
     /// feature flag, computes the allowed-drawers set (CanDrawOnStream entitlement AND the
     /// streamer's "stream.draw" privacy rule) and broadcasts DrawingSessionStarted.

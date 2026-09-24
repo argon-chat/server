@@ -778,6 +778,8 @@ public static class InstrumentNames
     /// </list>
     /// </remarks>
     public const string ChannelMemberKicks = "argon-channel-member-kicks";
+    public const string ChannelMemberMoves = "argon-channel-member-moves";
+    public const string ChannelVoiceModerations = "argon-channel-voice-moderations";
 
     public const string ChannelReactionsAdded = "argon-channel-reactions-added";
 

@@ -47,7 +47,7 @@ public sealed class VoiceV1(IGrainFactory grains, IOptions<CallKitOptions> callK
                         new ArgonUserId(ctx.GetBotAsUserId()),
                         roomId,
                         SfuPermissionKind.DefaultBot,
-                        ctx.RequestAborted);
+                        ct: ctx.RequestAborted);
 
                 return new VoiceStreamTokenResponse(
                     token,

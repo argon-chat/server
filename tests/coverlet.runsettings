@@ -8,6 +8,10 @@
   The exclusions below are all machine-authored code. Left in, EF's migration snapshots alone are
   ~120k lines the tests can never execute line-by-line, which would put the reported number an order
   of magnitude below what the hand-written code actually achieves.
+
+  Hand-written code the suite cannot reach by design (health probes, telemetry plumbing, CLI entry
+  points, vendor adapters that tests replace with fakes) is excluded at the class with
+  [ExcludeFromCodeCoverage(Justification = "...")], so the reason sits next to the code.
 -->
 <RunSettings>
   <RunConfiguration>
@@ -42,7 +46,8 @@
             **/Generated/**/*.cs,
             **/obj/**/*.cs,
             **/*.g.cs,
-            **/*.Designer.cs
+            **/*.Designer.cs,
+            **/Argon.Api/Program.cs
           </ExcludeByFile>
 
           <SingleHit>false</SingleHit>

@@ -14,25 +14,42 @@ public class VoiceControlGrain(
     IOptions<CallKitOptions> settings,
     RoomServiceClient roomClient,
     EgressServiceClient egressClient,
-    IngressServiceClient ingressClient,
-    SipServiceClient sipClient,
     ILogger<IVoiceControlGrain> logger,
     HybridCache cache) : Grain, IVoiceControlGrain
 {
-    public async Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, SfuPermissionKind permission,
-        CancellationToken ct = default)
-        => CreateJwt(roomId, userId, SfuPermission.For(permission, roomId.ToRawRoomId()), settings);
+    public Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, SfuPermissionKind permission,
+        SfuMediaRights rights = SfuMediaRights.All, CancellationToken ct = default)
+        => Task.FromResult(CreateJwt(userId, SfuPermission.For(permission, roomId.ToRawRoomId(), rights), settings));
 
-    public async Task<bool> SetMuteParticipantAsync(bool isMuted, string sid, ArgonUserId userId, ArgonRoomId channelId, CancellationToken ct = default)
+    public async Task<bool> UpdateParticipantRightsAsync(ArgonUserId userId, ArgonRoomId roomId, SfuMediaRights rights,
+        CancellationToken ct = default)
     {
-        var result = await roomClient.MutePublishedTrack(new MuteRoomTrackRequest()
+        var sources    = SfuPermission.PublishSources(rights);
+        var permission = new ParticipantPermission
         {
-            Identity = userId.ToRawIdentity(),
-            Muted    = isMuted,
-            Room     = channelId.ToRawRoomId(),
-            TrackSid = sid
-        });
-        return result.Track.Muted;
+            CanPublish          = sources.Count > 0,
+            CanSubscribe        = rights.HasFlag(SfuMediaRights.Listen),
+            CanPublishData      = true,
+            CanUpdateMetadata   = true,
+            CanSubscribeMetrics = true
+        };
+        permission.CanPublishSources.AddRange(sources);
+
+        try
+        {
+            await roomClient.UpdateParticipant(new UpdateParticipantRequest
+            {
+                Room       = roomId.ToRawRoomId(),
+                Identity   = userId.ToRawIdentity(),
+                Permission = permission
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to update media rights of '{UserId}' in '{RoomId}'", userId.id, roomId.ToRawRoomId());
+            return false;
+        }
     }
 
     public async Task<bool> KickParticipantAsync(ArgonUserId userId, ArgonRoomId channelId, CancellationToken ct = default)
@@ -49,7 +66,8 @@ public class VoiceControlGrain(
         }
         catch (Exception e)
         {
-            logger.LogCritical(e, "Failed kick user from '{userId}' from '{roomId}'",
+            // Usually the participant already left the room; the roster is cleaned up by the caller either way.
+            logger.LogWarning(e, "Failed kick user from '{userId}' from '{roomId}'",
                 userId.id, channelId.ToRawRoomId());
             return false;
         }
@@ -136,21 +154,9 @@ public class VoiceControlGrain(
         return true;
     }
 
-    public Task<string> InterlinkCallToPhone(ArgonRoomId roomId, ArgonUserId from, string phoneNumberTo, CancellationToken ct = default)
-        => throw new NotImplementedException();
-
-    public async Task<string> InterlinkCallToPhone(ArgonRoomId roomId, ArgonUserId from, ArgonUserId to, CancellationToken ct = default)
-    {
-        return "";
-    }
-
-
     private record CloudflareIceRespItem(string? username, string? credential);
 
     private record CloudflareIceResp(List<CloudflareIceRespItem> iceServers);
-
-    private static readonly ConcurrentDictionary<string, (DateTimeOffset Expiry, (string Username, string Password) Creds)> _cache
-        = new();
 
     private async ValueTask<(string username, string password)?> ConsumeCloudflareCredentials(string clientId, string secret)
     {
@@ -178,26 +184,13 @@ public class VoiceControlGrain(
 
     #region JWT
 
-    private static string CreateJwt(ArgonRoomId roomName, ArgonUserId identity, VideoGrants permissions,
-        IOptions<CallKitOptions> settings)
+    private static string CreateJwt(ArgonUserId identity, VideoGrants permissions, IOptions<CallKitOptions> settings)
         => new AccessToken(settings.Value.Sfu.ClientId, settings.Value.Sfu.Secret)
            .WithIdentity(identity.ToRawIdentity())
            .WithName(identity.ToRawIdentity())
            .WithTtl(TimeSpan.FromHours(2))
            .WithGrants(permissions)
            .ToJwt();
-
-    private static string CreateMeetJwt(ArgonRoomId roomName, string identity, SfuPermission permissions,
-        IOptions<CallKitOptions> settings)
-    {
-        throw null!;
-    }
-
-    private static string CreateMeetJwt(Guid roomName, string identity, SfuPermission permissions,
-        IOptions<CallKitOptions> settings)
-    {
-        throw null!;
-    }
 
 #endregion
 }
