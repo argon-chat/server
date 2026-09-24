@@ -1,5 +1,7 @@
 namespace Argon.Features.k8s;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Drains;
 
 /// <summary>
@@ -32,6 +34,7 @@ using Argon.Drains;
 /// maintenance window recoverable. A client role has no equivalent because it has no state to be
 /// recalled from: its stop is a countdown, not a condition.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public static class PreStopHookExtensions
 {
     public const string Path        = "/internal/shutdown";

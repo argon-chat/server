@@ -1,5 +1,7 @@
 namespace Argon.Features.Reporting;
 
+using System.Diagnostics.CodeAnalysis;
+
 using System.Text.Json;
 using Argon.Features.WebSession;
 using Microsoft.AspNetCore.Builder;
@@ -36,6 +38,7 @@ using Microsoft.Extensions.Options;
 /// which is the difference between casual abuse of somebody's Sentry quota and a deliberate one.
 /// </para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public static class BrowserReportEndpoints
 {
     public const string Path = "/telemetry/reports";

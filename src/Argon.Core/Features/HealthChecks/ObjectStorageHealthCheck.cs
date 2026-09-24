@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Features.Storage;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -21,6 +23,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 /// feature, so any role running it stores files, and a role that stores files with no credentials
 /// throws on the first upload. Saying so at start-up is the point.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class ObjectStorageHealthCheck(
     IS3ClientPool           pool,
     IOptions<StorageOptions> storage,

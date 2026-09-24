@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using VaultSharp;
 
@@ -16,6 +18,7 @@ using VaultSharp;
 /// <para>Registered only where a client is: the vault feature resolves <c>None</c> when nothing names
 /// a Vault, and a deployment without one has nothing here to be unhealthy about.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class VaultHealthCheck(IVaultClient vault, IOptions<ProbeOptions> options)
     : DependencyHealthCheck(options)
 {

@@ -1,10 +1,13 @@
 namespace Argon.Features.Integrations.Phones.Twilio;
 
+using System.Diagnostics.CodeAnalysis;
+
 using global::Twilio;
 using global::Twilio.Rest.Verify.V2.Service;
 using global::Twilio.Exceptions;
 using System.Diagnostics;
 
+[ExcludeFromCodeCoverage(Justification = "Vendor HTTP adapter; the suite replaces it with a fake.")]
 public class TwilioPhoneChannel : IPhoneChannel
 {
     private readonly ILogger<TwilioPhoneChannel> _logger;

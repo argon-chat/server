@@ -1,5 +1,7 @@
 namespace Argon.Features.Otel;
 
+using System.Diagnostics.CodeAnalysis;
+
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -29,6 +31,7 @@ public class MetricsBasicAuthOptions : Argon.Features.Clustering.IValidatableFea
     }
 }
 
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public static class OtelFeature
 {
     private const string HealthEndpointPath    = "/health";

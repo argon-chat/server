@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Sfu;
 using Livekit.Server.Sdk.Dotnet;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -19,6 +21,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 /// <para>The client takes no cancellation token, so the base class's <c>WaitAsync</c> is what bounds
 /// this one.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class SfuHealthCheck(
     RoomServiceClient       rooms,
     IOptions<CallKitOptions> callKit,

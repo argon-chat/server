@@ -1,9 +1,12 @@
 namespace Argon.Features.Sentry;
 
+using System.Diagnostics.CodeAnalysis;
+
 using global::Sentry;
 using R3;
 using Serilog.Context;
 
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public class SentryGrainCallFilter : IIncomingGrainCallFilter
 {
     public async Task Invoke(IIncomingGrainCallContext context)

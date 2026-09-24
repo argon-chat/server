@@ -1,5 +1,7 @@
 namespace Argon.Api.Features.AdminApi.Diagnostics;
 
+using System.Diagnostics.CodeAnalysis;
+
 using ConsoleContracts;
 using k8s;
 using k8s.Models;
@@ -7,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
 using System.Runtime.InteropServices;
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public static class HostModeExtensions
 {
     extension(WebApplicationBuilder builder)
@@ -33,6 +36,7 @@ public static class HostModeExtensions
 /// console's queries run. A cluster that cannot be reached reports as an unhealthy database rather
 /// than failing the whole diagnostics page.
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public class DatabaseDiagnosticsService(IGrainFactory grainFactory)
 {
     public async Task<DatabaseDiagnostics?> GetDiagnosticsAsync(CancellationToken ct = default)
@@ -56,6 +60,7 @@ public class DatabaseDiagnosticsService(IGrainFactory grainFactory)
     }
 }
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public class KubernetesDiagnosticsService
 {
     public async Task<KubernetesDiagnostics?> GetDiagnosticsAsync(CancellationToken ct = default)
@@ -130,6 +135,7 @@ public class KubernetesDiagnosticsService
     }
 }
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public class NatsDiagnosticsService(IConfiguration configuration)
 {
     public Task<NatsDiagnostics?> GetDiagnosticsAsync(CancellationToken ct = default)
@@ -165,6 +171,7 @@ public class NatsDiagnosticsService(IConfiguration configuration)
     }
 }
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public class OrleansDiagnosticsService(IGrainFactory? grainFactory = null, ILocalSiloDetails? siloDetails = null)
 {
     public async Task<OrleansDiagnostics?> GetDiagnosticsAsync(CancellationToken ct = default)
@@ -212,6 +219,7 @@ public class OrleansDiagnosticsService(IGrainFactory? grainFactory = null, ILoca
     }
 }
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public class RedisDiagnosticsService
 {
     private readonly IConnectionMultiplexer? _redis;
@@ -298,6 +306,7 @@ public class RedisDiagnosticsService
     }
 }
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public class RuntimeDiagnosticsService
 {
     private static readonly DateTime ProcessStartTime = DateTime.UtcNow;

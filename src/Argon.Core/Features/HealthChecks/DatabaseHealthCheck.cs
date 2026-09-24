@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Features.EF;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -22,6 +24,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 /// the schema is current is a question about the deployment, and the answer would take this pod out
 /// for something a restart cannot fix.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class DatabaseHealthCheck(
     IDbContextFactory<ApplicationDbContext> factory,
     DatabaseProvider                         provider,

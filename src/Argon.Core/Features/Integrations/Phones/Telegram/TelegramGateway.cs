@@ -1,11 +1,14 @@
 namespace Argon.Features.Integrations.Phones.Telegram;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Flurl.Http;
 using Flurl.Http.Newtonsoft;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System.Diagnostics;
 
+[ExcludeFromCodeCoverage(Justification = "Vendor HTTP adapter; the suite replaces it with a fake.")]
 public class TelegramPhoneChannel : IPhoneChannel
 {
     private readonly IFlurlClient _client;

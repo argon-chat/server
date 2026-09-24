@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Drains;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Orleans.Runtime;
@@ -17,6 +19,7 @@ using OrleansSiloStatus = SiloStatus;
 /// <para>Dead is the one state worth a restart: the cluster has written this silo off while the process
 /// is still running, so it will never serve anything again on its own.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public class LivenessHealthCheck(
     ISiloStatusOracle siloStatusOracle,
     ILogger<LivenessHealthCheck> logger) : IHealthCheck
@@ -57,6 +60,7 @@ public class LivenessHealthCheck(
 /// Readiness health check - verifies the silo is ready to accept traffic.
 /// Returns not ready when draining or when Orleans silo is not Active.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public class ReadinessHealthCheck(
     ISiloDrainService drainService,
     ISiloStatusOracle siloStatusOracle,
@@ -130,6 +134,7 @@ public class ReadinessHealthCheck(
 /// the others, and can be given grains. Whether it should be given traffic is readiness' question,
 /// and it answers differently the moment a drain starts.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public class StartupHealthCheck(
     ISiloStatusOracle siloStatusOracle,
     ILogger<StartupHealthCheck> logger) : IHealthCheck
@@ -154,6 +159,7 @@ public class StartupHealthCheck(
 /// <summary>
 /// Orleans cluster health check - verifies cluster connectivity.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public class OrleansClusterHealthCheck(
     IClusterMembershipService clusterMembership,
     ISiloStatusOracle siloStatusOracle,
@@ -218,6 +224,7 @@ public class OrleansClusterHealthCheck(
 /// <summary>
 /// Extension methods for registering health checks.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public static class HealthCheckExtensions
 {
     public static IServiceCollection AddSiloHealthChecks(this IServiceCollection services)

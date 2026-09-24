@@ -1,8 +1,11 @@
 namespace Argon.Features.Integrations.Phones;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon;
 using System.Diagnostics.Metrics;
 
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public static class PhoneInstrument
 {
     private static readonly Meter Meter = Instruments.Meter;

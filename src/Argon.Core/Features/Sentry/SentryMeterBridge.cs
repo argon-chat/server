@@ -1,5 +1,7 @@
 namespace Argon.Features.Sentry;
 
+using System.Diagnostics.CodeAnalysis;
+
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
@@ -46,6 +48,7 @@ using global::Sentry;
 /// <para>Which meters and which instruments are still configurable, and are still the right answer
 /// for an instrument that is genuinely unwanted. They are no longer how this is kept affordable.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public sealed class SentryMeterBridge(
     IOptions<ArgonSentryOptions> options,
     ILogger<SentryMeterBridge>   logger) : IHostedService, IDisposable

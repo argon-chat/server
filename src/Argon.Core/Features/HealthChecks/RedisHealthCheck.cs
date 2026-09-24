@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Services;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using StackExchange.Redis;
@@ -21,6 +23,7 @@ using StackExchange.Redis;
 /// connected and later lost the server is dropped too; StackExchange would reconnect it on its own,
 /// but a fresh dial is what makes the next answer a statement about now.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class RedisProbeConnections(RedisProfileRegistry registry) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<ConnectionMultiplexer>>> connections = new(StringComparer.Ordinal);
@@ -92,6 +95,7 @@ public sealed class RedisProbeConnections(RedisProfileRegistry registry) : IAsyn
 /// share a server; the failures are listed together, since the point of one report is that a
 /// deployment with two wrong profiles learns about both.
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class RedisHealthCheck(RedisProbeConnections connections, IOptions<ProbeOptions> options)
     : DependencyHealthCheck(options)
 {

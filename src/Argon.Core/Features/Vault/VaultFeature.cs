@@ -1,5 +1,7 @@
 namespace Argon.Features.Vault;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.DependencyInjection;
 using VaultSharp;
 using VaultSharp.V1.AuthMethods;
@@ -25,6 +27,7 @@ public enum VaultAuthMode
     Cert
 }
 
+[ExcludeFromCodeCoverage(Justification = "Hosting infrastructure; exercised by the deployment, not the suite.")]
 public static class VaultFeature
 {
     public static IServiceCollection AddVaultClient(this WebApplicationBuilder builder, VaultOptions options)

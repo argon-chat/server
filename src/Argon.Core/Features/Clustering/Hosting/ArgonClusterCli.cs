@@ -1,9 +1,12 @@
 namespace Argon.Features.Clustering;
 
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>
 /// Diagnostic commands over the role system. Invoked before the host is built, in the same shape as
 /// <c>BotApiCli.TryHandleCommand</c>.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Command-line entry point; runs before the host is built.")]
 public static class ArgonClusterCli
 {
     /// <summary>

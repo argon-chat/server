@@ -1,5 +1,7 @@
 namespace Argon.Features.Integrations.Klipy;
 
+using System.Diagnostics.CodeAnalysis;
+
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,6 +24,7 @@ public interface IKlipyService
     string ComputeCachePath(string slug);
 }
 
+[ExcludeFromCodeCoverage(Justification = "Vendor HTTP adapter; the suite replaces it with a fake.")]
 public class KlipyService(
     HttpClient httpClient,
     IOptions<KlipyOptions> options,

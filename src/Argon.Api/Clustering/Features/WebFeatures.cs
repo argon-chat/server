@@ -1,5 +1,7 @@
 ﻿namespace Argon.Api.Clustering;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Features.Email;
 using Argon.Features.Reporting;
 
@@ -270,6 +272,7 @@ public sealed class AppHubFeature : IArgonFeature
             });
 }
 
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public sealed class SentryTunnelFeature : IArgonFeature
 {
     /// <summary>
@@ -375,6 +378,7 @@ public sealed class WebSessionFeature : IArgonFeature
 /// Requires <see cref="WebSessionFeature"/> for its origin allowlist rather than carrying a second
 /// list of its own: the clients allowed to open a session are exactly the ones allowed to report.
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public sealed class BrowserReportFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)

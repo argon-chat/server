@@ -1,5 +1,7 @@
 namespace Argon.Core.Features.Integrations.Xsolla;
 
+using System.Diagnostics.CodeAnalysis;
+
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -7,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Hybrid;
 
+[ExcludeFromCodeCoverage(Justification = "Vendor HTTP adapter; the suite replaces it with a fake.")]
 public class XsollaService(
     HttpClient httpClient,
     IOptions<XsollaOptions> options,

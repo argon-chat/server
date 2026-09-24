@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Argon.Features.Aegis;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -16,6 +18,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 /// <para>The context is scoped, so the probe opens a scope of its own rather than taking the context
 /// in the constructor; disposing the scope is what returns the connection, whatever the outcome.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class KeyRingHealthCheck(IServiceScopeFactory scopes, IOptions<ProbeOptions> options)
     : DependencyHealthCheck(options)
 {

@@ -1,8 +1,11 @@
 namespace Argon.Features.Moderation;
 
+using System.Diagnostics.CodeAnalysis;
+
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+[ExcludeFromCodeCoverage(Justification = "Telemetry plumbing; exercised only against a live collector.")]
 public static class ModerationInstruments
 {
     private static readonly Meter Meter = Instruments.Meter;

@@ -1,5 +1,7 @@
 namespace Argon.Features.Moderation;
 
+using System.Diagnostics.CodeAnalysis;
+
 using System.Diagnostics;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
@@ -7,6 +9,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+[ExcludeFromCodeCoverage(Justification = "Runs an ONNX model the suite does not ship.")]
 public sealed class ContentModerator : IDisposable
 {
     private readonly ModeratorConfig _config;

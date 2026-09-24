@@ -1,5 +1,7 @@
 namespace Argon.HealthChecks;
 
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -18,6 +20,7 @@ using NATS.Client.JetStream;
 /// made here, bounded by the probe's timeout rather than the client's own minute, and its outcome
 /// is the answer.</para>
 /// </remarks>
+[ExcludeFromCodeCoverage(Justification = "Health probe of an external dependency; exercised by the deployment, not the suite.")]
 public sealed class NatsHealthCheck(
     INatsClient            client,
     INatsJSContext         jetStream,

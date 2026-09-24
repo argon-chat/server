@@ -1,5 +1,7 @@
 namespace Argon.Features.BotApi;
 
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>
 /// CLI commands for the Bot API's published artefacts.
 /// Invoked via <c>dotnet run -- bot-api {command}</c>.
@@ -9,6 +11,7 @@ namespace Argon.Features.BotApi;
 /// document — <c>verify</c> and <c>rehash</c> are about those.
 /// </para>
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Command-line entry point; runs before the host is built.")]
 public static class BotApiCli
 {
     /// <summary>
