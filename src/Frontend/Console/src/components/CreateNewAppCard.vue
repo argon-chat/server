@@ -4,7 +4,7 @@ import { Plus, Bot, AppWindow, Globe, Loader2 } from "@lucide/vue"
 import { GlassButton, GlassCard, GlassDialog, GlassInput, GlassSelect } from "@/components/base"
 import { useToast } from "@/composables/useToast"
 import { useApi } from "@/store/apiStore"
-import { ClientAppPlatform, type TeamShortDetails } from "@/lib/glue/accountConsole"
+import { CheckBotUsernameValid, ClientAppPlatform, type TeamShortDetails } from "@/lib/glue/accountConsole"
 import InputWithError from "./InputWithError.vue"
 import { logger } from "@argon/core"
 
@@ -62,9 +62,12 @@ async function validateUsername() {
   try {
     const result = await api.appsManagement.CheckUsernameForBot(props.selectedTeam.teamId, username)
     switch (result) {
-      case 0: usernameError.value = null; break
-      case 1: usernameError.value = "This username is already taken"; break
-      case 2: usernameError.value = "Username must end with .bot"; break
+      case CheckBotUsernameValid.OK: usernameError.value = null; break
+      case CheckBotUsernameValid.ALREADY_CLAIMED: usernameError.value = "This username is already taken"; break
+      case CheckBotUsernameValid.POSTFIX_BOT_REQUIRED: usernameError.value = "Username must end with 'bot'"; break
+      case CheckBotUsernameValid.INVALID_FORMAT:
+        usernameError.value = "Use 4–32 characters: English letters, digits and underscores only"
+        break
       default: usernameError.value = "Invalid username"
     }
   } catch {
@@ -190,7 +193,7 @@ function resetForm() {
       <template v-if="appType === 'bot'">
         <InputWithError
           v-model="appUsername"
-          placeholder="argon.bot"
+          placeholder="argon_bot"
           :error="usernameError"
           @clear-error="clearUsernameError"
         >

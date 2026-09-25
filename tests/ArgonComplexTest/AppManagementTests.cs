@@ -3,6 +3,7 @@ namespace ArgonComplexTest.Tests;
 using System.Net;
 using AccountContracts;
 using Argon.Grains.Interfaces;
+using BotSuspendedBy = Argon.Core.Entities.Data.BotSuspendedBy;
 using ArgonComplexTest.Infrastructure.Account;
 using ArgonContracts;
 using ConsoleContracts;
@@ -580,64 +581,151 @@ public class AppManagementTests : TestBase
         });
     }
 
-    // ── pinned: decisions nobody has taken yet ───────────────────────────────────────────────
+    // ── who may lift a suspension ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// A bot an operator suspended stays suspended until an operator lifts it.
+    /// A bot an operator suspended stays suspended until an operator lifts it, and the suspension stops
+    /// the bot on the Bot API at once.
     /// </summary>
     /// <remarks>
-    /// <para><b>Open, needs a decision.</b> <c>DevTeamsGrain.SetBotLifecycleAsync</c> writes whatever
-    /// state the console asks for, and the console's <c>PublishBot</c> asks for Published from any
-    /// state — so a team whose bot an operator suspended through
-    /// <c>IAdminDirectoryGrain.SetBotLifecycleStateAsync</c> presses "publish" and the bot is back on
-    /// the Bot API and in the directory. The lifecycle has one Suspended value for two different
-    /// things: a team switching its own bot off (which the same team should be able to undo) and an
-    /// operator taking it off the platform (which it should not).</para>
-    ///
-    /// <para>Closing it needs a product answer to "may a team undo its own suspension" and then either
-    /// a second state or a record of who suspended — a schema change, so it is pinned rather than
-    /// guessed at.</para>
+    /// The lifecycle has one Suspended value for two different things — a team switching its own bot
+    /// off, and an operator taking it off the platform — so <c>BotEntity.SuspendedBy</c> records which
+    /// it was. The console refuses every lifecycle change on an operator's suspension with
+    /// <c>SUSPENDED_BY_OPERATOR</c>; asking to suspend it again changes nothing, the operator's claim
+    /// included.
     /// </remarks>
-    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
+    [Test, CancelAfter(120_000)]
     public async Task An_operator_suspension_cannot_be_lifted_by_the_team(CancellationToken ct = default)
     {
         var owner = await CreateSessionAsync(ct);
         var team  = await CreateTeamAsync(owner, "opsusp");
         var bot   = await CreatePublishedBotAsync(owner, team.teamId, "opsusp");
+        var token = bot.botDetails!.botToken;
+
+        Assert.That(await BotGetMeAsync(token, ct), Is.EqualTo(HttpStatusCode.OK), "premise: the bot is running");
 
         Assert.That((await Operators.SetBotLifecycleStateAsync(bot.appId, AdminBotLifecycleState.Suspended, ct)).success, Is.True);
 
-        try
+        var stopped = await BotGetMeAsync(token, ct);
+
+        var refusals = new Dictionary<string, Func<DevConsole, Task>>
         {
-            await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct));
-        }
-        catch (Exception)
+            ["PublishBot"]   = c => c.Apps.PublishBot(team.teamId, bot.appId, ct),
+            ["UnpublishBot"] = c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct)
+        };
+
+        foreach (var (name, call) in refusals)
         {
-            // Refusing the call outright is one acceptable answer; the state is what is asserted.
+            var refused = Assert.ThrowsAsync<IonRequestException>(async () => await As(owner, call),
+                $"{name} was allowed on a bot an operator suspended");
+            Assert.That(refused!.Error.code, Is.EqualTo("SUSPENDED_BY_OPERATOR"));
         }
+
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
 
         var state = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var who   = await SuspendedByAsync(bot.appId, ct);
 
-        Assert.That(state.botDetails!.lifecycleState, Is.EqualTo(AppLifecycle.Suspended),
-            "the team republished a bot an operator had suspended");
+        Assert.Multiple(() =>
+        {
+            Assert.That(stopped, Is.EqualTo(HttpStatusCode.Unauthorized),
+                "a bot an operator suspended kept using the Bot API on a cached token");
+            Assert.That(state.botDetails!.lifecycleState, Is.EqualTo(AppLifecycle.Suspended),
+                "the team republished a bot an operator had suspended");
+            Assert.That(who, Is.EqualTo(BotSuspendedBy.Operator),
+                "the team suspending it again took the suspension over from the operator");
+        });
+
+        Assert.That((await Operators.SetBotLifecycleStateAsync(bot.appId, AdminBotLifecycleState.Published, ct)).success, Is.True);
+
+        var lifted = await BotGetMeAsync(token, ct);
+
+        await As(owner, c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct));
+        var afterLift = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(lifted, Is.EqualTo(HttpStatusCode.OK), "a lifted suspension still refused the bot's token");
+            Assert.That(afterLift.botDetails!.lifecycleState, Is.EqualTo(AppLifecycle.Development),
+                "the team could not manage its bot after the operator lifted the suspension");
+            Assert.That(await SuspendedByAsync(bot.appId, ct), Is.EqualTo(BotSuspendedBy.None));
+        });
     }
+
+    /// <summary>
+    /// A team lifts a suspension it imposed itself — unless an operator has since made it theirs.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_team_lifts_its_own_suspension_but_not_one_an_operator_took_over(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var team  = await CreateTeamAsync(owner, "selfsusp");
+        var bot   = await CreatePublishedBotAsync(owner, team.teamId, "selfsusp");
+
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
+        var ownSuspension = await SuspendedByAsync(bot.appId, ct);
+
+        await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct));
+        var republished = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
+        Assert.That((await Operators.SetBotLifecycleStateAsync(bot.appId, AdminBotLifecycleState.Suspended, ct)).success, Is.True);
+
+        var takenOver = await SuspendedByAsync(bot.appId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ownSuspension, Is.EqualTo(BotSuspendedBy.Team));
+            Assert.That(republished.botDetails!.lifecycleState, Is.EqualTo(AppLifecycle.Published),
+                "a team could not lift a suspension it imposed itself");
+            Assert.That(takenOver, Is.EqualTo(BotSuspendedBy.Operator));
+        });
+
+        Assert.That(async () => await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct)),
+            Throws.InstanceOf<IonRequestException>(), "the team lifted a suspension an operator had taken over");
+    }
+
+    /// <summary>
+    /// A suspension from before anyone recorded who imposed it is an operator's to lift.
+    /// </summary>
+    /// <remarks>
+    /// Rows suspended before <c>SuspendedBy</c> existed read <c>None</c>; the console has no way to
+    /// tell a team's from an operator's, so it assumes the one it must not undo. Seeded, because no
+    /// flow produces such a row any more.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_suspension_of_unknown_origin_is_left_to_an_operator(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var team  = await CreateTeamAsync(owner, "legacy");
+        var bot   = await CreatePublishedBotAsync(owner, team.teamId, "legacy");
+
+        await using (var db = await AccountSeed.NewDbAsync(ct))
+        {
+            await db.BotEntities
+               .Where(b => b.AppId == bot.appId)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(b => b.LifecycleState, Argon.Core.Entities.Data.BotLifecycleState.Suspended)
+                   .SetProperty(b => b.SuspendedBy, BotSuspendedBy.None), ct);
+        }
+
+        Assert.That(async () => await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct)),
+            Throws.InstanceOf<IonRequestException>(), "the team lifted a suspension nobody can say it imposed");
+    }
+
+    // ── what a bot may be called ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// A bot username obeys the same shape as a person's: letters, digits and underscores, four to
     /// thirty-two of them.
     /// </summary>
     /// <remarks>
-    /// <para><b>Open, needs a contract change.</b> <c>DevTeamsGrain.CheckUsernameForBotAsync</c> and
-    /// <c>CreateBotAppAsync</c> check only the "bot" suffix and uniqueness, while registration
-    /// (<c>NewUserCredentialsInputValidator</c>) requires <c>^[a-zA-Z0-9_]{4,32}$</c>. So a bot can take
-    /// a name no person could — with spaces, slashes, or letters from another script that render like
-    /// someone else's — and bots share the username namespace and the member list with people.</para>
-    ///
-    /// <para><c>CheckBotUsernameValid</c> has no value for "badly formed", so the console cannot be told
-    /// why; closing this means an additive arm in <c>TeamConsole.ion</c>, regenerated with
-    /// <c>ionc</c>, and the same rule applied in both grain methods.</para>
+    /// Bots share the username namespace and the member list with people, so a bot must not be able to
+    /// take a name no person could — with spaces, slashes, or letters from another script that render
+    /// like someone else's. The console is told why with <c>INVALID_FORMAT</c>; the grain refuses on
+    /// its own too, for a caller that skipped the check.
     /// </remarks>
-    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
+    [Test, CancelAfter(120_000)]
     public async Task A_bot_username_is_held_to_the_same_shape_as_a_persons(CancellationToken ct = default)
     {
         var owner = await CreateSessionAsync(ct);
@@ -647,15 +735,35 @@ public class AppManagementTests : TestBase
         [
             "a b bot",
             "../../bot",
-            $"аdmin{Guid.NewGuid():N}"[..12] + "bot",
-            new string('x', 40) + "bot"
+            "dot.bot",
+            "\u0430dmin_" + Guid.NewGuid().ToString("N")[..6] + "bot",
+            new string('x', 30) + "bot",
+            "bot"
         ];
 
         foreach (var name in malformed)
         {
             var verdict = await As(owner, c => c.Apps.CheckUsernameForBot(team.teamId, name, ct));
-            Assert.That(verdict, Is.Not.EqualTo(CheckBotUsernameValid.OK), $"'{name}' was accepted as a bot username");
+            Assert.That(verdict, Is.EqualTo(CheckBotUsernameValid.INVALID_FORMAT), $"'{name}' was not refused as badly formed");
+
+            Assert.That(async () => await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Malformed", name, ct)),
+                Throws.InstanceOf<IonRequestException>(), $"the console created a bot called '{name}'");
+            Assert.That(async () => await Teams.CreateBotAppAsync(team.teamId, "Malformed", name, ct),
+                Throws.InstanceOf<InvalidOperationException>(), $"the grain created a bot called '{name}'");
         }
+
+        var edge     = "Edge_" + Guid.NewGuid().ToString("N")[..24] + "Bot";
+        var accepted = await As(owner, c => c.Apps.CheckUsernameForBot(team.teamId, edge, ct));
+        var created  = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Longest name", edge, ct));
+        var details  = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(edge, Has.Length.EqualTo(32), "premise: the name sits on the length limit");
+            Assert.That(accepted, Is.EqualTo(CheckBotUsernameValid.OK), "a well-formed name at the limit was refused");
+            Assert.That(details.apps.Select(a => a.appId), Is.EqualTo(new[] { created.appId }),
+                "a refused name left an application behind");
+        });
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
@@ -677,6 +785,14 @@ public class AppManagementTests : TestBase
         var profile = await db.UserProfiles.FirstAsync(p => p.UserId == userId, ct);
         profile.Badges = badges;
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Who the database says suspended the bot.</summary>
+    private static async Task<BotSuspendedBy> SuspendedByAsync(Guid appId, CancellationToken ct)
+    {
+        await using var db = await AccountSeed.NewDbAsync(ct);
+
+        return await db.BotEntities.Where(b => b.AppId == appId).Select(b => b.SuspendedBy).SingleAsync(ct);
     }
 
     /// <summary>A mailbox the account never verified — the staff rule reads only the address.</summary>

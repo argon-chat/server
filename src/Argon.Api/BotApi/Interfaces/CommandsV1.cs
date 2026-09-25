@@ -53,7 +53,7 @@ public sealed class CommandsV1(IGrainFactory grains) : IBotInterface
         group.RequireRateLimiting("Bot_ICommands");
 
         group.Post<RegisterCommandRequest, CommandRegisteredResponse>("/Register")
-           .Summary("Registers a new slash command. Commands can be global or scoped to a specific space. Max 50 commands per scope.")
+           .Summary("Registers a slash command, or updates the bot's command of the same name in the same scope. Commands can be global or scoped to a specific space. Max 50 commands per scope.")
            .Throws(InvalidName)
            .Throws(InvalidDescription)
            .Throws(CommandLimit)

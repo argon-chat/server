@@ -194,8 +194,9 @@ public sealed class CommerceRole : IArgonRole
 {
     public static ArgonRoleId Id => ArgonRoleId.Commerce;
 
-    public string Description => "entitlements, boosts, inventory, levels";
-    public bool   IsClient    => false;
+    public string Description   => "entitlements, boosts, inventory, levels";
+    public bool   IsClient      => false;
+    public bool   UsesReminders => true;
 
     public void OnFeatures(IArgonFeatureRegistry features)
     {

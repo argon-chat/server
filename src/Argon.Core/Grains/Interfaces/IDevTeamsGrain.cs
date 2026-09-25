@@ -118,8 +118,12 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
     [Alias(nameof(RemoveRedirectAsync))]
     Task RemoveRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default);
 
+    /// <summary>
+    /// Moves a bot through its lifecycle on the team's behalf. <see langword="false"/> when the bot is
+    /// under a suspension the team did not impose, which only an operator lifts.
+    /// </summary>
     [Alias(nameof(SetBotLifecycleAsync))]
-    Task SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default);
+    Task<bool> SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default);
 
     [Alias(nameof(UpdateBotEntitlementsAsync))]
     Task UpdateBotEntitlementsAsync(Guid teamId, Guid appId, ArgonEntitlement entitlements, CancellationToken ct = default);

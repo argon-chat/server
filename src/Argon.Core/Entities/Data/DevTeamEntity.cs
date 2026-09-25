@@ -251,6 +251,10 @@ public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
     public bool IsVerified     { get; set; }
 
     public BotLifecycleState LifecycleState       { get; set; } = BotLifecycleState.Development;
+
+    /// <summary>Who suspended the bot; a suspension is lifted only by whoever imposed it.</summary>
+    public BotSuspendedBy    SuspendedBy          { get; set; }
+
     public ArgonEntitlement  RequiredEntitlements  { get; set; } = ArgonEntitlementKit.Base;
     public int               EntitlementsVersion   { get; set; }
 
@@ -313,4 +317,17 @@ public enum BotLifecycleState
     Development = 0,
     Published   = 1,
     Suspended   = 2,
+}
+
+/// <summary>Who put a bot in <see cref="BotLifecycleState.Suspended"/>.</summary>
+/// <remarks>
+/// <see cref="None"/> on a bot that is not suspended, and on one suspended before this was recorded —
+/// which the team console treats as an operator's, so no suspension of unknown origin is lifted by
+/// the team it was imposed on.
+/// </remarks>
+public enum BotSuspendedBy
+{
+    None     = 0,
+    Team     = 1,
+    Operator = 2,
 }

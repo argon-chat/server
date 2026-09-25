@@ -440,9 +440,10 @@ export enum CheckBotUsernameValid
   OK = 0,
   ALREADY_CLAIMED = 1,
   POSTFIX_BOT_REQUIRED = 2,
+  INVALID_FORMAT = 3,
 }
 
-const declaredCheckBotUsernameValid: ReadonlySet<unknown> = new Set<unknown>([CheckBotUsernameValid.OK, CheckBotUsernameValid.ALREADY_CLAIMED, CheckBotUsernameValid.POSTFIX_BOT_REQUIRED]);
+const declaredCheckBotUsernameValid: ReadonlySet<unknown> = new Set<unknown>([CheckBotUsernameValid.OK, CheckBotUsernameValid.ALREADY_CLAIMED, CheckBotUsernameValid.POSTFIX_BOT_REQUIRED, CheckBotUsernameValid.INVALID_FORMAT]);
 
 /**
  * Open-enum helpers for {@link CheckBotUsernameValid}.

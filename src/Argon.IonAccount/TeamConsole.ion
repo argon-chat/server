@@ -83,7 +83,8 @@ service AppManagement(teamId: guid) {
 enum CheckBotUsernameValid {
     OK,
     ALREADY_CLAIMED,
-    POSTFIX_BOT_REQUIRED
+    POSTFIX_BOT_REQUIRED,
+    INVALID_FORMAT
 }
 
 msg MyInvitesInfo {

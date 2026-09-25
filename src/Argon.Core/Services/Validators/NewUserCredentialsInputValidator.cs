@@ -75,11 +75,7 @@ public class NewUserCredentialsInputValidator : AbstractValidator<NewUserCredent
            .NotEmpty().WithMessage("Email is required.")
            .EmailAddress().WithMessage("Invalid email address.");
 
-        RuleFor(x => x.username)
-           .NotEmpty().WithMessage("Username is required.")
-           .MinimumLength(4).WithMessage("Username must be at least 4 characters.")
-           .MaximumLength(32).WithMessage("Username must be no more than 32 characters.")
-           .Matches("^[a-zA-Z0-9_]*$").WithMessage("Username contains invalid characters.");
+        RuleFor(x => x.username).ValidUsername();
 
         RuleFor(x => x.password)
            .NotEmpty().WithMessage("Password is required.")

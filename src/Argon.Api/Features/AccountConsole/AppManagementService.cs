@@ -120,7 +120,10 @@ public sealed class AppManagementService(
     private async Task SetLifecycle(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct)
     {
         await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        await Teams.SetBotLifecycleAsync(teamId, appId, state, ct);
+
+        if (!await Teams.SetBotLifecycleAsync(teamId, appId, state, ct))
+            throw new IonRequestException(new IonProtocolError("SUSPENDED_BY_OPERATOR",
+                "This bot was suspended by Argon staff, and only they can lift the suspension."));
     }
 
     /// <summary>

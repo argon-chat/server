@@ -4,11 +4,12 @@ using Argon.Core.Entities.Data;
 using Argon.Grains.Interfaces;
 using ConsoleContracts;
 using ion.runtime;
+using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 
 /// <inheritdoc cref="IAdminDirectoryGrain"/>
 [StatelessWorker]
-public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> dbFactory) : Grain, IAdminDirectoryGrain
+public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> dbFactory, HybridCache cache) : Grain, IAdminDirectoryGrain
 {
     // ── spaces ───────────────────────────────────────────────────────────────────────────────
 
@@ -379,7 +380,11 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
         => UpdateBotAsync(appId, bot => bot.MaxSpaces = maxSpaces, ct);
 
     public Task<UserActionResult> SetBotLifecycleStateAsync(Guid appId, AdminBotLifecycleState state, CancellationToken ct = default)
-        => UpdateBotAsync(appId, bot => bot.LifecycleState = (BotLifecycleState)(int)state, ct);
+        => UpdateBotAsync(appId, bot =>
+        {
+            bot.LifecycleState = (BotLifecycleState)(int)state;
+            bot.SuspendedBy    = bot.LifecycleState == BotLifecycleState.Suspended ? BotSuspendedBy.Operator : BotSuspendedBy.None;
+        }, ct);
 
     public async Task<UserActionResult> SetAppInternalAsync(Guid appId, bool isInternalApp, CancellationToken ct = default)
     {
@@ -395,6 +400,10 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
     }
 
     /// <summary>The bot-flag buttons, which differ only in the field they set.</summary>
+    /// <remarks>
+    /// Every one of those fields is part of what the Bot API caches for a token, so the entry goes with
+    /// the write — a suspension in particular has to stop the bot now, not when the cache expires.
+    /// </remarks>
     private async Task<UserActionResult> UpdateBotAsync(Guid appId, Action<BotEntity> apply, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -404,6 +413,7 @@ public sealed class AdminDirectoryGrain(IDbContextFactory<ApplicationDbContext> 
 
         apply(bot);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(BotTokenAuthenticationHandler.CacheKeyFor(bot.BotToken), ct);
 
         return new UserActionResult(true, null);
     }

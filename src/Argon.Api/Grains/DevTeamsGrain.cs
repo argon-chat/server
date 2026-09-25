@@ -4,6 +4,7 @@ using Argon.Features.Clustering.Regions;
 
 using AccountContracts;
 using Argon.Core.Entities.Data;
+using Argon.Core.Services.Validators;
 using Argon.Entities;
 using Grains.Interfaces;
 using ion.runtime;
@@ -332,10 +333,15 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
     public async Task<AppDetails> CreateBotAppAsync(Guid teamId, string name, string username, CancellationToken ct = default)
     {
-        var normalized = username.ToLowerInvariant();
+        switch (ShapeOfBotUsername(username))
+        {
+            case CheckBotUsernameValid.POSTFIX_BOT_REQUIRED:
+                throw new InvalidOperationException("Bot usernames must end in 'bot'.");
+            case CheckBotUsernameValid.INVALID_FORMAT:
+                throw new InvalidOperationException("Bot usernames take a person's shape: 4-32 letters, digits and underscores.");
+        }
 
-        if (!normalized.EndsWith("bot"))
-            throw new InvalidOperationException("Bot usernames must end in 'bot'.");
+        var normalized = username.ToLowerInvariant();
 
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
@@ -451,10 +457,10 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
     public async Task<CheckBotUsernameValid> CheckUsernameForBotAsync(string username, CancellationToken ct = default)
     {
-        var normalized = username.ToLowerInvariant();
+        if (ShapeOfBotUsername(username) is { } malformed)
+            return malformed;
 
-        if (!normalized.EndsWith("bot"))
-            return CheckBotUsernameValid.POSTFIX_BOT_REQUIRED;
+        var normalized = username.ToLowerInvariant();
 
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
@@ -462,6 +468,15 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             ? CheckBotUsernameValid.ALREADY_CLAIMED
             : CheckBotUsernameValid.OK;
     }
+
+    /// <summary>
+    /// A bot username is a person's username that ends in "bot": bots share the namespace and the
+    /// member list with people, so they share the rules registration applies.
+    /// </summary>
+    private static CheckBotUsernameValid? ShapeOfBotUsername(string username)
+        => !username.EndsWith("bot", StringComparison.OrdinalIgnoreCase) ? CheckBotUsernameValid.POSTFIX_BOT_REQUIRED
+         : !UsernameRules.IsWellFormed(username)                         ? CheckBotUsernameValid.INVALID_FORMAT
+         : null;
 
     public async Task<AppDetails> GetAppDetailsAsync(Guid teamId, Guid appId, CancellationToken ct = default)
     {
@@ -687,11 +702,21 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default)
+    public async Task<bool> SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         var bot = await RequireBotAsync(db, teamId, appId, ct);
+
+        // A team lifts only a suspension it imposed; anything else is an operator's to lift.
+        if (bot.LifecycleState == BotLifecycleState.Suspended && bot.SuspendedBy != BotSuspendedBy.Team
+         && state != BotLifecycleState.Suspended)
+            return false;
+
+        if (state != BotLifecycleState.Suspended)
+            bot.SuspendedBy = BotSuspendedBy.None;
+        else if (bot.LifecycleState != BotLifecycleState.Suspended)
+            bot.SuspendedBy = BotSuspendedBy.Team;
 
         bot.LifecycleState = state;
         bot.UpdatedAt      = DateTimeOffset.UtcNow;
@@ -700,6 +725,8 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
         // The Bot API caches whether a token's bot is restricted; a suspension has to reach it now.
         await cache.RemoveAsync(BotTokenAuthenticationHandler.CacheKeyFor(bot.BotToken), ct);
+
+        return true;
     }
 
     public async Task UpdateBotEntitlementsAsync(

@@ -5,6 +5,10 @@ using Argon.Core.Entities.Data;
 [Alias($"Argon.Grains.Interfaces.{nameof(IBotCommandsGrain)}")]
 public interface IBotCommandsGrain : IGrainWithGuidKey
 {
+    /// <summary>
+    /// Registers a command, or updates the bot's command of the same name in the same scope — global,
+    /// or the same space — rather than adding a second one.
+    /// </summary>
     [Alias(nameof(Register))]
     Task<RegisterCommandResult> Register(string name, string description, Guid? spaceId,
         List<BotCommandOption>? options, bool defaultPermission);
