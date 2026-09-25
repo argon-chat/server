@@ -54,6 +54,7 @@ public class UserChatGrain(
         }
         else
         {
+            echoChat.IsPinned = true;
             echoChat.PinnedAt = DateTimeOffset.UtcNow.AddDays(900);
         }
 
@@ -143,7 +144,7 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var unreadCount = 0L;
+        var hadUnread = false;
 
         await ExecuteInTransactionAsync(ctx, async () =>
         {
@@ -155,12 +156,16 @@ public class UserChatGrain(
             if (record is null)
                 return;
 
-            unreadCount = record.UnreadCount;
+            hadUnread = record.UnreadCount > 0;
             record.UnreadCount = 0;
             ctx.UserConversations.Update(record);
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
+
+        // The caller's other windows still show the badge.
+        if (hadUnread)
+            await NotifyAsync(Me, new ChatReadEvent(peerId));
     }
 
     /// <summary>
@@ -422,15 +427,6 @@ public class UserChatGrain(
             previewText,
             timestamp.UtcDateTime
         ));
-    }
-
-    public async Task UpdateChatAsync(
-        Guid peerId,
-        string? previewText,
-        DateTimeOffset timestamp,
-        CancellationToken ct = default)
-    {
-        await UpdateChatForAsync(Me, peerId, previewText, timestamp, ct);
     }
 
     private static async Task UpdateUserConversationAsync(
