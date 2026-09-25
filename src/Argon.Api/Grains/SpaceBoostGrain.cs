@@ -73,7 +73,7 @@ public class SpaceBoostGrain(
 
     private static int CalculateLevel(int boostCount)
     {
-        for (var i = BoostLevelThresholds.Length - 1; i >= 0; i--)
+        for (var i = BoostLevelThresholds.Length - 1; i > 0; i--)
         {
             if (boostCount >= BoostLevelThresholds[i])
                 return i;
