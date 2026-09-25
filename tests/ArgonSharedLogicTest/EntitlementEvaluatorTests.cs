@@ -186,15 +186,33 @@ public class EntitlementEvaluatorTests
     }
 
     [Test]
-    public void IsEntitlementSatisfied_VoiceEntitlement_RequiresJoinToVoice()
+    public void IsEntitlementSatisfied_VoiceEntitlement_RequiresJoinToVoiceAndConnect()
     {
-        var withoutJoin = ArgonEntitlement.ViewChannel | ArgonEntitlement.Speak;
-        var withJoin    = withoutJoin | ArgonEntitlement.JoinToVoice;
+        var withoutJoin    = ArgonEntitlement.ViewChannel | ArgonEntitlement.Connect | ArgonEntitlement.Speak;
+        var withJoin       = withoutJoin | ArgonEntitlement.JoinToVoice;
+        var withoutConnect = withJoin & ~ArgonEntitlement.Connect;
 
         Assert.Multiple(() =>
         {
             Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutJoin, ArgonEntitlement.Speak), Is.False);
             Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withJoin, ArgonEntitlement.Speak), Is.True);
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutConnect, ArgonEntitlement.Speak), Is.False,
+                "speaking is a right inside a room the member may connect to");
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutConnect, ArgonEntitlement.JoinToVoice), Is.True);
+        });
+    }
+
+    [Test]
+    public void IsManagementEntitlement_CoversModerationAndAdministration()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.MoveMember), Is.True);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.DeafenMember), Is.True);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.ManageChannels), Is.True);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.ManageMessages), Is.True);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.Connect), Is.False);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.SendMessages), Is.False);
         });
     }
 
