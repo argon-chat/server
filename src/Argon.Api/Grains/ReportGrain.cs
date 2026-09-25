@@ -149,104 +149,120 @@ public class ReportGrain(
         var addressHash = ReporterIdentityHasher.Hash(pepper, this.GetUserIp());
         var deviceHash  = ReporterIdentityHasher.Hash(pepper, RequestContext.Get("$caller_machine_id") as string);
 
-        var @case     = await ctx.ReportCases.FirstOrDefaultAsync(c => c.GroupKey == target.GroupKey && c.IsOpen, ct);
-        var isNewCase = @case is null;
+        // The open case's row is taken first, so concurrent reports on one case queue instead of
+        // overwriting each other's counts.
+        var strategy = ctx.Database.CreateExecutionStrategy();
 
-        @case ??= new ReportCaseEntity
+        return await strategy.ExecuteAsync(async token =>
         {
-            Id              = ArgonId.New(),
-            GroupKey        = target.GroupKey,
-            TargetKind      = target.Kind,
-            TargetId        = target.TargetId,
-            SpaceId         = target.SpaceId,
-            ChannelId       = target.ChannelId,
-            MessageId       = target.MessageId,
-            ConversationId  = target.ConversationId,
-            IsOpen          = true,
-            Status          = ReportStatus.PENDING,
-            TopCategory     = input.category,
-            ContentSnapshot = target.SnapshotJson,
-            FirstReportedAt = now,
-            LastReportedAt  = now,
-            AppliedAction   = ReportActionKind.NONE
-        };
+            ctx.ChangeTracker.Clear();
 
-        if (isNewCase)
-            ctx.ReportCases.Add(@case);
+            await using var tx = await ctx.Database.BeginTransactionAsync(token);
 
-        var windowStart = now.AddMinutes(-Cfg.Escalation.WindowMinutes);
-        var caseId      = @case.Id;
+            await ctx.ReportCases
+               .Where(c => c.GroupKey == target.GroupKey && c.IsOpen)
+               .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastReportedAt, c => c.LastReportedAt), token);
 
-        var earlier = isNewCase
-            ? []
-            : (await ctx.Reports.AsNoTracking()
-                 .Where(r => r.CaseId == caseId && r.CreatedAt > windowStart)
-                 .Select(r => new
-                  {
-                      r.ReporterId, r.ReporterIpHash, r.ReporterDeviceHash,
-                      r.ReporterAccountAgeDays, r.ReporterCredibilityAtTime, r.CreatedAt
-                  })
-                 .ToListAsync(ct))
-              .Select(r => new ReporterSignal(r.ReporterId, r.ReporterIpHash, r.ReporterDeviceHash,
-                   r.ReporterAccountAgeDays, r.ReporterCredibilityAtTime, r.CreatedAt))
-              .ToList();
+            var @case     = await ctx.ReportCases.FirstOrDefaultAsync(c => c.GroupKey == target.GroupKey && c.IsOpen, token);
+            var isNewCase = @case is null;
 
-        var mine = new ReporterSignal(reporterId, addressHash, deviceHash, accountAgeDays, credibility, now);
+            @case ??= new ReportCaseEntity
+            {
+                Id              = ArgonId.New(),
+                GroupKey        = target.GroupKey,
+                TargetKind      = target.Kind,
+                TargetId        = target.TargetId,
+                SpaceId         = target.SpaceId,
+                ChannelId       = target.ChannelId,
+                MessageId       = target.MessageId,
+                ConversationId  = target.ConversationId,
+                IsOpen          = true,
+                Status          = ReportStatus.PENDING,
+                TopCategory     = input.category,
+                ContentSnapshot = target.SnapshotJson,
+                FirstReportedAt = now,
+                LastReportedAt  = now,
+                AppliedAction   = ReportActionKind.NONE
+            };
 
-        var independentBefore = ReportPolicy.CountIndependent(Cfg.Escalation, earlier, now);
-        var independent       = ReportPolicy.CountIndependent(Cfg.Escalation, earlier.Append(mine), now);
-        var bestCredibility   = earlier.Count == 0 ? credibility : Math.Max(credibility, earlier.Max(s => s.Credibility));
-        var topCategory       = ReportPolicy.Higher(Cfg.Priority, @case.TopCategory, input.category);
+            if (isNewCase)
+                ctx.ReportCases.Add(@case);
 
-        // Escalation is sticky: once a case is urgent it stays urgent until someone resolves it.
-        var decision = @case.IsEscalated
-            ? new EscalationDecision(true, @case.EscalationRule)
-            : ReportPolicy.Evaluate(Cfg.Escalation, input.category, independent, credibility, targetTrust);
+            var windowStart = now.AddMinutes(-Cfg.Escalation.WindowMinutes);
+            var caseId      = @case.Id;
 
-        if (decision.IsEscalated && !@case.IsEscalated)
-        {
-            @case.IsEscalated    = true;
-            @case.EscalationRule = decision.Rule;
+            var earlier = isNewCase
+                ? []
+                : (await ctx.Reports.AsNoTracking()
+                     .Where(r => r.CaseId == caseId && r.CreatedAt > windowStart)
+                     .Select(r => new
+                      {
+                          r.ReporterId, r.ReporterIpHash, r.ReporterDeviceHash,
+                          r.ReporterAccountAgeDays, r.ReporterCredibilityAtTime, r.CreatedAt
+                      })
+                     .ToListAsync(token))
+                  .Select(r => new ReporterSignal(r.ReporterId, r.ReporterIpHash, r.ReporterDeviceHash,
+                       r.ReporterAccountAgeDays, r.ReporterCredibilityAtTime, r.CreatedAt))
+                  .ToList();
 
-            if (@case.Status == ReportStatus.PENDING)
-                @case.Status = ReportStatus.ESCALATED;
-        }
+            var mine = new ReporterSignal(reporterId, addressHash, deviceHash, accountAgeDays, credibility, now);
 
-        @case.ReportCount++;
-        @case.IndependentReporterCount = independent;
-        @case.TopCategory              = topCategory;
-        @case.PriorityScore            = ReportPolicy.ComputePriority(Cfg.Priority, topCategory, bestCredibility, independent);
-        @case.LastReportedAt           = now;
+            var independentBefore = ReportPolicy.CountIndependent(Cfg.Escalation, earlier, now);
+            var independent       = ReportPolicy.CountIndependent(Cfg.Escalation, earlier.Append(mine), now);
+            var bestCredibility   = earlier.Count == 0 ? credibility : Math.Max(credibility, earlier.Max(s => s.Credibility));
+            var topCategory       = ReportPolicy.Higher(Cfg.Priority, @case.TopCategory, input.category);
 
-        var report = new ReportEntity
-        {
-            Id                        = ArgonId.New(),
-            CaseId                    = @case.Id,
-            ReporterId                = reporterId,
-            TargetKind                = target.Kind,
-            TargetId                  = target.TargetId,
-            ChannelId                 = target.ChannelId,
-            MessageId                 = target.MessageId is { } message ? (ulong)message : null,
-            ConversationId            = target.ConversationId,
-            Category                  = input.category,
-            Reason                    = input.reason,
-            AdditionalInfo            = TrimComment(input.additionalInfo),
-            Status                    = @case.Status,
-            AssignedOperatorId        = @case.AssignedOperatorId,
-            ReporterCredibilityAtTime = credibility,
-            ReporterIpHash            = addressHash,
-            ReporterDeviceHash        = deviceHash,
-            ReporterAccountAgeDays    = accountAgeDays,
-            IsIndependent             = independent > independentBefore,
-            PriorityScore             = ReportPolicy.ComputePriority(Cfg.Priority, input.category, credibility, 0),
-            IsAutoEscalated           = decision.IsEscalated,
-            EscalationRule            = decision.Rule
-        };
+            // Escalation is sticky: once a case is urgent it stays urgent until someone resolves it.
+            var decision = @case.IsEscalated
+                ? new EscalationDecision(true, @case.EscalationRule)
+                : ReportPolicy.Evaluate(Cfg.Escalation, input.category, independent, credibility, targetTrust);
 
-        ctx.Reports.Add(report);
-        await ctx.SaveChangesAsync(ct);
+            if (decision.IsEscalated && !@case.IsEscalated)
+            {
+                @case.IsEscalated    = true;
+                @case.EscalationRule = decision.Rule;
 
-        return new SuccessSubmitReport(report.Id);
+                if (@case.Status == ReportStatus.PENDING)
+                    @case.Status = ReportStatus.ESCALATED;
+            }
+
+            @case.ReportCount++;
+            @case.IndependentReporterCount = independent;
+            @case.TopCategory              = topCategory;
+            @case.PriorityScore            = ReportPolicy.ComputePriority(Cfg.Priority, topCategory, bestCredibility, independent);
+            @case.LastReportedAt           = now;
+
+            var report = new ReportEntity
+            {
+                Id                        = ArgonId.New(),
+                CaseId                    = @case.Id,
+                ReporterId                = reporterId,
+                TargetKind                = target.Kind,
+                TargetId                  = target.TargetId,
+                ChannelId                 = target.ChannelId,
+                MessageId                 = target.MessageId is { } message ? (ulong)message : null,
+                ConversationId            = target.ConversationId,
+                Category                  = input.category,
+                Reason                    = input.reason,
+                AdditionalInfo            = TrimComment(input.additionalInfo),
+                Status                    = @case.Status,
+                AssignedOperatorId        = @case.AssignedOperatorId,
+                ReporterCredibilityAtTime = credibility,
+                ReporterIpHash            = addressHash,
+                ReporterDeviceHash        = deviceHash,
+                ReporterAccountAgeDays    = accountAgeDays,
+                IsIndependent             = independent > independentBefore,
+                PriorityScore             = ReportPolicy.ComputePriority(Cfg.Priority, input.category, credibility, 0),
+                IsAutoEscalated           = decision.IsEscalated,
+                EscalationRule            = decision.Rule
+            };
+
+            ctx.Reports.Add(report);
+            await ctx.SaveChangesAsync(token);
+            await tx.CommitAsync(token);
+
+            return (ISubmitReportResult)new SuccessSubmitReport(report.Id);
+        }, ct);
     }
 
     private string? TrimComment(string? comment)
