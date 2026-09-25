@@ -34,6 +34,9 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
     private static readonly BotError NoManageChannels = new(403, "not_a_member",
         "Bot does not have ManageChannels permission.");
 
+    private static readonly BotError InvalidChannel = new(400, "validation_error",
+        "The channel name, description, type or group is invalid.");
+
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
@@ -60,6 +63,7 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
            .Permission(ArgonEntitlement.ManageChannels)
            .RequiresSpaceMembership()
            .Throws(NoManageChannels)
+           .Throws(InvalidChannel)
            .Handle(async (_, request) =>
             {
                 try
@@ -79,6 +83,10 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
                 catch (UnauthorizedAccessException)
                 {
                     throw NoManageChannels.Raise();
+                }
+                catch (ArgumentException e)
+                {
+                    throw InvalidChannel.Raise(e.Message);
                 }
             });
 
