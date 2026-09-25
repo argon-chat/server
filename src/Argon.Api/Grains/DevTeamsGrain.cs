@@ -7,6 +7,7 @@ using Argon.Core.Entities.Data;
 using Argon.Entities;
 using Grains.Interfaces;
 using ion.runtime;
+using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 using System.Buffers.Text;
 using BotDetails = AccountContracts.BotDetails;
@@ -17,7 +18,7 @@ using BotLifecycleState = Argon.Core.Entities.Data.BotLifecycleState;
 /// own. Stateless — key it with <see cref="Guid.Empty"/>.
 /// </summary>
 [StatelessWorker]
-public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contextFactory) : Grain, IDevTeamsGrain
+public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contextFactory, HybridCache cache) : Grain, IDevTeamsGrain
 {
     // ── teams ────────────────────────────────────────────────────────────────────────────────
 
@@ -227,10 +228,10 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         if (user is null)
             return InviteUserError.USER_NOT_FOUND;
 
-        var existing = await db.TeamInvites
-           .FirstOrDefaultAsync(x => x.TeamId == teamId && x.ToUserId == user.Id && !x.Revoked && !x.Accepted, ct);
+        var invite = await db.TeamInvites
+           .FirstOrDefaultAsync(x => x.TeamId == teamId && x.ToUserId == user.Id, ct);
 
-        if (existing != null)
+        if (invite is { Revoked: false, Accepted: false } && invite.ExpireAt > DateTimeOffset.UtcNow)
             return InviteUserError.ALREADY_INVITED;
 
         var alreadyMember = await db.MemberTeamEntities.AnyAsync(x => x.TeamId == teamId && x.UserId == user.Id, ct);
@@ -238,14 +239,18 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         if (alreadyMember)
             return InviteUserError.ALREADY_IN_TEAM;
 
-        db.Add(new DevTeamMemberInvite
+        // One row per team and invitee: a declined, spent or expired invite is reissued in place.
+        if (invite is null)
         {
-            TeamId     = teamId,
-            FromUserId = fromUserId,
-            ToUserId   = user.Id,
-            ExpireAt   = DateTimeOffset.UtcNow.Add(ttl),
-            CreatedAt  = DateTime.UtcNow
-        });
+            invite = new DevTeamMemberInvite { TeamId = teamId, ToUserId = user.Id, ExpireAt = default };
+            db.Add(invite);
+        }
+
+        invite.FromUserId = fromUserId;
+        invite.Accepted   = false;
+        invite.Revoked    = false;
+        invite.ExpireAt   = DateTimeOffset.UtcNow.Add(ttl);
+        invite.CreatedAt  = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
         return InviteUserError.OK;
@@ -489,26 +494,6 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         throw new NotSupportedException($"App type {appInfo.AppType} is not supported.");
     }
 
-    public async Task<AppDetails?> GetAppDetailsByClientIdAsync(string clientId, CancellationToken ct = default)
-    {
-        await using var db = await contextFactory.CreateDbContextAsync(ct);
-
-        var clientApp = await db.AppClientEntities
-           .AsNoTracking()
-           .FirstOrDefaultAsync(x => x.ClientId == clientId, ct);
-
-        if (clientApp is not null)
-            return Describe(clientApp);
-
-        var botEntity = await db.BotEntities
-           .AsNoTracking()
-           .Include(x => x.BotAsUser)
-           .ThenInclude(x => x.Profile)
-           .FirstOrDefaultAsync(x => x.ClientId == clientId, ct);
-
-        return botEntity is null ? null : Describe(botEntity);
-    }
-
     public async Task<HashSet<string>> GetAllAllowedOriginsAsync(CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
@@ -646,10 +631,12 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         var botEntity = await RequireBotAsync(db, teamId, appId, ct);
+        var previous  = botEntity.BotToken;
 
         botEntity.BotToken = GenerateBotToken(botEntity.AppId);
 
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(BotTokenAuthenticationHandler.CacheKeyFor(previous), ct);
 
         return botEntity.BotToken;
     }
@@ -710,6 +697,9 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         bot.UpdatedAt      = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
+
+        // The Bot API caches whether a token's bot is restricted; a suspension has to reach it now.
+        await cache.RemoveAsync(BotTokenAuthenticationHandler.CacheKeyFor(bot.BotToken), ct);
     }
 
     public async Task UpdateBotEntitlementsAsync(
@@ -847,7 +837,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     /// </summary>
     private static List<ScopeKeyValue> AvailableScopesFor(BotEntity bot)
         => AvailableScopes(bot.RequiredScopes, bot.IsVerified,
-            allowInternal: bot is { IsVerified: true, BotAsUser.Profile.Badges: ["staff"] });
+            allowInternal: bot is { IsVerified: true, BotAsUser.Profile.Badges: var badges } && badges.Contains("staff"));
 
     /// <summary>
     /// A client app's scope list.
