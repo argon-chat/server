@@ -435,33 +435,42 @@ public sealed class FeatureFlagGrain(
         FeatureFlagEvaluationContext context)
     {
         // User-level override (highest priority)
-        if (userOverride?.Enabled.HasValue == true)
-            return (userOverride.Enabled.Value, FeatureFlagScope.User);
+        if (Decide(flag, userOverride, context) is { } byUser)
+            return (byUser, FeatureFlagScope.User);
 
         // Country-level override
-        if (countryOverride?.Enabled.HasValue == true)
-            return (countryOverride.Enabled.Value, FeatureFlagScope.Country);
+        if (Decide(flag, countryOverride, context) is { } byCountry)
+            return (byCountry, FeatureFlagScope.Country);
 
         // Client-level override
-        if (clientOverride?.Enabled.HasValue == true)
-            return (clientOverride.Enabled.Value, FeatureFlagScope.Client);
+        if (Decide(flag, clientOverride, context) is { } byClient)
+            return (byClient, FeatureFlagScope.Client);
 
         // Global default with optional percentage rollout
         return (EvaluateGlobalDefault(flag, context), FeatureFlagScope.Global);
     }
 
-    private static bool EvaluateGlobalDefault(FeatureFlagRow flag, FeatureFlagEvaluationContext context)
-    {
-        if (!flag.RolloutPercentage.HasValue)
-            return flag.DefaultEnabled;
+    /// <summary>
+    /// An override's switch when it sets one, else its percentage, else null to inherit from the scope below.
+    /// </summary>
+    private static bool? Decide(FeatureFlagRow flag, FeatureFlagOverrideRow? @override, FeatureFlagEvaluationContext context)
+        => @override?.Enabled
+        ?? (@override?.RolloutPercentage is { } percentage ? InRollout(flag, percentage, context) : null);
 
+    private static bool EvaluateGlobalDefault(FeatureFlagRow flag, FeatureFlagEvaluationContext context)
+        => flag.RolloutPercentage is { } percentage ? InRollout(flag, percentage, context) : flag.DefaultEnabled;
+
+    /// <summary>
+    /// The one bucketing every percentage uses, so a user in a 30% override is in a 30% rollout of the same flag too.
+    /// </summary>
+    private static bool InRollout(FeatureFlagRow flag, int percentage, FeatureFlagEvaluationContext context)
+    {
         // Use user ID for consistent rollout, or flag ID for anonymous
         var hashInput = context.UserId.HasValue
             ? $"{flag.Id}:{context.UserId.Value}"
             : flag.Id;
 
-        var bucket = GetStableHash(hashInput) % 100;
-        return bucket < flag.RolloutPercentage.Value;
+        return GetStableHash(hashInput) % 100 < percentage;
     }
 
     private string? ResolveVariant(
@@ -523,10 +532,12 @@ public sealed class FeatureFlagGrain(
         }
     }
 
-    private static int GetStableHash(string input)
+    // Widened before Math.Abs: int.MinValue has no positive int and threw for one input in 2^32. Every
+    // other input keeps the bucket it had.
+    private static long GetStableHash(string input)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Math.Abs(BitConverter.ToInt32(bytes, 0));
+        return Math.Abs((long)BitConverter.ToInt32(bytes, 0));
     }
 
     private async Task EnsureCacheLoadedAsync()
@@ -545,7 +556,7 @@ public sealed class FeatureFlagGrain(
                 var overrides = await ctx.FeatureFlagOverrides
                     .AsNoTracking()
                     .Where(o => !o.IsDeleted)
-                    .Select(o => new FeatureFlagOverrideRow(o.FeatureFlagId, o.Scope, o.TargetId, o.Enabled, o.ForcedVariant))
+                    .Select(o => new FeatureFlagOverrideRow(o.FeatureFlagId, o.Scope, o.TargetId, o.Enabled, o.ForcedVariant, o.RolloutPercentage))
                     .ToArrayAsync(ct);
 
                 return new FeatureFlagSnapshot(flags, overrides);
@@ -589,4 +600,5 @@ public sealed record FeatureFlagOverrideRow(
     FeatureFlagScope Scope,
     string TargetId,
     bool? Enabled,
-    string? ForcedVariant);
+    string? ForcedVariant,
+    int? RolloutPercentage = null);

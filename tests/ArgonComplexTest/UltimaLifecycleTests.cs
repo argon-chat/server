@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Argon.Entities;
+using Argon.Grains;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
@@ -17,9 +18,13 @@ using Microsoft.Extensions.DependencyInjection;
 /// sends them.
 /// </summary>
 /// <remarks>
-/// Nothing here resets the shared <see cref="FakeXsollaService"/>: its attribute log is cleared by
+/// <para>Nothing here resets the shared <see cref="FakeXsollaService"/>: its attribute log is cleared by
 /// <see cref="UltimaTests"/> and <see cref="XsollaWebHookTests"/> while this fixture may be running,
-/// so every assertion reads the database or the grain instead.
+/// so every assertion reads the database or the grain instead.</para>
+///
+/// <para>The grace tests shorten <see cref="UltimaGrain.RenewalGrace"/>, which is process-wide. Only a
+/// subscription Xsolla renews whose paid period is already over ever reads it, and no other fixture
+/// makes one, so a few seconds of a shorter grace touch nothing but the users made here.</para>
 /// </remarks>
 [TestFixture]
 public class UltimaLifecycleTests : TestBase
@@ -55,6 +60,36 @@ public class UltimaLifecycleTests : TestBase
 
         return (await HttpClient.SendAsync(request, ct)).StatusCode;
     }
+
+    private async Task<UltimaSubscriptionStatus?> StatusAsync(Guid userId, CancellationToken ct)
+        => (await Ultima(userId).GetSubscriptionAsync(ct))?.status;
+
+    /// <summary>Moves the end of the user's subscription, as time passing would.</summary>
+    private async Task EndsAtAsync(Guid userId, DateTimeOffset expiresAt, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+
+        await db.UltimaSubscriptions
+           .Where(s => s.UserId == userId && s.Status != UltimaStatus.Expired)
+           .ExecuteUpdateAsync(s => s.SetProperty(x => x.ExpiresAt, expiresAt), ct);
+    }
+
+    private static async Task WithRenewalGraceAsync(TimeSpan grace, Func<Task> test)
+    {
+        var shipped = UltimaGrain.RenewalGrace;
+        UltimaGrain.RenewalGrace = grace;
+
+        try
+        {
+            await test();
+        }
+        finally
+        {
+            UltimaGrain.RenewalGrace = shipped;
+        }
+    }
+
+    private static readonly TimeSpan ReminderDeadline = TimeSpan.FromSeconds(30);
 
     // ── Payment history ──────────────────────────────────────────────────────────────────────────
 
@@ -348,34 +383,213 @@ public class UltimaLifecycleTests : TestBase
         });
     }
 
-    /// <remarks>
-    /// <para><b>Pinned open defect.</b> Nothing in the server ends a subscription when its time runs
-    /// out. <c>UltimaGrain.ExpireSubscriptionAsync</c> is called only from the Xsolla refund and
-    /// order-cancelled webhooks and from the operator console; there is no reminder, timer or sweep
-    /// that compares <c>UltimaSubscriptionEntity.ExpiresAt</c> with the clock, and
-    /// <c>GetSubscriptionAsync</c> does not either. A subscription Xsolla bills is at least told when
-    /// billing stops — but a gifted one (<c>InventoryGrain.UseItemAsync</c> on a
-    /// <c>PremiumScenario</c>) and one granted from the console have no Xsolla subscription at all,
-    /// so a month of Ultima given as a gift is Ultima for ever: <c>UserEntity.HasActiveUltima</c>
-    /// stays true, the two subscription boosts stay, and so does everything premium cosmetics are
-    /// worn on.</para>
-    ///
-    /// <para>What should happen: once <c>ExpiresAt</c> passes, the subscription is expired as
-    /// <c>ExpireSubscriptionAsync</c> expires it. Closing it needs a mechanism — a grain reminder at
-    /// <c>ExpiresAt</c> set by <c>ActivateSubscriptionAsync</c>, or a periodic sweep — and a decision
-    /// on how the grace period fits in, so it is pinned rather than guessed.</para>
-    /// </remarks>
-    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
+    // ── Running out ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Nothing used to end a subscription when its time ran out: <c>ExpireSubscriptionAsync</c> ran only
+    /// on a refund, a cancelled order or the console's button. A subscription Xsolla bills at least
+    /// hears when billing stops, but a gifted one and one granted from the console have no Xsolla
+    /// subscription at all — a month of Ultima given as a gift was Ultima for ever, premium flag,
+    /// subscription boosts and everything worn on them included.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
     public async Task A_subscription_ends_when_its_time_runs_out(CancellationToken ct = default)
     {
         var subscriber = await CreateSessionAsync(ct);
+        var grain      = Ultima(subscriber.UserId);
 
         // A gift of no days at all: its time is up the moment it starts.
-        await Ultima(subscriber.UserId).ActivateSubscriptionAsync(UltimaTier.Monthly, 0, null, Guid.NewGuid(), ct);
+        await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 0, null, Guid.NewGuid(), ct);
 
         var ended = await Poll.UntilAsync(async () => !await HasActiveUltimaAsync(subscriber.UserId, ct),
-            TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(1), ct);
+            ReminderDeadline, TimeSpan.FromMilliseconds(250), ct);
 
         Assert.That(ended, Is.True, "a subscription whose time ran out still makes its holder an Ultima subscriber");
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await grain.GetSubscriptionAsync(ct), Is.Null);
+            Assert.That(await grain.GetBoostsAsync(ct), Is.Empty, "the subscription's boost slots outlived it");
+            Assert.That((await SubscriptionsAsync(subscriber.UserId, ct)).Select(s => s.Status), Is.EqualTo(new[] { UltimaStatus.Expired }));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_cancelled_subscription_ends_when_its_paid_period_does_with_no_grace(CancellationToken ct = default)
+    {
+        var subscriber = await CreateSessionAsync(ct);
+
+        await Ultima(subscriber.UserId).ActivateSubscriptionAsync(UltimaTier.Monthly, 30, $"xsolla-{Guid.NewGuid():N}", null, ct);
+
+        // A few seconds of the paid period left when the renewal is switched off.
+        var paidUntil = DateTimeOffset.UtcNow.AddSeconds(4);
+        await EndsAtAsync(subscriber.UserId, paidUntil, ct);
+
+        Assert.That(await subscriber.Ultima.CancelSubscription(ct), Is.True);
+        Assert.That(await HasActiveUltimaAsync(subscriber.UserId, ct), Is.True, "cancelling ended the period that was paid for");
+
+        var ended = await Poll.UntilAsync(async () => !await HasActiveUltimaAsync(subscriber.UserId, ct),
+            ReminderDeadline, TimeSpan.FromMilliseconds(250), ct);
+
+        Assert.Multiple(() =>
+        {
+            // The shipped grace is three days, so ending at all within the deadline means none was given.
+            Assert.That(ended, Is.True, "a cancelled subscription outlived its paid period");
+            Assert.That(DateTimeOffset.UtcNow, Is.GreaterThanOrEqualTo(paidUntil), "it ended before the time that was paid for");
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_subscription_Xsolla_renews_waits_out_its_grace_before_it_ends(CancellationToken ct = default)
+    {
+        var subscriber = await CreateSessionAsync(ct);
+        var grain      = Ultima(subscriber.UserId);
+        var grace      = TimeSpan.FromSeconds(5);
+
+        await WithRenewalGraceAsync(grace, async () =>
+        {
+            // The paid period is over the moment it starts, and the renewal is late.
+            await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 0, $"xsolla-{Guid.NewGuid():N}", null, ct);
+            var paidUntil = (await grain.GetSubscriptionAsync(ct))!.expiresAt;
+
+            var inGrace = await Poll.ForValueAsync(() => StatusAsync(subscriber.UserId, ct),
+                status => status is UltimaSubscriptionStatus.GracePeriod, ReminderDeadline, TimeSpan.FromMilliseconds(250), ct);
+
+            Assert.That(inGrace, Is.EqualTo(UltimaSubscriptionStatus.GracePeriod));
+            Assert.That(await HasActiveUltimaAsync(subscriber.UserId, ct), Is.True, "Ultima was taken away inside the grace");
+
+            var ended = await Poll.UntilAsync(async () => !await HasActiveUltimaAsync(subscriber.UserId, ct),
+                ReminderDeadline, TimeSpan.FromMilliseconds(250), ct);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(ended, Is.True, "a renewal that never came left the subscription running past its grace");
+                Assert.That(DateTimeOffset.UtcNow, Is.GreaterThanOrEqualTo(paidUntil + grace), "it ended before the grace was out");
+            });
+        });
+
+        Assert.That(await grain.GetBoostsAsync(ct), Is.Empty);
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_renewal_that_arrives_inside_the_grace_keeps_the_subscription(CancellationToken ct = default)
+    {
+        var subscriber = await CreateSessionAsync(ct);
+        var grain      = Ultima(subscriber.UserId);
+        var subId      = $"xsolla-{Guid.NewGuid():N}";
+        var grace      = TimeSpan.FromSeconds(4);
+
+        await WithRenewalGraceAsync(grace, async () =>
+        {
+            await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 0, subId, null, ct);
+
+            Assert.That(await Poll.ForValueAsync(() => StatusAsync(subscriber.UserId, ct),
+                status => status is UltimaSubscriptionStatus.GracePeriod, ReminderDeadline, TimeSpan.FromMilliseconds(250), ct),
+                Is.EqualTo(UltimaSubscriptionStatus.GracePeriod));
+
+            // Xsolla's renewal, late but inside the grace.
+            await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 30, subId, null, ct);
+
+            await Task.Delay(grace + TimeSpan.FromSeconds(3), ct);
+
+            var renewed = await grain.GetSubscriptionAsync(ct);
+
+            await Assert.MultipleAsync(async () =>
+            {
+                Assert.That(renewed!.status, Is.EqualTo(UltimaSubscriptionStatus.Active));
+                Assert.That(renewed.expiresAt, Is.EqualTo(DateTimeOffset.UtcNow.AddDays(30)).Within(TimeSpan.FromMinutes(1)));
+                Assert.That(await HasActiveUltimaAsync(subscriber.UserId, ct), Is.True, "the renewed subscription ended at the old grace");
+                Assert.That(await grain.GetBoostsAsync(ct), Has.Count.EqualTo(2));
+            });
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Cancelling_inside_the_grace_ends_the_subscription_at_once(CancellationToken ct = default)
+    {
+        var subscriber = await CreateSessionAsync(ct);
+        var grain      = Ultima(subscriber.UserId);
+
+        // Long enough that only the cancellation can be what ends it.
+        await WithRenewalGraceAsync(TimeSpan.FromMinutes(10), async () =>
+        {
+            await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 0, $"xsolla-{Guid.NewGuid():N}", null, ct);
+
+            Assert.That(await Poll.ForValueAsync(() => StatusAsync(subscriber.UserId, ct),
+                status => status is UltimaSubscriptionStatus.GracePeriod, ReminderDeadline, TimeSpan.FromMilliseconds(250), ct),
+                Is.EqualTo(UltimaSubscriptionStatus.GracePeriod));
+
+            // Xsolla giving up on the renewal, or the subscriber switching it off.
+            Assert.That(await subscriber.Ultima.CancelSubscription(ct), Is.True);
+
+            var ended = await Poll.UntilAsync(async () => !await HasActiveUltimaAsync(subscriber.UserId, ct),
+                ReminderDeadline, TimeSpan.FromMilliseconds(250), ct);
+
+            Assert.That(ended, Is.True, "a subscription cancelled after its paid period kept running");
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Subscribing_again_before_a_cancelled_subscription_ends_keeps_it_going(CancellationToken ct = default)
+    {
+        var subscriber = await CreateSessionAsync(ct);
+        var grain      = Ultima(subscriber.UserId);
+
+        await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 30, $"xsolla-{Guid.NewGuid():N}", null, ct);
+
+        var paidUntil = DateTimeOffset.UtcNow.AddSeconds(3);
+        await EndsAtAsync(subscriber.UserId, paidUntil, ct);
+
+        Assert.That(await subscriber.Ultima.CancelSubscription(ct), Is.True);
+
+        // Changed their mind before the end: the new period runs on from the old one.
+        await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 30, $"xsolla-{Guid.NewGuid():N}", null, ct);
+
+        await Task.Delay(paidUntil - DateTimeOffset.UtcNow + TimeSpan.FromSeconds(4), ct);
+
+        var current = await grain.GetSubscriptionAsync(ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await HasActiveUltimaAsync(subscriber.UserId, ct), Is.True, "the subscription ended at the cancelled period's end");
+            Assert.That(current!.status, Is.EqualTo(UltimaSubscriptionStatus.Active));
+            Assert.That(current.expiresAt, Is.EqualTo(paidUntil.AddDays(30)).Within(TimeSpan.FromSeconds(2)));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_subscription_from_before_expiry_was_scheduled_ends_once_its_grain_wakes(CancellationToken ct = default)
+    {
+        var subscriber = await CreateSessionAsync(ct);
+        var now        = DateTimeOffset.UtcNow;
+
+        // Written straight to the database, as every subscription before this release was: no reminder.
+        await using (var db = await DbAsync(ct))
+        {
+            db.UltimaSubscriptions.Add(new UltimaSubscriptionEntity
+            {
+                Id         = Guid.NewGuid(),
+                UserId     = subscriber.UserId,
+                Tier       = UltimaTier.Monthly,
+                Status     = UltimaStatus.Active,
+                StartsAt   = now.AddDays(-31),
+                ExpiresAt  = now.AddDays(-1),
+                BoostSlots = 2,
+                CreatedAt  = now.AddDays(-31)
+            });
+
+            await db.SaveChangesAsync(ct);
+
+            await db.Users.Where(u => u.Id == subscriber.UserId)
+               .ExecuteUpdateAsync(s => s.SetProperty(u => u.HasActiveUltima, true), ct);
+        }
+
+        // Anything that wakes the grain — here, the subscriber opening the Ultima screen.
+        await subscriber.Ultima.GetMySubscription(ct);
+
+        var ended = await Poll.UntilAsync(async () => !await HasActiveUltimaAsync(subscriber.UserId, ct),
+            ReminderDeadline, TimeSpan.FromMilliseconds(250), ct);
+
+        Assert.That(ended, Is.True, "a subscription that ran out before the reminder existed was never ended");
     }
 }

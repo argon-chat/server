@@ -13,12 +13,117 @@ public class UltimaGrain(
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
     IXsollaService xsolla,
-    ILogger<IUltimaGrain> logger) : Grain, IUltimaGrain
+    ILogger<IUltimaGrain> logger) : Grain, IUltimaGrain, IRemindable
 {
     private static readonly TimeSpan TransferCooldown = TimeSpan.FromDays(7);
-    private static readonly TimeSpan GracePeriod      = TimeSpan.FromDays(3);
+
+    /// <summary>How long a subscription Xsolla renews outlives its paid period while the renewal is late.</summary>
+    public static TimeSpan RenewalGrace { get; set; } = TimeSpan.FromHours(72);
+
+    /// <summary>Ends the subscription when its time is up. Every tick sets it again or removes it.</summary>
+    private const string ExpiryReminder = "ultima-expiry";
+
+    /// <summary>Only a retry: a tick that finishes sets the reminder anew.</summary>
+    private static readonly TimeSpan ExpiryRetryPeriod = TimeSpan.FromHours(1);
+
+    /// <summary>Well inside what a reminder can wait; a longer subscription is looked at again from there.</summary>
+    private static readonly TimeSpan LongestExpiryWait = TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// The soonest a tick is asked for. Orleans schedules a reminder whose first tick is already past on
+    /// its period instead, so a due time of zero would fire an hour late.
+    /// </summary>
+    private static readonly TimeSpan ShortestExpiryWait = TimeSpan.FromSeconds(1);
 
     private Guid UserId => this.GetPrimaryKey();
+
+    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    {
+        // A subscription from before the expiry reminder existed gets one the first time its grain wakes.
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync(cancellationToken);
+
+            if (await ctx.UltimaSubscriptions.AnyAsync(x => x.UserId == UserId && x.Status != UltimaStatus.Expired, cancellationToken)
+             && await this.GetReminder(ExpiryReminder) is null)
+                await ArmExpiryAsync();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not check the Ultima expiry reminder of user {UserId}", UserId);
+        }
+    }
+
+    public async Task ReceiveReminder(string reminderName, TickStatus status)
+    {
+        if (reminderName != ExpiryReminder)
+            return;
+
+        await using (var ctx = await context.CreateDbContextAsync())
+        {
+            var sub = await ctx.UltimaSubscriptions
+               .Where(x => x.UserId == UserId && x.Status != UltimaStatus.Expired)
+               .OrderBy(x => x.ExpiresAt)
+               .FirstOrDefaultAsync();
+
+            var now = DateTimeOffset.UtcNow;
+
+            if (sub is not null && sub.ExpiresAt <= now)
+            {
+                if (!sub.AutoRenew || sub.ExpiresAt + RenewalGrace <= now)
+                {
+                    await ExpireSubscriptionAsync();
+                    return;
+                }
+
+                if (sub.Status == UltimaStatus.Active)
+                {
+                    sub.Status = UltimaStatus.GracePeriod;
+                    await ctx.SaveChangesAsync();
+                }
+            }
+        }
+
+        await ArmExpiryAsync();
+    }
+
+    /// <summary>
+    /// Sets the expiry reminder for the subscription's end — for one Xsolla renews, first its end and then
+    /// the end of its grace — or removes it when there is no subscription left.
+    /// </summary>
+    /// <remarks>Never allowed to fail the caller: the change it follows is already committed.</remarks>
+    private async Task ArmExpiryAsync()
+    {
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync();
+
+            var sub = await ctx.UltimaSubscriptions
+               .AsNoTracking()
+               .Where(x => x.UserId == UserId && x.Status != UltimaStatus.Expired)
+               .OrderBy(x => x.ExpiresAt)
+               .FirstOrDefaultAsync();
+
+            if (sub is null)
+            {
+                if (await this.GetReminder(ExpiryReminder) is { } armed)
+                    await this.UnregisterReminder(armed);
+
+                return;
+            }
+
+            var endsAt = sub.AutoRenew && sub.Status == UltimaStatus.GracePeriod ? sub.ExpiresAt + RenewalGrace : sub.ExpiresAt;
+            var wait   = endsAt - DateTimeOffset.UtcNow;
+
+            await this.RegisterOrUpdateReminder(ExpiryReminder,
+                wait < ShortestExpiryWait ? ShortestExpiryWait : wait > LongestExpiryWait ? LongestExpiryWait : wait,
+                ExpiryRetryPeriod);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not set the Ultima expiry reminder for user {UserId}", UserId);
+        }
+    }
 
     public async Task<UltimaSubscriptionInfo?> GetSubscriptionAsync(CancellationToken ct = default)
     {
@@ -272,6 +377,8 @@ public class UltimaGrain(
            .Where(x => x.Id == UserId)
            .ExecuteUpdateAsync(s => s.SetProperty(x => x.HasActiveUltima, true), ct);
 
+        await ArmExpiryAsync();
+
         logger.LogInformation("Activated Ultima {Tier} for user {UserId}, duration {Days} days", tier, UserId, durationDays);
 
         // Sync subscriber attribute to Xsolla for promotion targeting (numeric 1 = active)
@@ -335,6 +442,8 @@ public class UltimaGrain(
         // Broadcast profile reset to all user's spaces
         await GrainFactory.GetGrain<IUserGrain>(UserId).ResetPremiumProfileAsync(ct);
 
+        await ArmExpiryAsync();
+
         logger.LogInformation("Expired Ultima subscription for user {UserId}, removed {Count} boosts from {Spaces} spaces",
             UserId, subscriptionBoosts.Count, affectedSpaceIds.Count);
 
@@ -354,8 +463,9 @@ public class UltimaGrain(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        // Cancelled in its grace, a subscription has nothing left to wait for and ends at once.
         var sub = await ctx.UltimaSubscriptions
-           .FirstOrDefaultAsync(x => x.UserId == UserId && x.Status == UltimaStatus.Active, ct);
+           .FirstOrDefaultAsync(x => x.UserId == UserId && (x.Status == UltimaStatus.Active || x.Status == UltimaStatus.GracePeriod), ct);
 
         if (sub is null)
             return false;
@@ -365,6 +475,7 @@ public class UltimaGrain(
         sub.CancelledAt = DateTimeOffset.UtcNow;
 
         await ctx.SaveChangesAsync(ct);
+        await ArmExpiryAsync();
 
         logger.LogInformation("Cancelled Ultima subscription for user {UserId}, expires at {ExpiresAt}", UserId, sub.ExpiresAt);
         return true;

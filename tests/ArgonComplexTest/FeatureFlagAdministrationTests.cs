@@ -502,21 +502,12 @@ public class FeatureFlagAdministrationTests : TestBase
         });
     }
 
-    /// <remarks>
-    /// <para><b>Pinned open defect.</b> <c>FeatureFlagOverrideEntity.RolloutPercentage</c> is stored,
-    /// accepted by <c>SetOverrideAsync</c> (range-checked, even), shown by <c>GetFlagAsync</c> and
-    /// offered by the operator console's override form — and never evaluated.
-    /// <c>FeatureFlagGrain.EnsureCacheLoadedAsync</c> projects overrides into
-    /// <c>FeatureFlagOverrideRow</c> without the column, and <c>ResolveEnabled</c> only asks
-    /// <c>Enabled</c>. So an override that says "half of this country" with <c>Enabled</c> left null
-    /// ("inherit", per the entity) is skipped entirely and the global default answers.</para>
-    ///
-    /// <para>What should happen: an override whose <c>Enabled</c> is null and whose percentage is set
-    /// buckets the user the way <c>EvaluateGlobalDefault</c> does, at that scope. Closing it means
-    /// carrying the column in the snapshot row and deciding how a scoped percentage combines with the
-    /// scope priority — a product call, so it is pinned rather than guessed.</para>
-    /// </remarks>
-    [Test, CancelAfter(60_000), Category("KnownPresenceBug")]
+    /// <summary>
+    /// An override's <c>RolloutPercentage</c> used to be stored, range-checked and shown by the console
+    /// and then dropped from the evaluation snapshot, so "half of this country" with <c>Enabled</c> left
+    /// null was skipped and the global default answered.
+    /// </summary>
+    [Test, CancelAfter(60_000)]
     public async Task An_override_rollout_percentage_is_applied(CancellationToken ct = default)
     {
         var flagId = await CreateAsync(Input(NewFlagId("override-rollout")));
@@ -524,7 +515,101 @@ public class FeatureFlagAdministrationTests : TestBase
         await Flags.SetOverrideAsync(new FeatureFlagOverrideInput(flagId, FeatureFlagScope.Country, "SE", null, 100, null));
 
         var swede = await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(Guid.NewGuid(), "SE", null));
+        var dane  = await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(Guid.NewGuid(), "DK", null));
 
-        Assert.That(swede.IsEnabled, Is.True, "a 100% rollout override for SE left a Swedish user out");
+        Assert.Multiple(() =>
+        {
+            Assert.That(swede.IsEnabled, Is.True, "a 100% rollout override for SE left a Swedish user out");
+            Assert.That(swede.ResolvedAt, Is.EqualTo(FeatureFlagScope.Country));
+            Assert.That(dane.IsEnabled, Is.False);
+            Assert.That(dane.ResolvedAt, Is.EqualTo(FeatureFlagScope.Global));
+        });
+    }
+
+    [Test, CancelAfter(60_000)]
+    public async Task An_override_switch_beats_its_own_percentage_and_a_percentage_beats_the_scope_below(CancellationToken ct = default)
+    {
+        var flagId = await CreateAsync(Input(NewFlagId("override-priority"), defaultEnabled: true));
+        var userId = Guid.NewGuid();
+
+        // Off outright, whatever the percentage beside it says.
+        await Flags.SetOverrideAsync(new FeatureFlagOverrideInput(flagId, FeatureFlagScope.Client, "desktop", false, 100, null));
+
+        // Nobody in NO: a percentage at country scope decides before the client scope is asked.
+        await Flags.SetOverrideAsync(new FeatureFlagOverrideInput(flagId, FeatureFlagScope.Country, "NO", null, 0, null));
+
+        // And this one user is in, above them both.
+        await Flags.SetOverrideAsync(new FeatureFlagOverrideInput(flagId, FeatureFlagScope.User, userId.ToString(), null, 100, null));
+
+        var desktop   = await Flags.EvaluateAsync(flagId, new FeatureFlagEvaluationContext { ClientId = "desktop" });
+        var norwegian = await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(Guid.NewGuid(), "NO", "desktop"));
+        var chosen    = await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(userId, "NO", "desktop"));
+        var anyoneElse = await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(Guid.NewGuid(), "FI", "web"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((desktop.IsEnabled, desktop.ResolvedAt), Is.EqualTo((false, FeatureFlagScope.Client)));
+            Assert.That((norwegian.IsEnabled, norwegian.ResolvedAt), Is.EqualTo((false, FeatureFlagScope.Country)));
+            Assert.That((chosen.IsEnabled, chosen.ResolvedAt), Is.EqualTo((true, FeatureFlagScope.User)));
+            Assert.That((anyoneElse.IsEnabled, anyoneElse.ResolvedAt), Is.EqualTo((true, FeatureFlagScope.Global)));
+        });
+    }
+
+    [Test, CancelAfter(60_000)]
+    public async Task An_override_percentage_picks_the_same_users_as_the_flags_own_rollout(CancellationToken ct = default)
+    {
+        var flagId = await CreateAsync(Input(NewFlagId("same-buckets")));
+        var users  = Enumerable.Range(0, 40).Select(_ => Guid.NewGuid()).ToList();
+
+        await Flags.SetOverrideAsync(new FeatureFlagOverrideInput(flagId, FeatureFlagScope.Country, "PL", null, 30, null));
+
+        var viaOverride = new List<bool>();
+
+        foreach (var user in users)
+            viaOverride.Add((await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(user, "PL", null))).IsEnabled);
+
+        // The same thirty percent, asked of the flag itself.
+        Assert.That((await Flags.UpdateFlagAsync(Input(flagId, rollout: 30))).Success, Is.True);
+
+        var viaFlag = new List<bool>();
+
+        foreach (var user in users)
+            viaFlag.Add((await Flags.EvaluateAsync(flagId, FeatureFlagEvaluationContext.ForUser(user))).IsEnabled);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viaOverride, Is.EqualTo(viaFlag), "a user's bucket depends on which scope asked");
+            Assert.That(viaOverride, Does.Contain(true).And.Contain(false), "thirty percent of forty users was everybody or nobody");
+        });
+    }
+
+    /// <summary>
+    /// A flag id whose SHA-256 begins <c>00 00 00 80</c>: read as a little-endian int that is
+    /// <c>int.MinValue</c>, which <c>Math.Abs</c> cannot negate. Found by brute force, so every anonymous
+    /// evaluation of a rollout on this id used to throw <c>OverflowException</c> out of the grain.
+    /// </summary>
+    private const string IntMinHashFlagId = "cov.int-min.11.147562903";
+
+    [Test, CancelAfter(60_000)]
+    public async Task A_flag_whose_bucket_hash_is_int_min_still_evaluates(CancellationToken ct = default)
+    {
+        var rollout = Input(IntMinHashFlagId, rollout: 49);
+
+        // A fixed id, so a database kept from an earlier run already holds it.
+        if (!(await Flags.CreateFlagAsync(rollout)).Success)
+            Assert.That((await Flags.UpdateFlagAsync(rollout)).Success, Is.True);
+
+        // |int.MinValue| is 2^31, and 2^31 % 100 is bucket 48.
+        var in49 = await Flags.EvaluateAsync(IntMinHashFlagId, FeatureFlagEvaluationContext.Empty);
+
+        Assert.That((await Flags.UpdateFlagAsync(Input(IntMinHashFlagId, rollout: 48))).Success, Is.True);
+
+        var in48 = await Flags.EvaluateAsync(IntMinHashFlagId, FeatureFlagEvaluationContext.Empty);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(in49.IsEnabled, Is.True);
+            Assert.That(in48.IsEnabled, Is.False);
+        });
     }
 }
