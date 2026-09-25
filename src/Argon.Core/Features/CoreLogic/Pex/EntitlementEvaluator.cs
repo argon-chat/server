@@ -54,6 +54,10 @@ public static class EntitlementAnalyzer
         if (target == ArgonEntitlement.JoinToVoice && !permissions.HasFlag(ArgonEntitlement.ViewChannel))
             return false;
 
+        // Outside VOICE_MASK: transmitting on a radio needs the right to speak in the room.
+        if (target == ArgonEntitlement.Broadcast && !IsEntitlementSatisfied(permissions, ArgonEntitlement.Speak))
+            return false;
+
         return true;
     }
 

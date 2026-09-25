@@ -172,6 +172,64 @@ public class ActivationStateSerializationTests
             Assert.That(carried.PreferredStatus, Is.Null);
         });
     }
+
+    /// <summary>
+    /// A broadcast channel's radio carries its links: the token each broadcaster holds, what the SFU
+    /// was told to forward, and the sweeper's bookkeeping.
+    /// </summary>
+    [Test]
+    public void A_radio_carries_its_links()
+    {
+        var space  = Guid.NewGuid();
+        var user   = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        var since  = DateTimeOffset.UtcNow.AddSeconds(-30);
+
+        var original = new VoiceBroadcastActivationState
+        {
+            SpaceId = space,
+            Links =
+            {
+                [user] = new RadioLink
+                {
+                    UserId           = user,
+                    Token            = "jwt",
+                    IssuedAt         = DateTimeOffset.UtcNow.AddSeconds(-5),
+                    Confirmed        = true,
+                    ForwardedTargets = [target],
+                    UnmutedSince     = new Dictionary<string, DateTimeOffset> { ["TR_mic"] = since },
+                    MissingSweeps    = 1
+                }
+            }
+        };
+
+        var carried = RoundTrip(original);
+        var link    = carried.Links[user];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(carried.SpaceId, Is.EqualTo(space));
+            Assert.That(link.UserId, Is.EqualTo(user));
+            Assert.That(link.Token, Is.EqualTo("jwt"));
+            Assert.That(link.IssuedAt, Is.EqualTo(original.Links[user].IssuedAt));
+            Assert.That(link.Confirmed, Is.True);
+            Assert.That(link.ForwardedTargets, Is.EquivalentTo(new[] { target }));
+            Assert.That(link.UnmutedSince, Is.EqualTo(new Dictionary<string, DateTimeOffset> { ["TR_mic"] = since }));
+            Assert.That(link.MissingSweeps, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void A_radio_with_nobody_on_it_arrives_usable()
+    {
+        var carried = RoundTrip(new VoiceBroadcastActivationState());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(carried.SpaceId, Is.EqualTo(Guid.Empty));
+            Assert.That(carried.Links, Is.Empty);
+        });
+    }
 }
 
 /// <summary>

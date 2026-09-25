@@ -105,6 +105,7 @@ public static class ArgonOrleansHosting
                 z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
                 z.SerializerSettings.Converters.Add(new IonMaybeConverter());
                 z.SerializerSettings.Converters.Add(new IonArrayConverter());
+                z.SerializerSettings.Converters.Add(new IonPartialConverter());
                 z.SerializerSettings.Converters.Add(new StringEnumConverter());
             })));
     }

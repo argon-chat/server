@@ -1,6 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
 using Argon.Features.BotApi;
+using ion.runtime;
 using Orleans.Concurrency;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]
@@ -69,6 +70,13 @@ public interface IChannelGrain : IGrainWithGuidKey
     [OneWay, Alias("ClearChannel")]
     Task ClearChannel();
 
+    /// <summary>
+    /// The channel is being deleted: every member is removed from the room and the roster. One-way
+    /// like <see cref="ClearChannel"/>, because <see cref="Leave"/> calls back into the space grain.
+    /// </summary>
+    [OneWay, Alias(nameof(TeardownVoiceAsync))]
+    Task TeardownVoiceAsync();
+
 
     [OneWay, Alias("OnTypingEmit")]
     ValueTask OnTypingEmit();
@@ -88,6 +96,26 @@ public interface IChannelGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(MoveVoiceMember))]
     Task<IMoveVoiceMemberResult> MoveVoiceMember(Guid memberId, Guid targetChannelId);
+
+    /// <summary>Broadcast ("radio") mode on with the default settings, or off. Needs ManageChannels on a voice channel.</summary>
+    [Alias(nameof(SetBroadcastMode))]
+    Task<ISetBroadcastSettingsResult> SetBroadcastMode(bool enabled);
+
+    /// <summary>
+    /// Sparse update of the broadcast settings: a field the patch leaves out stays, a cleared one goes
+    /// back to its default. Needs ManageChannels and the mode on.
+    /// </summary>
+    [Alias(nameof(PatchBroadcastSettings))]
+    Task<ISetBroadcastSettingsResult> PatchBroadcastSettings(IonPartial<BroadcastSettings> patch);
+
+    /// <summary>
+    /// A target channel was deleted: drop it from this channel's targets. This grain is the only
+    /// writer of the broadcast column, so the space grain asks instead of editing the row — one-way,
+    /// like <see cref="ReleaseMember"/>, because it asks during a delete and this can call back into
+    /// the space grain.
+    /// </summary>
+    [OneWay, Alias(nameof(RemoveBroadcastTarget))]
+    Task RemoveBroadcastTarget(Guid targetChannelId);
 
     /// <summary>The caller's own mute/deafen/stream flags; the server-set flags are kept as they are.</summary>
     [Alias(nameof(UpdateVoiceState))]

@@ -186,6 +186,26 @@ public class EntitlementEvaluatorTests
     }
 
     [Test]
+    public void IsEntitlementSatisfied_Broadcast_RequiresSpeak()
+    {
+        var voice = ArgonEntitlement.ViewChannel | ArgonEntitlement.JoinToVoice | ArgonEntitlement.Connect;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(voice | ArgonEntitlement.Broadcast, ArgonEntitlement.Broadcast),
+                Is.False, "Broadcast without Speak must not be satisfied");
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(
+                    ArgonEntitlement.Speak | ArgonEntitlement.Broadcast, ArgonEntitlement.Broadcast),
+                Is.False, "Speak itself needs JoinToVoice and Connect");
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(
+                    voice | ArgonEntitlement.Speak | ArgonEntitlement.Broadcast, ArgonEntitlement.Broadcast),
+                Is.True);
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(ArgonEntitlementKit.Administrator, ArgonEntitlement.Broadcast),
+                Is.True);
+        });
+    }
+
+    [Test]
     public void IsEntitlementSatisfied_VoiceEntitlement_RequiresJoinToVoiceAndConnect()
     {
         var withoutJoin    = ArgonEntitlement.ViewChannel | ArgonEntitlement.Connect | ArgonEntitlement.Speak;

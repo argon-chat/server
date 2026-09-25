@@ -54,6 +54,39 @@ public class LiveKitWebhookTests : TestBase
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_radio_room_never_reaches_a_roster(CancellationToken ct = default)
+    {
+        var (owner, spaceId, channelId) = await VoiceRoomAsync(ct);
+
+        var status = await SendAsync(Event("participant_joined", $"radio/{spaceId}/{channelId}", owner.UserId), ct);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(status, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(await OccupantsAsync(owner, spaceId, channelId, ct), Is.Empty);
+        });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_radio_identity_in_a_channel_room_is_ignored(CancellationToken ct = default)
+    {
+        var (owner, spaceId, channelId) = await VoiceRoomAsync(ct);
+        var room = $"{spaceId}/{channelId}";
+        await SendAsync(Event("participant_joined", room, owner.UserId), ct);
+
+        var joined = await SendAsync(EventOf("participant_joined", room, $"bc:{Guid.NewGuid()}"), ct);
+        var left   = await SendAsync(EventOf("participant_left", room, $"bc:{owner.UserId}"), ct);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(joined, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(left, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(await OccupantsAsync(owner, spaceId, channelId, ct), Is.EqualTo(new[] { owner.UserId }),
+                "a bc: participant is neither a member joining nor the member it copies leaving");
+        });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
     public async Task Room_finished_clears_the_roster(CancellationToken ct = default)
     {
         var (owner, spaceId, channelId) = await VoiceRoomAsync(ct);
@@ -90,10 +123,13 @@ public class LiveKitWebhookTests : TestBase
     }
 
     private static WebhookEvent Event(string kind, string room, Guid? identity)
+        => EventOf(kind, room, identity?.ToString());
+
+    private static WebhookEvent EventOf(string kind, string room, string? identity)
     {
         var ev = new WebhookEvent { Id = $"EV_{Guid.NewGuid():N}", Event = kind, Room = new Room { Name = room } };
-        if (identity is { } id)
-            ev.Participant = new ParticipantInfo { Identity = id.ToString() };
+        if (identity is not null)
+            ev.Participant = new ParticipantInfo { Identity = identity };
         return ev;
     }
 

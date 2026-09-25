@@ -143,3 +143,66 @@ public sealed class IonUnionConverter<TUnion> : JsonConverter where TUnion : cla
         return IonFormatterStorage<TUnion>.Read(new System.Formats.Cbor.CborReader(Convert.FromBase64String(encoded)));
     }
 }
+
+/// <summary>
+/// Carries an <see cref="IonPartial{T}"/> through Newtonsoft as its Ion encoding.
+/// </summary>
+/// <remarks>
+/// A partial keeps each field's state — untouched, modified or cleared — in a private map with no
+/// settable member, so Newtonsoft would hand the grain an empty patch. Only on a cross-process call:
+/// a co-hosted call is never serialized, so the suite would not see it. The Ion formatter the generated
+/// schema registers keeps "cleared" and "untouched" apart, so the patch travels as its bytes, the same
+/// way <see cref="IonUnionConverter{TUnion}"/> carries a union.
+/// </remarks>
+public sealed class IonPartialConverter : JsonConverter
+{
+    private static readonly ConcurrentDictionary<Type, ICodec> Codecs = new();
+
+    public override bool CanConvert(Type objectType)
+        => objectType.IsGenericType && objectType.GetGenericTypeDefinition() == typeof(IonPartial<>);
+
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+    {
+        if (value is null)
+        {
+            writer.WriteNull();
+            return;
+        }
+
+        writer.WriteValue(Convert.ToBase64String(CodecFor(value.GetType()).Write(value)));
+    }
+
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+    {
+        if (reader.TokenType is JsonToken.Null)
+            return null;
+
+        if (reader.TokenType is not JsonToken.String || reader.Value is not string encoded)
+            throw new JsonSerializationException($"{objectType.Name} is expected as its Ion encoding, and a {reader.TokenType} arrived");
+
+        return CodecFor(objectType).Read(Convert.FromBase64String(encoded));
+    }
+
+    private static ICodec CodecFor(Type partialType)
+        => Codecs.GetOrAdd(partialType, static t =>
+            (ICodec)Activator.CreateInstance(typeof(Codec<>).MakeGenericType(t.GetGenericArguments()[0]))!);
+
+    private interface ICodec
+    {
+        byte[] Write(object value);
+        object Read(byte[] bytes);
+    }
+
+    private sealed class Codec<T> : ICodec
+    {
+        public byte[] Write(object value)
+        {
+            var cbor = new System.Formats.Cbor.CborWriter();
+            IonFormatterStorage<IonPartial<T>>.Write(cbor, (IonPartial<T>)value);
+            return cbor.Encode();
+        }
+
+        public object Read(byte[] bytes)
+            => IonFormatterStorage<IonPartial<T>>.Read(new System.Formats.Cbor.CborReader(bytes));
+    }
+}

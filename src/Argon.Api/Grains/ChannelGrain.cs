@@ -44,6 +44,7 @@ public class ChannelGrain(
     ILinkPreviewService linkPreviews,
     IOptions<CrawlerOptions> crawlerOptions,
     ISpaceReadCache readCache,
+    IPermissionCache permissionCache,
     // Same pool the read-state and replay-buffer caches use. The channel's high-water mark is a
     // cache value, not a second source of truth: it is written here and read by anyone who needs it
     // fresher than the flush interval below.
@@ -474,10 +475,23 @@ public class ChannelGrain(
         await SetMemberStateAsync(member, (member.state & SelfVoiceFlags) | ServerFlagsFor(muted, deafened));
         await VoiceControl.UpdateParticipantRightsAsync(new ArgonUserId(memberId), ChannelId,
             await MediaRightsAsync(memberId, muted, deafened));
+
+        if (_self.Broadcast is not null)
+            await Radio.ApplyVoiceRestrictionAsync(memberId, muted, deafened);
     }
 
     public Task ReleaseMember(Guid userId)
         => Leave(userId);
+
+    [OneWay]
+    public async Task TeardownVoiceAsync()
+    {
+        foreach (var userId in state.State.Users.Keys.ToList())
+        {
+            await VoiceControl.KickParticipantAsync(new ArgonUserId(userId), ChannelId);
+            await Leave(userId);
+        }
+    }
 
     private const ChannelMemberState SelfVoiceFlags =
         ChannelMemberState.MUTED | ChannelMemberState.MUTED_HEADPHONES | ChannelMemberState.STREAMING;
@@ -537,6 +551,8 @@ public class ChannelGrain(
     }
 
     private IVoiceControlGrain VoiceControl => this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty);
+
+    private IVoiceBroadcastGrain Radio => this.GrainFactory.GetGrain<IVoiceBroadcastGrain>(this.GetPrimaryKey());
 
     public async Task<bool> BeginRecord(CancellationToken ct = default)
     {
@@ -715,6 +731,9 @@ public class ChannelGrain(
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId, this.GetPrimaryKey());
         await state.WriteStateAsync();
 
+        if (_self.Broadcast is not null)
+            await Radio.OnMemberLeftAsync(userId);
+
         // End the streamer's drawing session if they left the channel.
         if (activation.State.DrawingSession is { } ds && ds.StreamerId == userId)
         {
@@ -808,20 +827,20 @@ public class ChannelGrain(
         if (channel is null)
             return UpdateChannelError.CHANNEL_NOT_FOUND;
 
-        // The bag tells subscribers which fields to re-read; sending the whole channel back would
-        // race with any concurrent reorder, which travels on its own event.
-        var changed = new List<string>();
+        // Only what changed travels: a patch carrying the whole channel would race a concurrent
+        // reorder, which has its own event.
+        var patch = new IonPartial<ArgonChannel>();
 
         if (name is not null && name != channel.Name)
         {
             channel.Name = name;
-            changed.Add(nameof(ArgonChannel.name));
+            patch.Modify(x => x.name, name);
         }
 
         if (description is not null && description != channel.Description)
         {
             channel.Description = description;
-            changed.Add(nameof(ArgonChannel.description));
+            patch.Modify(x => x.description, description);
         }
 
         if (slowModeSeconds is { } window)
@@ -830,7 +849,10 @@ public class ChannelGrain(
             if (value != channel.SlowMode)
             {
                 channel.SlowMode = value;
-                changed.Add(nameof(ArgonChannel.slowModeSeconds));
+                if (value is null)
+                    patch.Remove(x => x.slowModeSeconds);
+                else
+                    patch.Modify(x => x.slowModeSeconds, window);
             }
         }
 
@@ -840,11 +862,14 @@ public class ChannelGrain(
             if (value != channel.Bitrate)
             {
                 channel.Bitrate = value;
-                changed.Add(nameof(ArgonChannel.bitrate));
+                if (value is null)
+                    patch.Remove(x => x.bitrate);
+                else
+                    patch.Modify(x => x.bitrate, value);
             }
         }
 
-        if (changed.Count == 0)
+        if (patch.Count == 0)
             return await WithStoredMarkAsync(ctx, channel, ct);
 
         await ctx.SaveChangesAsync(ct);
@@ -854,7 +879,7 @@ public class ChannelGrain(
         _self = channel;
 
         await readCache.SignalInvalidationAsync(SpaceId, ct: ct);
-        await Fire(new ChannelModified(SpaceId, channelId, new IonArray<string>(changed)), ct);
+        await Fire(new ChannelModifiedV2(SpaceId, channelId, patch), ct);
 
         return await WithStoredMarkAsync(ctx, channel, ct);
     }
@@ -895,6 +920,137 @@ public class ChannelGrain(
                .Select(m => m.LastMessageId)
                .FirstOrDefaultAsync(ct)
         };
+
+    public async Task<ISetBroadcastSettingsResult> SetBroadcastMode(bool enabled)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
+            return new FailedSetBroadcastSettings(SetBroadcastSettingsError.INSUFFICIENT_PERMISSIONS);
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var channel = await ctx.Channels.FirstAsync(c => c.Id == channelId);
+        if (channel.ChannelType != ChannelType.Voice)
+            return new FailedSetBroadcastSettings(SetBroadcastSettingsError.CHANNEL_IS_NOT_VOICE);
+
+        var on = channel.Broadcast is not null;
+        if (enabled == on)
+            return await BroadcastResultAsync(ctx, channel);
+
+        channel.Broadcast = enabled ? ChannelBroadcast.Default() : null;
+        await ctx.SaveChangesAsync();
+
+        // Decision 3: everyone who can join HQ transmits by default, as a visible overwrite an admin can narrow.
+        if (enabled)
+            await GrantBroadcastToEveryoneAsync(ctx, channelId, callerId);
+
+        await AnnounceBroadcastChangedAsync(channel);
+        return await BroadcastResultAsync(ctx, channel);
+    }
+
+    public async Task<ISetBroadcastSettingsResult> PatchBroadcastSettings(IonPartial<BroadcastSettings> patch)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
+            return new FailedSetBroadcastSettings(SetBroadcastSettingsError.INSUFFICIENT_PERMISSIONS);
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var channel = await ctx.Channels.FirstAsync(c => c.Id == channelId);
+        if (channel.ChannelType != ChannelType.Voice)
+            return new FailedSetBroadcastSettings(SetBroadcastSettingsError.CHANNEL_IS_NOT_VOICE);
+        if (channel.Broadcast is not { } current)
+            return new FailedSetBroadcastSettings(SetBroadcastSettingsError.NOT_A_BROADCAST_CHANNEL);
+
+        var (next, selfTargeted) = current.Apply(patch, channelId);
+        if (selfTargeted || !next.Targets.SequenceEqual(current.Targets) && !await TargetsQualifyAsync(ctx, next.Targets))
+            return new FailedSetBroadcastSettings(SetBroadcastSettingsError.INVALID_TARGET);
+        if (next.SameAs(current))
+            return await BroadcastResultAsync(ctx, channel);
+
+        channel.Broadcast = next;
+        await ctx.SaveChangesAsync();
+        await AnnounceBroadcastChangedAsync(channel);
+        return await BroadcastResultAsync(ctx, channel);
+    }
+
+    public async Task RemoveBroadcastTarget(Guid targetChannelId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        var channel = await ctx.Channels.FirstOrDefaultAsync(c => c.Id == this.GetPrimaryKey());
+        if (channel?.Broadcast is not { } current || !current.Targets.Contains(targetChannelId))
+            return;
+
+        channel.Broadcast = current with { Targets = current.Targets.Where(t => t != targetChannelId).ToList() };
+        await ctx.SaveChangesAsync();
+        await AnnounceBroadcastChangedAsync(channel);
+    }
+
+    /// <summary>After a write of the broadcast column: the activation's copy, the read cache, the clients and the radio.</summary>
+    private async Task AnnounceBroadcastChangedAsync(ChannelEntity channel)
+    {
+        _self = channel;
+
+        var patch = new IonPartial<ArgonChannel>();
+        if (channel.Broadcast is { } broadcast)
+            patch.Modify(x => x.broadcast, ChannelBroadcast.ToDto(broadcast));
+        else
+            patch.Remove(x => x.broadcast);
+
+        await readCache.SignalInvalidationAsync(SpaceId);
+        await Fire(new ChannelModifiedV2(SpaceId, channel.Id, patch));
+        await Radio.OnSettingsChangedAsync();
+    }
+
+    private static async Task<ISetBroadcastSettingsResult> BroadcastResultAsync(ApplicationDbContext ctx, ChannelEntity channel)
+        => new SuccessSetBroadcastSettings((await WithStoredMarkAsync(ctx, channel, CancellationToken.None)).ToDto());
+
+    /// <summary>Voice channels of this space that do not broadcast themselves (decision 8); the channel itself is refused by the merge.</summary>
+    private async Task<bool> TargetsQualifyAsync(ApplicationDbContext ctx, List<Guid> targets)
+    {
+        if (targets.Count == 0)
+            return true;
+
+        var valid = await ctx.Channels.AsNoTracking()
+           .CountAsync(c => targets.Contains(c.Id) && c.SpaceId == SpaceId && !c.IsDeleted
+                         && c.ChannelType == ChannelType.Voice && c.Broadcast == null);
+        return valid == targets.Count;
+    }
+
+    private async Task GrantBroadcastToEveryoneAsync(ApplicationDbContext ctx, Guid channelId, Guid callerId)
+    {
+        var overwrites = await ctx.ChannelEntitlementOverwrites.Where(o => o.ChannelId == channelId).ToListAsync();
+        if (overwrites.Any(o => o.Allow.HasFlag(ArgonEntitlement.Broadcast) || o.Deny.HasFlag(ArgonEntitlement.Broadcast)))
+            return;
+
+        var everyoneId = await ctx.Archetypes
+           .Where(a => a.SpaceId == SpaceId && a.IsDefault)
+           .Select(a => a.Id)
+           .FirstOrDefaultAsync();
+        if (everyoneId == Guid.Empty)
+            return;
+
+        var everyone = overwrites.FirstOrDefault(o => o.Scope == IArchetypeScope.Archetype && o.ArchetypeId == everyoneId);
+        if (everyone is null)
+            ctx.ChannelEntitlementOverwrites.Add(new ChannelEntitlementOverwriteEntity
+            {
+                ChannelId   = channelId,
+                ArchetypeId = everyoneId,
+                Scope       = IArchetypeScope.Archetype,
+                Allow       = ArgonEntitlement.Broadcast,
+                Deny        = ArgonEntitlement.None,
+                CreatorId   = callerId
+            });
+        else
+            everyone.Allow |= ArgonEntitlement.Broadcast;
+
+        await ctx.SaveChangesAsync();
+
+        await permissionCache.SignalSpaceInvalidationAsync(SpaceId);
+        await Fire(new EntitlementsChanged(SpaceId, null));
+    }
 
     public async Task<DeleteMessageError> DeleteMessage(long messageId, CancellationToken ct = default)
     {

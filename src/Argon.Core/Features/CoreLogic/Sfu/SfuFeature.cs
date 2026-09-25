@@ -102,6 +102,15 @@ public class SfuInstanceCfg
     public          string      AudioIngressUrl { get; set; } = "";
 
     public SfuS3Settings? S3 { get; set; }
+
+    /// <summary>What the LiveKit build behind <see cref="CommandUrl"/> supports beyond upstream: <see cref="ForwardCapability"/>, <see cref="MoveCapability"/>.</summary>
+    public List<string> Capabilities { get; set; } = [];
+
+    public const string ForwardCapability = "Forward";
+    public const string MoveCapability    = "Move";
+
+    public bool Has(string capability)
+        => Capabilities.Contains(capability, StringComparer.OrdinalIgnoreCase);
 }
 
 public record GeoPosition(double ln, double lt);

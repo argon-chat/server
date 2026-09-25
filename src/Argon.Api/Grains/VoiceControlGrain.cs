@@ -154,6 +154,47 @@ public class VoiceControlGrain(
         return true;
     }
 
+    public Task<string> IssueRadioTokenAsync(Guid userId, Guid spaceId, Guid hqChannelId)
+        => Task.FromResult(RadioToken.Create(settings.Value.Sfu, userId, spaceId, hqChannelId));
+
+    public async Task<bool> ForwardParticipantAsync(string sourceRoom, string identity, string destinationRoom)
+    {
+        try
+        {
+            // The SDK signs this with RoomAdmin + Room + DestinationRoom, which is what the fork checks.
+            await roomClient.ForwardParticipant(new ForwardParticipantRequest
+            {
+                Room            = sourceRoom,
+                Identity        = identity,
+                DestinationRoom = destinationRoom
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to forward '{Identity}' from '{Room}' into '{Destination}'", identity, sourceRoom, destinationRoom);
+            return false;
+        }
+    }
+
+    public async Task<bool> RemoveParticipantAsync(string room, string identity)
+    {
+        try
+        {
+            await roomClient.RemoveParticipant(new RoomParticipantIdentity
+            {
+                Room     = room,
+                Identity = identity
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to remove '{Identity}' from '{Room}'", identity, room);
+            return false;
+        }
+    }
+
     private record CloudflareIceRespItem(string? username, string? credential);
 
     private record CloudflareIceResp(List<CloudflareIceRespItem> iceServers);
@@ -181,6 +222,47 @@ public class VoiceControlGrain(
             return null;
         return (result.username!, result.credential!);
     }
+
+    public async Task<IReadOnlyList<SfuParticipant>> ListParticipantsAsync(string room)
+    {
+        try
+        {
+            var response = await roomClient.ListParticipants(new ListParticipantsRequest { Room = room });
+            return response.Participants
+               .Select(p => new SfuParticipant(p.Identity, p.Sid,
+                    p.KindDetails.Contains(Livekit.Server.Sdk.Dotnet.ParticipantInfo.Types.KindDetail.Forwarded),
+                    p.Tracks.Select(t => new SfuTrack(t.Sid, SourceName(t.Source), t.Muted)).ToList()))
+               .ToList();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to list participants of '{Room}'", room);
+            return [];
+        }
+    }
+
+    public async Task<bool> MutePublishedTrackAsync(string room, string identity, string trackSid, bool muted)
+    {
+        try
+        {
+            await roomClient.MutePublishedTrack(new MuteRoomTrackRequest
+            {
+                Room     = room,
+                Identity = identity,
+                TrackSid = trackSid,
+                Muted    = muted
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to set muted={Muted} on track '{Track}' of '{Identity}' in '{Room}'", muted, trackSid, identity, room);
+            return false;
+        }
+    }
+
+    private static string SourceName(TrackSource source)
+        => source == TrackSource.Unknown ? "unknown" : source.ToFormatString();
 
     #region JWT
 

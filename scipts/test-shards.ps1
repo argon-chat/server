@@ -133,6 +133,7 @@ $presenceFixtures = @(
 # IonRealtimeTests (added 2026-09-23, with the Ion realtime stream) likewise, into the first shard.
 # VoiceModerationTests, LiveKitWebhookTests and UssdTests (added 2026-09-24, with voice moderation;
 # ~15 s together, measured) likewise, into the first shard.
+# VoiceBroadcastSettingsTests and VoiceBroadcastTests (added 2026-09-26, with broadcast channels) likewise, into the first shard.
 # The grain-coverage fixtures of 2026-09-24/25 are hand-placed until the next -FromTrx rebalance:
 # the Admin*, security, dev-team and space ones into the first shard, the commerce, user-state and social ones into the second,
 # PresenceSessionGateTests into the presence shard, and ChannelSendCapTests (NonParallelizable: it
@@ -187,6 +188,8 @@ $generalShards = @(
         'SpaceTests'
         'TrustScoreTests'
         'UssdTests'
+        'VoiceBroadcastSettingsTests'
+        'VoiceBroadcastTests'
         'VoiceModerationTests'
     ),
     @(   # ~272 s serial

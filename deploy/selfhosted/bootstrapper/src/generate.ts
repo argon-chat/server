@@ -586,6 +586,8 @@ function callKitSettings(answers: Answers): Json {
             Region: SELF_HOSTED_REGION,
             PublicUrl: `wss://${mediaHost(answers)}`,
             CommandUrl: `http://${DEPLOYMENT.hosts.sfu}:${DEPLOYMENT.ports.sfu}`,
+            // The image in compose.ts is the Argon fork; ForwardParticipant is what broadcast channels use.
+            Capabilities: ["Forward"],
             Geo: { ln: 0, lt: 0 },
         },
     };

@@ -45,6 +45,7 @@ export const allEntitlements: EntitlementInfo[] = [
   { bit: 1n << 21n, key: 'Speak',   label: 'Speak',             description: 'Allows speaking in voice channels',       category: 'media' },
   { bit: 1n << 22n, key: 'Video',   label: 'Video',             description: 'Allows sharing video in voice channels',  category: 'media' },
   { bit: 1n << 23n, key: 'Stream',  label: 'Screen Share',      description: 'Allows screen sharing in voice channels', category: 'media' },
+  { bit: 1n << 25n, key: 'Broadcast', label: 'Broadcast',       description: 'Allows transmitting on a broadcast (radio) channel; requires Speak', category: 'media' },
 
   // Extended
   { bit: 1n << 30n, key: 'UseASIO',          label: 'Use ASIO',          description: 'Allows using low-latency ASIO audio',    category: 'extended' },

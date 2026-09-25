@@ -75,6 +75,20 @@ public record SfuPermission
             CanPublishData       = true,
         };
 
+    /// <summary>A radio participant: publishes a microphone into the radio room and hears nothing.</summary>
+    public static VideoGrants Radio(string roomId) =>
+        new()
+        {
+            RoomJoin             = true,
+            Room                 = roomId,
+            CanPublish           = true,
+            CanPublishSources    = [TrackSource.Microphone.ToFormatString()],
+            CanSubscribe         = false,
+            CanPublishData       = false,
+            CanUpdateOwnMetadata = false,
+            Hidden               = false
+        };
+
     public static VideoGrants DefaultAdmin(string roomId) =>
         new()
         {

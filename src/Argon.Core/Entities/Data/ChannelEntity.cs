@@ -30,6 +30,9 @@ public record ChannelEntity :
     /// </summary>
     public int? Bitrate { get; set; }
 
+    /// <summary>Voice only: broadcast ("radio") mode, null on an ordinary voice channel. Stored as jsonb.</summary>
+    public ChannelBroadcast? Broadcast { get; set; }
+
     /// <summary>
     /// Dead. Nothing writes this column any more — the channel's high-water mark lives in
     /// <see cref="Argon.Core.Entities.Data.ChannelLastMessageEntity"/>.
@@ -85,7 +88,8 @@ public record ChannelEntity :
             // A zero interval is never stored — "off" travels as null so the client has one
             // representation of "no cooldown" instead of two.
             self.SlowMode is { } window && window > TimeSpan.Zero ? (int)window.TotalSeconds : null,
-            self.Bitrate is { } kbps && kbps > 0 ? kbps : null);
+            self.Bitrate is { } kbps && kbps > 0 ? kbps : null,
+            ChannelBroadcast.ToDto(self.Broadcast));
 
     public void Configure(EntityTypeBuilder<ChannelEntity> builder)
     {
@@ -104,5 +108,12 @@ public record ChannelEntity :
             x.ChannelGroupId,
             x.FractionalIndex
         });
+
+        builder.Property(c => c.Broadcast)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => JsonConvert.SerializeObject(v),
+                v => JsonConvert.DeserializeObject<ChannelBroadcast>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<ChannelBroadcast?>());
     }
 }

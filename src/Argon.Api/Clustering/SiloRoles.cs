@@ -79,6 +79,7 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<SpaceReadGrain>();
 
         registry.AddToRef<ChannelGrain>();
+        registry.AddToRef<VoiceBroadcastGrain>();
         registry.AddToRef<UserGrain>();
         registry.AddToRef<UserSessionGrain>();
         registry.AddToRef<CosmeticsGrain>();

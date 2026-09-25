@@ -7,6 +7,8 @@ using Argon.Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
 using Argon.Core.Features.Transport;
+using Argon.Core.Grains.Interfaces;
+using Argon.Sfu;
 using Argon.Features.BotApi;
 using Argon.Features.Storage;
 using Argon.Features.Moderation;
@@ -220,6 +222,15 @@ public class SpaceGrain(
 
         if (removed == 0)
             return;
+
+        // Out of voice as well: the room, the roster and, on a broadcast channel, the radio.
+        if (state.State.VoiceMembers.Remove(userId, out var slot))
+        {
+            await state.WriteStateAsync();
+            await grainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
+               .KickParticipantAsync(new ArgonUserId(userId), new ArgonRoomId(spaceId, slot.ChannelId));
+            await grainFactory.GetGrain<IChannelGrain>(slot.ChannelId).ReleaseMember(userId);
+        }
 
         await Invalidate();
         await grainFactory.GetGrain<IUserPresenceGrain>(userId).ForgetSpaceAsync(spaceId);
@@ -934,9 +945,14 @@ public class SpaceGrain(
         if (group == null)
             return;
 
+        var deleted = new List<Guid>();
         if (deleteChannels)
         {
+            foreach (var channel in group.Channels)
+                await TeardownVoiceAsync(channel);
+
             ctx.Set<ChannelEntity>().RemoveRange(group.Channels);
+            deleted = group.Channels.Select(c => c.Id).ToList();
 
             foreach (var channel in group.Channels)
                 await Fire(new ChannelRemoved(spaceId, channel.Id));
@@ -950,6 +966,7 @@ public class SpaceGrain(
 
         await Invalidate();
         await Fire(new ChannelGroupRemoved(spaceId, groupId));
+        await UntargetDeletedChannelsAsync(ctx, spaceId, deleted);
     }
 
     public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null)
@@ -1110,10 +1127,45 @@ public class SpaceGrain(
         if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
             throw new UnauthorizedAccessException("No permission to manage channels");
 
+        await TeardownVoiceAsync(channel);
         ctx.Set<ChannelEntity>().Remove(channel);
         await ctx.SaveChangesAsync();
         await Invalidate();
         await Fire(new ChannelRemoved(spaceId, channelId));
+        await UntargetDeletedChannelsAsync(ctx, spaceId, [channelId]);
+    }
+
+    /// <summary>Voice goes before the row does: the room is emptied and a broadcast channel's radio revoked.</summary>
+    private async Task TeardownVoiceAsync(ChannelEntity channel)
+    {
+        if (channel.ChannelType != ChannelType.Voice)
+            return;
+
+        // Only for a channel somebody is in: an idle grain has no roster, and activating it here would race the delete.
+        if (state.State.VoiceMembers.Values.Any(s => s.ChannelId == channel.Id))
+            await grainFactory.GetGrain<IChannelGrain>(channel.Id).TeardownVoiceAsync();
+        if (channel.Broadcast is not null)
+            await grainFactory.GetGrain<IVoiceBroadcastGrain>(channel.Id).ShutdownAsync();
+    }
+
+    /// <summary>
+    /// Deleted channels drop out of every broadcast target list. The channel grain is the only writer
+    /// of that column, so each affected channel is told rather than edited here; one-way, so a delete
+    /// never waits on a grain that can call back into this one.
+    /// </summary>
+    private async Task UntargetDeletedChannelsAsync(ApplicationDbContext ctx, Guid spaceId, List<Guid> deleted)
+    {
+        if (deleted.Count == 0)
+            return;
+
+        var broadcasting = await ctx.Channels.AsNoTracking()
+           .Where(c => c.SpaceId == spaceId && c.Broadcast != null && !deleted.Contains(c.Id))
+           .Select(c => new { c.Id, c.Broadcast })
+           .ToListAsync();
+
+        foreach (var hq in broadcasting)
+        foreach (var target in deleted.Where(hq.Broadcast!.Targets.Contains))
+            await grainFactory.GetGrain<IChannelGrain>(hq.Id).RemoveBroadcastTarget(target);
     }
 
     public async Task<Either<ArgonChannel, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default)
@@ -1170,6 +1222,7 @@ public class SpaceGrain(
             SlowMode              = source.SlowMode,
             Bitrate               = source.Bitrate,
             DoNotRestrictBoosters = source.DoNotRestrictBoosters,
+            Broadcast             = source.Broadcast,
         };
 
         // The overwrites are what make a duplicate worth having over "add channel": a private room

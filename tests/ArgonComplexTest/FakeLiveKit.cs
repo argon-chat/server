@@ -34,6 +34,18 @@ public sealed class FakeLiveKit : HttpMessageHandler
     public IReadOnlyList<StopEgressRequest> StopEgressCalls
         => Calls("StopEgress", StopEgressRequest.Parser);
 
+    public IReadOnlyList<ForwardParticipantRequest> ForwardParticipantCalls
+        => Calls("ForwardParticipant", ForwardParticipantRequest.Parser);
+
+    public IReadOnlyList<MuteRoomTrackRequest> MutePublishedTrackCalls
+        => Calls("MutePublishedTrack", MuteRoomTrackRequest.Parser);
+
+    public IReadOnlyList<ListParticipantsRequest> ListParticipantsCalls
+        => Calls("ListParticipants", ListParticipantsRequest.Parser);
+
+    /// <summary>What <c>ListParticipants</c> answers, per room; a room not set here is empty.</summary>
+    public ConcurrentDictionary<string, ListParticipantsResponse> Participants { get; } = new();
+
     private IReadOnlyList<T> Calls<T>(string method, MessageParser<T> parser) where T : IMessage<T>
         => calls.Where(c => c.Method == method).Select(c => parser.ParseFrom(c.Body)).ToList();
 
@@ -54,6 +66,7 @@ public sealed class FakeLiveKit : HttpMessageHandler
         {
             "StartRoomCompositeEgress" => new EgressInfo { EgressId = $"EG_{Guid.NewGuid():N}" }.ToByteArray(),
             "StopEgress"               => new EgressInfo { EgressId = StopEgressRequest.Parser.ParseFrom(body).EgressId }.ToByteArray(),
+            "ListParticipants"         => Participants.GetValueOrDefault(ListParticipantsRequest.Parser.ParseFrom(body).Room, new ListParticipantsResponse()).ToByteArray(),
             _                          => []
         };
 

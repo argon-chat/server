@@ -248,7 +248,7 @@ public class ChannelMessagingTests : TestBase
             Assert.That(channel.lastMessageId, Is.EqualTo(lastId), "an unchanged channel came back without its stored high-water mark");
         });
 
-        await observer.AssertNoneWithinAsync<ChannelModified>(e => e.channelId == channelId, TimeSpan.FromSeconds(1),
+        await observer.AssertNoneWithinAsync<ChannelModifiedV2>(e => e.channelId == channelId, TimeSpan.FromSeconds(1),
             "a save that changed nothing was announced to the space", mark, ct);
     }
 

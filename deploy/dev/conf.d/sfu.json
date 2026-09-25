@@ -8,6 +8,7 @@
       "CommandUrl": "http://localhost:7880",
       "Secret": "secretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecret",
       "AudioIngressUrl": "ws://localhost:12880",
+      "Capabilities": ["Forward"],
       "Geo": {
         "ln": 0,
         "lt": 0

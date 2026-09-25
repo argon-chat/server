@@ -1,6 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
 using ArchetypeModel;
+using Orleans.Concurrency;
 using Users;
 
 [Alias($"Argon.Grains.Interfaces.{nameof(ISpaceGrain)}")]
@@ -191,7 +192,8 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(SetMemberVoiceModeration))]
     Task<IVoiceModerationResult> SetMemberVoiceModeration(Guid memberId, bool? muted, bool? deafened, CancellationToken ct = default);
 
-    [Alias(nameof(GetUserVoiceSlotAsync))]
+    /// <summary>A synchronous read, interleaved so a grain this one is waiting on can still ask it.</summary>
+    [Alias(nameof(GetUserVoiceSlotAsync)), AlwaysInterleave]
     Task<VoiceSlot?> GetUserVoiceSlotAsync(Guid userId);
 }
 

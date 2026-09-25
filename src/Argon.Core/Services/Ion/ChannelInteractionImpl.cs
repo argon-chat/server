@@ -198,6 +198,19 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
     public async Task UpdateVoiceState(Guid spaceId, Guid channelId, ChannelMemberState state, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).UpdateVoiceState(state);
 
+    public async Task<ISetBroadcastSettingsResult> SetBroadcastMode(Guid spaceId, Guid channelId, bool enabled, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).SetBroadcastMode(enabled);
+
+    public async Task<ISetBroadcastSettingsResult> PatchBroadcastSettings(Guid spaceId, Guid channelId, IonPartial<BroadcastSettings> patch,
+        CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).PatchBroadcastSettings(patch);
+
+    public async Task<IBroadcastLinksResult> GetBroadcastLinks(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this.GetGrain<IVoiceBroadcastGrain>(channelId).IssueLinksAsync(this.GetUserId());
+
+    public async Task<IConfirmBroadcastLinksResult> ConfirmBroadcastLinks(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this.GetGrain<IVoiceBroadcastGrain>(channelId).ConfirmLinksAsync(this.GetUserId());
+
     public async Task<IStartDrawingResult> StartDrawingSession(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IChannelGrain>(channelId).StartDrawingSession();
