@@ -19,9 +19,6 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("OnParticipantJoined")]
     Task OnParticipantJoined(Guid userId);
 
-    [Alias("UpdateChannel")]
-    Task<ChannelEntity> UpdateChannel(ChannelInput input);
-
     /// <summary>
     /// Partial update behind the ion <c>UpdateChannel</c>: every argument is optional and null means
     /// "leave alone". <paramref name="slowModeSeconds"/> and <paramref name="bitrate"/> are the

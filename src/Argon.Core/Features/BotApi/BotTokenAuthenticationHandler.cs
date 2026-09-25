@@ -28,9 +28,8 @@ public sealed class BotTokenAuthenticationHandler(
         if (string.IsNullOrEmpty(token))
             return AuthenticateResult.Fail("Empty bot token");
 
-        var cacheKey = $"bot:auth:{ComputeTokenHash(token)}";
         var botInfo = await cache.GetOrCreateAsync(
-            cacheKey,
+            CacheKeyFor(token),
             token,
             async (t, ct) =>
             {
@@ -67,9 +66,10 @@ public sealed class BotTokenAuthenticationHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName));
     }
 
-    private static string ComputeTokenHash(string token)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return Convert.ToHexStringLower(hash);
-    }
+    /// <summary>
+    /// Where a resolved token is cached. A write that changes what a token resolves to — rotating it,
+    /// suspending its bot — removes this entry beside the write.
+    /// </summary>
+    public static string CacheKeyFor(string token)
+        => $"bot:auth:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)))}";
 }

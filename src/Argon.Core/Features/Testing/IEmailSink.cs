@@ -51,7 +51,6 @@ public static class EmailKinds
     public const string MagicLink               = "magic-link";
     public const string RegistrationInvite      = "registration-invite";
     public const string Raw                     = "raw";
-    public const string Generic                 = "generic";
     public const string DeleteNotice            = "delete-notice";
     public const string DeletionScheduled       = "deletion-scheduled";
     public const string DeletionReminder        = "deletion-reminder";

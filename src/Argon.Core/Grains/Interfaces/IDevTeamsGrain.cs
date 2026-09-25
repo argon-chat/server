@@ -86,9 +86,6 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
     [Alias(nameof(GetAppDetailsAsync))]
     Task<AppDetails> GetAppDetailsAsync(Guid teamId, Guid appId, CancellationToken ct = default);
 
-    [Alias(nameof(GetAppDetailsByClientIdAsync))]
-    Task<AppDetails?> GetAppDetailsByClientIdAsync(string clientId, CancellationToken ct = default);
-
     [Alias(nameof(GetAppLoginCheckInfoAsync))]
     Task<AppLoginCheckInfo?> GetAppLoginCheckInfoAsync(string clientId, CancellationToken ct = default);
 

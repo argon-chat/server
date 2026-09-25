@@ -50,7 +50,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     /// name, topic, cooldown, bitrate and permission overwrites, none of the messages.
     /// </summary>
     [Alias(nameof(DuplicateChannel))]
-    Task<Either<ChannelEntity, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default);
+    Task<Either<ArgonChannel, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default);
 
     [Alias(nameof(SetUserStatus))]
     Task SetUserStatus(Guid userId, UserStatus status);

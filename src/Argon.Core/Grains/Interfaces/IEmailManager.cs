@@ -91,7 +91,6 @@ public sealed record EmailValidationResult(
 {
     public bool CanSendEmail =>
         SyntaxValid &&
-        DomainResolves &&
         (MxRecordsPresent || DomainResolves) &&
         (SmtpStatus is SmtpCheckStatus.NotPerformed or SmtpCheckStatus.Accepted);
 
@@ -100,7 +99,6 @@ public sealed record EmailValidationResult(
         get
         {
             if (!SyntaxValid) return "Invalid email syntax.";
-            if (!DomainResolves) return "Domain does not resolve (no A/AAAA records).";
             if (!MxRecordsPresent && !DomainResolves) return "Domain has no MX and no valid fallback (A/AAAA).";
             if (SmtpStatus is SmtpCheckStatus.Rejected) return "SMTP server rejected recipient (550/551/553).";
             if (SmtpStatus is SmtpCheckStatus.TemporaryFailure) return "SMTP temporary failure (4xx).";

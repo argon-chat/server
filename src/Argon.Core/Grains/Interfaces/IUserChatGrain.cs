@@ -35,9 +35,6 @@ public interface IUserChatGrain : IGrainWithGuidKey
     [Alias(nameof(CompleteUploadAttachmentAsync))]
     ValueTask<AttachmentInfo> CompleteUploadAttachmentAsync(Guid blobId, CancellationToken ct = default);
 
-    [Alias(nameof(UpdateChatAsync))]
-    Task UpdateChatAsync(Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);
-
     [Alias(nameof(UpdateChatForAsync))]
     Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);
 
