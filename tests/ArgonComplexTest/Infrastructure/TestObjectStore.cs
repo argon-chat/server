@@ -83,7 +83,13 @@ public static class TestObjectStore
 
         var buckets = provider.GetRequiredService<IBucketClient>();
 
+        // The S3 port answers a moment before the filer behind it is ready to create anything.
         var created = await buckets.CreateBucketAsync(bucket, token: ct);
+        for (var attempt = 0; !created.IsSuccess && created.StatusCode is >= 500 && attempt < 30; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
+            created = await buckets.CreateBucketAsync(bucket, token: ct);
+        }
 
         // A bucket that is already there is the normal case whenever containers are reused, and it is
         // not a failure — but anything else is, and swallowing it here would surface later as an

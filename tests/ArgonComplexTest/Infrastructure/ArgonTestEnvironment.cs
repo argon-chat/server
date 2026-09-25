@@ -1,8 +1,11 @@
 namespace ArgonComplexTest.Infrastructure;
 
 using Argon.Features.Env;
+using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using System.Diagnostics;
-using Testcontainers.Minio;
+using System.Net;
+using System.Text;
 using Testcontainers.Nats;
 using Testcontainers.Redis;
 
@@ -37,10 +40,20 @@ public sealed class ArgonTestEnvironment : IAsyncDisposable
     private readonly ITestDatabase   _database;
     private readonly RedisContainer  _redis;
     private readonly NatsContainer   _nats;
-    private readonly MinioContainer  _s3;
+    private readonly IContainer      _s3;
 
     /// <summary>The bucket every media test uploads into.</summary>
     public const string BucketName = "argon-test";
+
+    private const int    S3Port      = 8333;
+    private const string S3AccessKey = "argon-test";
+    private const string S3SecretKey = "argon-test-secret-key";
+
+    // One identity, so SeaweedFS checks every signature instead of accepting anonymous requests.
+    private static readonly string S3Identities = $$"""
+        {"identities":[{"name":"argon","credentials":[{"accessKey":"{{S3AccessKey}}","secretKey":"{{S3SecretKey}}"}],
+          "actions":["Admin","Read","Write","List","Tagging"]}]}
+        """;
 
     public ArgonServerTargetHost Host       { get; private set; } = null!;
     public HttpClient            HttpClient { get; private set; } = null!;
@@ -52,10 +65,9 @@ public sealed class ArgonTestEnvironment : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// Deliberately <c>localhost</c> rather than the container's own hostname: it has to match the
-    /// <c>MINIO_DOMAIN</c> above, because that is the suffix MinIO strips to find the bucket in a
-    /// virtual-host URL.
+    /// <c>-s3.domainName</c> below, the suffix SeaweedFS strips to find the bucket in a virtual-host URL.
     /// </remarks>
-    public string S3Endpoint => $"localhost:{_s3.GetMappedPublicPort(9000)}";
+    public string S3Endpoint => $"localhost:{_s3.GetMappedPublicPort(S3Port)}";
 
     private ArgonTestEnvironment()
     {
@@ -67,22 +79,22 @@ public sealed class ArgonTestEnvironment : IAsyncDisposable
            .WithReuse(TestEnvironmentOptions.ReuseContainers)
            .Build();
 
-        // MINIO_DOMAIN is what makes the presigned URLs work at all. This server signs uploads in
-        // virtual-host style -- https://{bucket}.{endpoint}/{key} -- and without a domain configured
-        // MinIO reads that host as a bucket name of its own and answers 404 for every upload. Setting
-        // it to `localhost` tells MinIO to strip that suffix and take the label in front as the
-        // bucket, which is exactly what a real S3 endpoint does. See MediaUploadTests for the other
-        // half: `bucket.localhost` does not resolve, so the test client dials the mapped port itself.
-        _s3 = new MinioBuilder(TestEnvironmentOptions.MinioImage)
+        // SeaweedFS, the store deploy/docker-compose.yml runs. `-s3.domainName` is what makes the
+        // presigned URLs work at all: this server signs uploads in virtual-host style --
+        // https://{bucket}.{endpoint}/{key} -- and the domain tells SeaweedFS to strip that suffix and
+        // take the label in front as the bucket. See MediaUploadTests for the other half:
+        // `bucket.localhost` does not resolve, so the test client dials the mapped port itself.
+        _s3 = new ContainerBuilder(TestEnvironmentOptions.ObjectStoreImage)
            .WithReuse(TestEnvironmentOptions.ReuseContainers)
-           .WithEnvironment("MINIO_DOMAIN", "localhost")
-           // Measured at 226 MB resident when left alone and 211 MB under this cap, still answering
-           // its health probe -- so the ceiling costs nothing and is worth having on a CI runner,
-           // where the .NET host and the database are already the expensive tenants and an object
-           // store that grows a buffer per concurrent upload is the one that would tip it over.
-           .WithEnvironment("GOMEMLIMIT", "128MiB")
-           .WithEnvironment("MINIO_API_REQUESTS_MAX", "32")
-           .WithCreateParameterModifier(p => p.HostConfig.Memory = 256L * 1024 * 1024)
+           .WithResourceMapping(Encoding.UTF8.GetBytes(S3Identities), "/etc/seaweedfs/s3.json")
+           .WithCommand("server", "-dir=/data", "-s3", $"-s3.port={S3Port}", "-s3.config=/etc/seaweedfs/s3.json",
+                "-s3.domainName=localhost", "-master.volumeSizeLimitMB=64", "-volume.max=64")
+           .WithPortBinding(S3Port, true)
+           .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(r => r
+               .ForPort(S3Port)
+               .ForPath("/")
+               .ForStatusCodeMatching(code => code < HttpStatusCode.InternalServerError)))
+           .WithCreateParameterModifier(p => p.HostConfig.Memory = 512L * 1024 * 1024)
            .Build();
     }
 
@@ -115,11 +127,10 @@ public sealed class ArgonTestEnvironment : IAsyncDisposable
 
         // The server never creates a bucket -- a deployment provisions one -- so the suite has to
         // stand in for the deployment here, or every upload fails on a bucket that is not there.
-        await TestObjectStore.EnsureBucketAsync(S3Endpoint, _s3.GetAccessKey(), _s3.GetSecretKey(),
-            BucketName, cts.Token);
+        await TestObjectStore.EnsureBucketAsync(S3Endpoint, S3AccessKey, S3SecretKey, BucketName, cts.Token);
 
         TestContext.Progress.WriteLine(
-            $"[argon-tests] {_database.Kind} + redis + nats + minio up in {stopwatch.Elapsed.TotalSeconds:F1}s");
+            $"[argon-tests] {_database.Kind} + redis + nats + seaweedfs up in {stopwatch.Elapsed.TotalSeconds:F1}s");
 
         Host = new ArgonServerTargetHost(new ArgonTestHostSettings(
             RedisConnectionString: _redis.GetConnectionString(),
@@ -127,8 +138,8 @@ public sealed class ArgonTestEnvironment : IAsyncDisposable
             DatabaseConnectionString: _database.ConnectionString,
             DatabaseProvider: _database.ProviderKind,
             S3Endpoint: S3Endpoint,
-            S3AccessKey: _s3.GetAccessKey(),
-            S3SecretKey: _s3.GetSecretKey(),
+            S3AccessKey: S3AccessKey,
+            S3SecretKey: S3SecretKey,
             S3Bucket: BucketName));
 
         HttpClient = Host.CreateClient();

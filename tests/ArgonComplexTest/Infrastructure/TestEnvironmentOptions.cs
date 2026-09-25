@@ -36,7 +36,7 @@ public static class TestEnvironmentOptions
 
     public const string RedisImageVariable = "ARGON_TEST_REDIS_IMAGE";
     public const string NatsImageVariable = "ARGON_TEST_NATS_IMAGE";
-    public const string MinioImageVariable = "ARGON_TEST_MINIO_IMAGE";
+    public const string ObjectStoreImageVariable = "ARGON_TEST_S3_IMAGE";
 
     /// <summary>
     /// Set to <c>1</c>/<c>true</c> to keep containers alive between runs (Testcontainers reuse).
@@ -142,20 +142,13 @@ public static class TestEnvironmentOptions
     public static string NatsImage => Read(NatsImageVariable) ?? "nats:2.10-alpine";
 
     /// <summary>
-    /// The S3 the media tests upload to.
+    /// The S3 the media tests upload to: SeaweedFS, pinned to the release deploy/docker-compose.yml runs.
     /// </summary>
     /// <remarks>
-    /// <para>Pinned to a release rather than <c>latest</c>: MinIO ships breaking changes to its own
-    /// console and defaults often enough that a floating tag turns an unrelated pull into a red
-    /// suite, and the only thing this suite asks of it is the S3 API, which does not move.</para>
-    ///
-    /// <para><b>From quay.io, and not by preference.</b> <c>minio/minio</c> no longer exists on
-    /// Docker Hub — the repository is gone, not the tag, so a pull answers "repository does not
-    /// exist or may require 'docker login'" and every fixture in the process fails in
-    /// <c>OneTimeSetUp</c> with what reads like a credentials problem. quay.io is MinIO's own
-    /// registry, carries the identical tag, and needs no account.</para>
+    /// MinIO withdrew its community images from both Docker Hub and quay.io; a runner without the image
+    /// cached failed every fixture in <c>OneTimeSetUp</c> with an "unauthorized" pull error.
     /// </remarks>
-    public static string MinioImage => Read(MinioImageVariable) ?? "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z";
+    public static string ObjectStoreImage => Read(ObjectStoreImageVariable) ?? "chrislusf/seaweedfs:3.97";
 
     public static bool ReuseContainers => IsTruthy(Read(ReuseContainersVariable));
 
