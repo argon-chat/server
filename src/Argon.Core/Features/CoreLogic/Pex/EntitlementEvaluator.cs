@@ -47,6 +47,10 @@ public static class EntitlementAnalyzer
         if (IsVoiceEntitlement(target) && !permissions.HasFlag(ArgonEntitlement.JoinToVoice))
             return false;
 
+        // Speaking, video and streaming are rights inside a room the member may connect to.
+        if (IsVoiceEntitlement(target) && target != ArgonEntitlement.Connect && !permissions.HasFlag(ArgonEntitlement.Connect))
+            return false;
+
         if (target == ArgonEntitlement.JoinToVoice && !permissions.HasFlag(ArgonEntitlement.ViewChannel))
             return false;
 

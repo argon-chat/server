@@ -1017,14 +1017,12 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        var hasPermission = await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels);
-
-        if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
-
         var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
         if (channel == null || channel.SpaceId != spaceId)
             return;
+
+        if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
+            throw new UnauthorizedAccessException("No permission to manage channels");
 
         await RequireGroupInSpace(ctx, spaceId, targetGroupId);
 
@@ -1105,14 +1103,12 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        var hasPermission = await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels);
-
-        if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
-
         var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
         if (channel == null || channel.SpaceId != spaceId)
             return;
+
+        if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
+            throw new UnauthorizedAccessException("No permission to manage channels");
 
         ctx.Set<ChannelEntity>().Remove(channel);
         await ctx.SaveChangesAsync();
@@ -1127,14 +1123,14 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels, ct))
-            return DuplicateChannelError.INSUFFICIENT_PERMISSIONS;
-
         var source = await ctx.Set<ChannelEntity>()
            .Include(c => c.EntitlementOverwrites)
            .FirstOrDefaultAsync(c => c.Id == channelId && c.SpaceId == spaceId, ct);
         if (source is null)
             return DuplicateChannelError.CHANNEL_NOT_FOUND;
+
+        if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels, ct))
+            return DuplicateChannelError.INSUFFICIENT_PERMISSIONS;
 
         // Right after the original, so the copy lands where the eye expects it rather than at the
         // bottom of the group. A group holds a handful of channels, so ordering them in memory is
