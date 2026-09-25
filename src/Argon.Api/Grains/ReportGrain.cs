@@ -159,11 +159,24 @@ public class ReportGrain(
 
             await using var tx = await ctx.Database.BeginTransactionAsync(token);
 
-            await ctx.ReportCases
+            var locked = await ctx.ReportCases
                .Where(c => c.GroupKey == target.GroupKey && c.IsOpen)
                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastReportedAt, c => c.LastReportedAt), token);
 
-            var @case     = await ctx.ReportCases.FirstOrDefaultAsync(c => c.GroupKey == target.GroupKey && c.IsOpen, token);
+            var @case = await ctx.ReportCases.FirstOrDefaultAsync(c => c.GroupKey == target.GroupKey && c.IsOpen, token);
+
+            // The case was committed between the lock and the read, so the lock took nothing: take it
+            // now and read again, or this report increments a count another one is also incrementing.
+            if (@case is not null && locked == 0)
+            {
+                var appearedId = @case.Id;
+                await ctx.ReportCases.Where(c => c.Id == appearedId)
+                   .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastReportedAt, c => c.LastReportedAt), token);
+
+                ctx.ChangeTracker.Clear();
+                @case = await ctx.ReportCases.FirstAsync(c => c.Id == appearedId, token);
+            }
+
             var isNewCase = @case is null;
 
             @case ??= new ReportCaseEntity

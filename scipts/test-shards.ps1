@@ -166,6 +166,7 @@ $generalShards = @(
         'IonRealtimeTests'
         'LiveKitWebhookTests'
         'MediaUploadTests'
+        'MemberEntitlementsTests'
         'ModerationTests'
         'NotificationCounterTests'
         'OperatorStepUpTests'

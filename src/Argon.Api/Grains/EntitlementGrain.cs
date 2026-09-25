@@ -22,6 +22,10 @@ public class EntitlementGrain(
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, this.GetPrimaryKey(), ct);
 
+    /// <summary>Tells members to fetch GetMyEntitlements again: everyone (null) or one user.</summary>
+    private Task FireEntitlementsChanged(Guid? userId)
+        => Fire(new EntitlementsChanged(this.GetPrimaryKey(), userId));
+
     public async Task<List<Archetype>> GetServerArchetypes()
         => await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
 
@@ -203,6 +207,7 @@ public class EntitlementGrain(
             await permissionCache.SignalSpaceInvalidationAsync(this.GetPrimaryKey());
             await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
             await Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
+            await FireEntitlementsChanged(null);
             return result;
         }
     }
@@ -253,6 +258,7 @@ public class EntitlementGrain(
         await permissionCache.SignalSpaceInvalidationAsync(spaceId);
         await readCache.SignalInvalidationAsync(spaceId);
         await Fire(new ArchetypeRemoved(spaceId, archetypeId));
+        await FireEntitlementsChanged(null);
 
         return ArchetypeError.NONE;
     }
@@ -337,6 +343,7 @@ public class EntitlementGrain(
 
         await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
 
+        await FireEntitlementsChanged(null);
         return overwrite.ToDto();
     }
 
@@ -364,6 +371,7 @@ public class EntitlementGrain(
 
         await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
 
+        await FireEntitlementsChanged(null);
         return true;
     }
 
@@ -409,6 +417,7 @@ public class EntitlementGrain(
 
         await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
 
+        await FireEntitlementsChanged(null);
         return overwrite.ToDto();
     }
 
@@ -504,6 +513,7 @@ public class EntitlementGrain(
             return;
 
         await permissionCache.SignalMemberInvalidationAsync(this.GetPrimaryKey(), member);
+        await FireEntitlementsChanged(member);
 
         // The whole space, not just this member: the read cache keeps who-holds-what in the roster,
         // which is one entry shared by everybody.

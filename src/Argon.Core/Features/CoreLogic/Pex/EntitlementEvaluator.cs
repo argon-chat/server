@@ -4,7 +4,7 @@ public static class EntitlementAnalyzer
 {
     private const ulong CHAT_MASK  = 0b111111111000000 << 5;
     private const ulong VOICE_MASK = 0b1111UL << 20;
-    private const ulong MOD_MASK   = 0b11111UL << 40;
+    private const ulong MOD_MASK   = 0b1111111111UL << 40;
     // Seven bits, not six: ManageMessages (1 << 56) had to go above ManageServer because the
     // moderation block at 1 << 4x is full, so the admin block now runs 50..56.
     private const ulong ADMIN_MASK = 0b1111111UL << 50;
@@ -61,6 +61,10 @@ public static class EntitlementAnalyzer
 
     private static bool IsVoiceEntitlement(ArgonEntitlement target)
         => ((ulong)target & VOICE_MASK) != 0 && target != ArgonEntitlement.JoinToVoice;
+
+    /// <summary>Moderation and management: in a channel they need the channel to be visible too.</summary>
+    public static bool IsManagementEntitlement(ArgonEntitlement target)
+        => ((ulong)target & (MOD_MASK | ADMIN_MASK)) != 0;
 }
 
 public static class EntitlementEvaluator
@@ -101,8 +105,12 @@ public static class EntitlementEvaluator
     }
 
     public static bool HasAccessTo(SpaceMemberEntity member, IArchetypeObject obj, ArgonEntitlement targetCheck)
+        => HasAccessTo(GetBasePermissions(member), member, obj, targetCheck);
+
+    public static bool HasAccessTo(ArgonEntitlement basePermissions, SpaceMemberEntity member, IArchetypeObject obj,
+        ArgonEntitlement targetCheck)
     {
-        var permissions = GetBasePermissions(member);
+        var permissions = basePermissions;
 
         if (permissions.HasFlag(ArgonEntitlementKit.Administrator))
             return true;
@@ -137,8 +145,29 @@ public static class EntitlementEvaluator
         if (hasRelevantRoleOverwrite && !userHasMatchingRoleOverwrite)
             return false;
 
+        // Nobody manages or moderates a channel they cannot see.
+        if (EntitlementAnalyzer.IsManagementEntitlement(targetCheck)
+         && !EntitlementAnalyzer.IsEntitlementSatisfied(permissions, ArgonEntitlement.ViewChannel))
+            return false;
+
         return EntitlementAnalyzer.IsEntitlementSatisfied(permissions, targetCheck);
     }
+
+    private static readonly ArgonEntitlement[] SingleEntitlements = Enum.GetValues<ArgonEntitlement>()
+       .Where(e => System.Numerics.BitOperations.IsPow2((ulong)e))
+       .ToArray();
+
+    /// <summary>Every entitlement <see cref="HasAccessTo(ArgonEntitlement, SpaceMemberEntity, IArchetypeObject, ArgonEntitlement)"/> grants in this channel.</summary>
+    public static ArgonEntitlement EffectiveEntitlements(ArgonEntitlement basePermissions, SpaceMemberEntity member, IArchetypeObject obj)
+        => SingleEntitlements
+           .Where(e => HasAccessTo(basePermissions, member, obj, e))
+           .Aggregate(ArgonEntitlement.None, (all, e) => all | e);
+
+    /// <summary>Every entitlement the space-level check grants.</summary>
+    public static ArgonEntitlement EffectiveEntitlements(ArgonEntitlement basePermissions)
+        => SingleEntitlements
+           .Where(e => EntitlementAnalyzer.IsEntitlementSatisfied(basePermissions, e))
+           .Aggregate(ArgonEntitlement.None, (all, e) => all | e);
 
     public static ArgonEntitlement CalculatePermissions(SpaceMemberEntity member, SpaceEntity server)
     {

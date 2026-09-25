@@ -94,6 +94,9 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task<SpaceDeletionState> GetSpaceDeletionState(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceDeletionGrain>(spaceId).GetStateAsync();
 
+    public async Task<MemberEntitlements> GetMyEntitlements(Guid spaceId, CancellationToken ct = default)
+        => await this.GetGrain<ISpaceReadGrain>(spaceId).GetMemberEntitlements();
+
     public async Task<IVoiceModerationResult> SetMemberVoiceModeration(Guid spaceId, Guid memberId, bool? muted, bool? deafened,
         CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).SetMemberVoiceModeration(memberId, muted, deafened, ct);

@@ -54,6 +54,10 @@ public interface ISpaceReadGrain : IGrainWithGuidKey
     [Alias(nameof(GetChannels))]
     Task<List<RealtimeChannel>> GetChannels();
 
+    /// <summary>The caller's effective grants: space-level, and per channel it can see after overwrites.</summary>
+    [Alias(nameof(GetMemberEntitlements))]
+    Task<MemberEntitlements> GetMemberEntitlements();
+
     /// <summary>Superseded by <see cref="GetSnapshot"/>; remove once no shipped client calls it.</summary>
     [Alias(nameof(GetChannelGroups))]
     Task<List<ChannelGroup>> GetChannelGroups();

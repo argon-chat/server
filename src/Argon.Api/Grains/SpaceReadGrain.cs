@@ -200,6 +200,31 @@ public sealed class SpaceReadGrain(
         return await VisibleChannelsAsync((await CachedChannelsAsync(spaceId)).Value, member);
     }
 
+    public async Task<MemberEntitlements> GetMemberEntitlements()
+    {
+        var spaceId  = this.GetPrimaryKey();
+        var callerId = this.GetUserId();
+
+        var roster = await CachedRosterAsync(spaceId);
+        var roles  = await CachedArchetypesAsync(spaceId);
+
+        if (MemberOf(roster.Value, roles.Value, callerId) is not { } member)
+            throw new InvalidOperationException($"user '{callerId}' is not a member of space '{spaceId}'");
+
+        var asMember = member.AsEntity();
+
+        var channels = (await CachedChannelsAsync(spaceId)).Value
+           .Select(c => (c.Channel.channelId, Entity: c.AsEntity()))
+           .Where(c => EntitlementAnalyzer.IsEntitlementSatisfied(
+                EntitlementEvaluator.ApplyPermissionOverwrites(member.BasePermissions, asMember, c.Entity),
+                ArgonEntitlement.ViewChannel))
+           .Select(c => new ChannelEntitlements(c.channelId,
+                EntitlementEvaluator.EffectiveEntitlements(member.BasePermissions, asMember, c.Entity)))
+           .ToList();
+
+        return new MemberEntitlements(EntitlementEvaluator.EffectiveEntitlements(member.BasePermissions), new(channels));
+    }
+
     public async Task<List<ChannelGroup>> GetChannelGroups()
         => (await CachedGroupsAsync(this.GetPrimaryKey())).Value;
 

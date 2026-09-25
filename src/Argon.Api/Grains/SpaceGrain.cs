@@ -1017,12 +1017,7 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx,
-            spaceId,
-            callerId,
-            ArgonEntitlement.ManageChannels
-        );
+        var hasPermission = await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels);
 
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage channels");
@@ -1110,12 +1105,7 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx,
-            spaceId,
-            callerId,
-            ArgonEntitlement.ManageChannels
-        );
+        var hasPermission = await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels);
 
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage channels");
@@ -1137,7 +1127,7 @@ public class SpaceGrain(
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
 
-        if (!await entitlementChecker.HasAccessAsync(ctx, spaceId, callerId, ArgonEntitlement.ManageChannels, ct))
+        if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels, ct))
             return DuplicateChannelError.INSUFFICIENT_PERMISSIONS;
 
         var source = await ctx.Set<ChannelEntity>()
