@@ -31,6 +31,8 @@ public class SecurityGrain(
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
 {
     private const int MaxPasskeys = 10;
+    private const int MaxPasskeyNameLength = 128;
+    private const int MaxEmailLength = 254;
     private static readonly TimeSpan VerificationCodeTtl = TimeSpan.FromMinutes(15);
     private const int MaxVerificationAttempts = 5;
     private const int MinPasswordLength = 8;
@@ -460,7 +462,7 @@ public class SecurityGrain(
             if (existingCount >= MaxPasskeys)
                 return new FailedBeginPasskey(PasskeyError.LIMIT_REACHED);
 
-            if (string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(name) || name.Length > MaxPasskeyNameLength)
                 return new FailedBeginPasskey(PasskeyError.INVALID_CREDENTIAL);
 
             var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId, ct);
@@ -1170,7 +1172,8 @@ public class SecurityGrain(
 
     private static bool IsValidEmail(string email)
     {
-        if (string.IsNullOrWhiteSpace(email))
+        // Longer than RFC 5321 allows, and than Users.NormalizedEmail (varchar(255)) can hold.
+        if (string.IsNullOrWhiteSpace(email) || email.Length > MaxEmailLength)
             return false;
 
         try
