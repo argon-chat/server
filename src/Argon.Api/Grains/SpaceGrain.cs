@@ -57,13 +57,17 @@ public class SpaceGrain(
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
         => await state.WriteStateAsync(ct);
 
+    private const int MaxSpaceNameLength        = 64;
+    private const int MaxSpaceDescriptionLength = 1024;
+
     public async Task<Either<ArgonSpaceBase, ServerCreationError>> CreateSpace(ServerInput input)
     {
-        if (string.IsNullOrEmpty(input.Name))
+        var name = input.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > MaxSpaceNameLength || input.Description is { Length: > MaxSpaceDescriptionLength })
             return ServerCreationError.BAD_MODEL;
         var creatorId = this.GetUserId();
 
-        if (await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId) is null)
+        if (await serverRepository.CreateAsync(this.GetPrimaryKey(), input with { Name = name }, creatorId) is null)
             return ServerCreationError.LIMIT_REACHED;
 
         await UserJoined(creatorId);
@@ -117,10 +121,14 @@ public class SpaceGrain(
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage server");
 
+        var name = input.Name?.Trim();
+        if (name is { Length: > MaxSpaceNameLength } || input.Description is { Length: > MaxSpaceDescriptionLength })
+            throw new ArgumentException("Space name or description is too long");
+
         var server = await ctx.Spaces
            .FirstAsync(s => s.Id == spaceId);
 
-        server.Name         = string.IsNullOrWhiteSpace(input.Name) ? server.Name : input.Name;
+        server.Name         = string.IsNullOrEmpty(name) ? server.Name : name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
 
@@ -713,6 +721,9 @@ public class SpaceGrain(
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage channels");
 
+        name = RequireName(name);
+        RequireDescription(description, MaxGroupDescriptionLength);
+
         var lastGroup = await ctx.Set<ChannelGroupEntity>()
            .Where(g => g.SpaceId == spaceId)
            .OrderByDescending(g => g.FractionalIndex)
@@ -757,6 +768,10 @@ public class SpaceGrain(
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage channels");
 
+        if (name is not null)
+            name = RequireName(name);
+        RequireDescription(description, MaxGroupDescriptionLength);
+
         var group = await ctx.Set<ChannelGroupEntity>()
            .FirstOrDefaultAsync(g => g.Id == groupId && g.SpaceId == spaceId, cancellationToken: ct);
 
@@ -777,6 +792,34 @@ public class SpaceGrain(
     }
 
     private const int RebalanceThreshold = 20;
+
+    private const int MaxNameLength                = 128;
+    private const int MaxChannelDescriptionLength  = 1024;
+    private const int MaxGroupDescriptionLength    = 512;
+
+    /// <summary>The rule <c>ChannelGrain.UpdateChannelSettings</c> applies to a rename.</summary>
+    private static string RequireName(string? name)
+    {
+        var trimmed = name?.Trim();
+
+        if (string.IsNullOrEmpty(trimmed) || trimmed.Length > MaxNameLength)
+            throw new ArgumentException($"Name must be 1 to {MaxNameLength} characters");
+
+        return trimmed;
+    }
+
+    private static void RequireDescription(string? description, int maxLength)
+    {
+        if (description is { } text && text.Length > maxLength)
+            throw new ArgumentException($"Description must be at most {maxLength} characters");
+    }
+
+    /// <summary>The foreign key accepts any group row, including another space's.</summary>
+    private static async Task RequireGroupInSpace(ApplicationDbContext ctx, Guid spaceId, Guid? groupId)
+    {
+        if (groupId is { } id && !await ctx.Set<ChannelGroupEntity>().AnyAsync(g => g.Id == id && g.SpaceId == spaceId))
+            throw new ArgumentException("Channel group not found");
+    }
 
     public async Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
     {
@@ -844,6 +887,11 @@ public class SpaceGrain(
                     : FractionalIndex.After(beforeIndex.Value).Value;
 
                 newIndex = FractionalIndex.Min();
+            }
+            else if (afterIndex == null && beforeIndex is { } top)
+            {
+                // Not Before(top): it decrements and refuses to land on the minimum.
+                newIndex = FractionalIndex.Between(FractionalIndex.Min(), top);
             }
             else
             {
@@ -921,6 +969,14 @@ public class SpaceGrain(
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage channels");
 
+        var name = RequireName(input.Name);
+        RequireDescription(input.Description, MaxChannelDescriptionLength);
+
+        if (!Enum.IsDefined(input.ChannelType))
+            throw new ArgumentException($"Unknown channel type {input.ChannelType}");
+
+        await RequireGroupInSpace(ctx, spaceId, groupId);
+
         var lastChannel = await ctx.Set<ChannelEntity>()
            .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == groupId)
            .OrderByDescending(c => c.FractionalIndex)
@@ -938,7 +994,7 @@ public class SpaceGrain(
             // value generator, and because the hub's typing pair holds a channel id with no space
             // beside it.
             Id              = ArgonId.NewIn(spaceId),
-            Name            = input.Name,
+            Name            = name,
             CreatorId       = callerId,
             Description     = input.Description,
             ChannelType     = input.ChannelType,
@@ -974,6 +1030,8 @@ public class SpaceGrain(
         var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
         if (channel == null || channel.SpaceId != spaceId)
             return;
+
+        await RequireGroupInSpace(ctx, spaceId, targetGroupId);
 
         channel.ChannelGroupId = targetGroupId;
 
@@ -1023,6 +1081,11 @@ public class SpaceGrain(
 
                 newIndex = FractionalIndex.Min();
             }
+            else if (afterIndex == null && beforeIndex is { } top)
+            {
+                // Not Before(top): it decrements and refuses to land on the minimum.
+                newIndex = FractionalIndex.Between(FractionalIndex.Min(), top);
+            }
             else
             {
                 newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
@@ -1032,7 +1095,7 @@ public class SpaceGrain(
         channel.FractionalIndex = newIndex.Value;
 
         if (channel.FractionalIndex.Length > RebalanceThreshold)
-            await RebalanceChannelOrder(ctx, spaceId, targetGroupId);
+            await RebalanceChannelOrder(ctx, spaceId, channel);
 
         await ctx.SaveChangesAsync();
 
@@ -1067,7 +1130,7 @@ public class SpaceGrain(
         await Fire(new ChannelRemoved(spaceId, channelId));
     }
 
-    public async Task<Either<ChannelEntity, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default)
+    public async Task<Either<ArgonChannel, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
@@ -1142,8 +1205,11 @@ public class SpaceGrain(
         await ctx.Set<ChannelEntity>().AddAsync(copy, ct);
         await ctx.SaveChangesAsync(ct);
         await Invalidate();
-        await Fire(new ChannelCreated(spaceId, copy.ToDto()), ct);
-        return copy;
+
+        // The DTO, not the entity: the entity drags its overwrites along, and they do not survive the copy.
+        var dto = copy.ToDto();
+        await Fire(new ChannelCreated(spaceId, dto), ct);
+        return dto;
 
         static FractionalIndex? ParseIndex(string? value)
             => string.IsNullOrEmpty(value) ? null : FractionalIndex.Parse(value);
@@ -1266,6 +1332,7 @@ public class SpaceGrain(
         }
 
         await ctx.SaveChangesAsync(ct);
+        await Invalidate(ct);
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
             space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
@@ -1284,10 +1351,11 @@ public class SpaceGrain(
             items[i].FractionalIndex = indices[i].Value;
     }
 
-    private static async Task RebalanceChannelOrder(ApplicationDbContext ctx, Guid spaceId, Guid? groupId)
+    private static async Task RebalanceChannelOrder(ApplicationDbContext ctx, Guid spaceId, ChannelEntity moved)
     {
+        // By id as well: a channel moved in from another group is still filed under that one in the database.
         var items = await ctx.Set<ChannelEntity>()
-           .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == groupId)
+           .Where(c => c.SpaceId == spaceId && (c.ChannelGroupId == moved.ChannelGroupId || c.Id == moved.Id))
            .ToListAsync();
         items.Sort((a, b) => string.Compare(a.FractionalIndex, b.FractionalIndex, StringComparison.Ordinal));
         var indices = FractionalIndex.Distribute(items.Count);
@@ -1504,6 +1572,8 @@ public class SpaceGrain(
            .ExecuteDeleteAsync();
 
         await Invalidate();
+        await grainFactory.GetGrain<IUserPresenceGrain>(bot.BotAsUserId).ForgetSpaceAsync(spaceId);
+        await Fire(new LeavedFromServerUser(spaceId, bot.BotAsUserId));
 
         // Publish lifecycle event to the bot
         await botEventPublisher.PublishBotLifecycleAsync(bot.BotAsUserId,
