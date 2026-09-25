@@ -40,6 +40,13 @@ public class EmailManager(
     /// </remarks>
     private readonly IEmailSink? emailSink = emailSinks.FirstOrDefault();
 
+    /// <summary>One resolver for every activation: it is thread-safe, and its cache is the point of sharing it.</summary>
+    private static readonly LookupClient DnsLookup = new(new LookupClientOptions
+    {
+        Timeout = TimeSpan.FromMilliseconds(400),
+        Retries = 1
+    });
+
     /// <summary>
     /// Hands one outgoing message to <see cref="IEmailSink"/>, when a host registered one.
     /// </summary>
@@ -97,6 +104,10 @@ public class EmailManager(
     /// that knows whether a message actually left the building — including the two ways it silently does
     /// not: an address the validator refuses, and an SMTP server that will not take it.
     /// </param>
+    /// <remarks>
+    /// The journal is written without the send's token: the outcome is known by then, and a send that
+    /// ran out of budget is exactly the one whose record must not be cancelled with it.
+    /// </remarks>
     private async Task SendAsync(string email, MimeMessage message, string kind, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateEMailDestination(email, cancellationToken);
@@ -105,7 +116,7 @@ public class EmailManager(
         {
             logger.LogError("Failed send email to {email}, validation failed, {reason}", email, validation.FailureReason);
             await journal.RecordAsync(email, kind, delivered: false,
-                $"address refused: {validation.FailureReason}", cancellationToken);
+                $"address refused: {validation.FailureReason}");
             return;
         }
 
@@ -122,22 +133,14 @@ public class EmailManager(
             await client.SendAsync(message, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
 
-            await journal.RecordAsync(email, kind, delivered: true, null, cancellationToken);
+            await journal.RecordAsync(email, kind, delivered: true, null);
         }
         catch (Exception e)
         {
             logger.LogCritical(e, "Failed to send email to {To}", message.To);
-            await journal.RecordAsync(email, kind, delivered: false, e.Message, cancellationToken);
+            await journal.RecordAsync(email, kind, delivered: false, e.Message);
             throw;
         }
-    }
-
-    public Task SendEmailAsync(string email, string subject, string message, string template = "none")
-    {
-        Observe(email, EmailKinds.Generic, subject, () => message);
-
-        var msg = CreateMessage(email, subject, message);
-        return SendAsync(email, msg, EmailKinds.Generic);
     }
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
@@ -287,7 +290,9 @@ public class EmailManager(
     [OneWay]
     public async Task SendRegistrationInviteAsync(string email, string link, string appName, TimeSpan validity)
     {
-        Observe(email, EmailKinds.RegistrationInvite, $"You have been invited to {appName}",
+        var subject = $"You've been invited to {appName}";
+
+        Observe(email, EmailKinds.RegistrationInvite, subject,
             () => formStorage.Render("invite_register", new Dictionary<string, string>
             {
                 { "link", link },
@@ -313,7 +318,7 @@ public class EmailManager(
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var msg = CreateMessage(email, $"You've been invited to {appName}", form);
+            var msg = CreateMessage(email, subject, form);
             await SendAsync(email, msg, EmailKinds.RegistrationInvite, cts.Token);
         }
         catch (Exception e)
@@ -329,6 +334,7 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[RAW EMAIL]: to={To}, subject={Subject}", to, subject);
+            await journal.RecordAsync(to, EmailKinds.Raw, delivered: false, "smtp disabled");
             return $"{Guid.NewGuid()}@argon.gl";
         }
 
@@ -393,11 +399,7 @@ public class EmailManager(
 
         var normalizedAddress = $"{addressLocalPart}@{domainAscii}";
 
-        var lookup = new LookupClient(new LookupClientOptions
-        {
-            Timeout = TimeSpan.FromMilliseconds(400),
-            Retries = 1
-        });
+        var lookup = DnsLookup;
 
         var mx = Array.Empty<MxRecord>();
         try
@@ -408,6 +410,20 @@ public class EmailManager(
         catch
         {
             // ignored
+        }
+
+        // RFC 7505: a lone MX of "." says the domain accepts no mail, and rules out the A/AAAA fallback.
+        if (mx is [{ Exchange.Value: "." }])
+        {
+            return new EmailValidationResult(
+                true,
+                normalizedAddress,
+                domainAscii,
+                false,
+                false,
+                SmtpCheckStatus.NotPerformed,
+                "The domain publishes a null MX (RFC 7505) and accepts no mail"
+            );
         }
 
         var mxPresent      = mx.Length > 0;
