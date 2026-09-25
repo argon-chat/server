@@ -185,7 +185,10 @@ public class OperatorAuthChallengeGrain(
         chain.ChainPolicy.TrustMode         = X509ChainTrustMode.CustomRootTrust;
         chain.ChainPolicy.CustomTrustStore.Add(caCert);
 
-        return chain.Build(cert);
+        // AllowUnknownCertificateAuthority also lets a chain end at any other self-signed root, the
+        // presenter's own included, so the operator CA has to be in the chain that was built.
+        return chain.Build(cert)
+            && chain.ChainElements.Any(e => e.Certificate.RawData.AsSpan().SequenceEqual(caCert.RawData));
     }
 
     private void CleanupExpired()
