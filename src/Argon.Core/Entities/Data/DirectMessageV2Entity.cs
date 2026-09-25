@@ -47,6 +47,11 @@ public record DirectMessageV2Entity : ArgonEntityWithOwnershipNoKey,
     [Column(TypeName = "jsonb")]
     public List<IMessageEntity> Entities { get; set; } = [];
 
+    /// <summary>
+    /// Sent while the receiver had the sender blocked: only the sender ever sees it.
+    /// </summary>
+    public bool IsHiddenFromReceiver { get; set; }
+
     public void Configure(EntityTypeBuilder<DirectMessageV2Entity> builder)
     {
         builder.ToTable(TableName);
