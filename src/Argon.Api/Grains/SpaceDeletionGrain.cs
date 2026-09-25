@@ -40,15 +40,21 @@ public class SpaceDeletionGrain(
 
     private Guid SpaceId => this.GetPrimaryKey();
 
-    public override Task OnActivateAsync(CancellationToken ct)
+    public override async Task OnActivateAsync(CancellationToken ct)
     {
+        // Only an activation that died inside CheckAndExecuteAsync leaves EXECUTING behind. Its
+        // deadline has passed, so it goes back to SCHEDULED like any other failed attempt.
+        if (state.State.Status is SpaceDeletionStatus.EXECUTING)
+        {
+            state.State.Status = SpaceDeletionStatus.SCHEDULED;
+            await state.WriteStateAsync(ct);
+        }
+
         if (state.State.Status is SpaceDeletionStatus.SCHEDULED)
             _timer = this.RegisterGrainTimer(
                 static async (grain, _) => await grain.CheckAndExecuteAsync(),
                 this,
                 CheckInterval, CheckInterval);
-
-        return Task.CompletedTask;
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
