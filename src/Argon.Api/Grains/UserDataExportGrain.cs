@@ -1447,13 +1447,17 @@ public class UserDataExportGrain(
         var floor  = reminderOptions.Value.MinimumReminderPeriod;
         var period = ArchiveTtl < floor ? floor : ArchiveTtl;
 
+        // Due when the archive expires, not a whole lifetime after whichever activation re-arms it.
+        var left = (state.State.CompletedAt ?? DateTimeOffset.UtcNow) + ArchiveTtl - DateTimeOffset.UtcNow;
+        var due  = left > TimeSpan.Zero ? left : TimeSpan.Zero;
+
         const int attempts = 3;
 
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             try
             {
-                await this.RegisterOrUpdateReminder(ArchiveExpiryReminder, ArchiveTtl, period);
+                await this.RegisterOrUpdateReminder(ArchiveExpiryReminder, due, period);
                 return;
             }
             catch (Exception ex) when (attempt < attempts)
@@ -1529,6 +1533,8 @@ public class UserDataExportGrain(
 
         if (state.State.CompletedAt is { } completed && DateTimeOffset.UtcNow - completed >= ArchiveTtl)
             await ExpireArchiveAsync();
+        else
+            await ArmArchiveExpiryAsync(); // an early tick re-aims at the expiry instead of waiting a period
     }
 
     private async Task SendExportStartedEmailAsync()
