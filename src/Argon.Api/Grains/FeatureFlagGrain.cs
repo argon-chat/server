@@ -111,8 +111,9 @@ public sealed class FeatureFlagGrain(
             return FeatureFlagResult.Disabled(flagId);
         }
 
+        // Deleted overrides keep their row and its unique key, so they are looked up too and revived.
         var targetId = userId.ToString();
-        var existing = await ctx.FeatureFlagOverrides.FirstOrDefaultAsync(o =>
+        var existing = await ctx.FeatureFlagOverrides.IgnoreQueryFilters().FirstOrDefaultAsync(o =>
             o.FeatureFlagId == flagId && o.Scope == FeatureFlagScope.User && o.TargetId == targetId);
 
         if (existing is null)
@@ -198,23 +199,33 @@ public sealed class FeatureFlagGrain(
 
         await using var ctx = await contextFactory.CreateDbContextAsync();
 
-        if (await ctx.FeatureFlags.AnyAsync(f => f.Id == input.FlagId))
+        var flag = await ctx.FeatureFlags.FirstOrDefaultAsync(f => f.Id == input.FlagId);
+        if (flag is { IsDeleted: false })
             return FeatureFlagOpResult.Fail($"Flag '{input.FlagId}' already exists");
 
         var code = NormalizeUssd(input.UssdActivationCode);
         if (code is not null && await ctx.FeatureFlags.AnyAsync(f => f.UssdActivationCode == code))
             return FeatureFlagOpResult.Fail($"USSD code '{code}' is already in use");
 
-        ctx.FeatureFlags.Add(new FeatureFlagEntity
+        // A deleted flag keeps its row, so its id is taken back rather than inserted a second time.
+        if (flag is null)
         {
-            Id                 = input.FlagId,
-            Description        = input.Description,
-            DefaultEnabled     = input.DefaultEnabled,
-            RolloutPercentage  = input.RolloutPercentage,
-            Variants           = input.Variants,
-            UssdActivationCode = code,
-            ExpiresAt          = input.ExpiresAt
-        });
+            flag = new FeatureFlagEntity { Id = input.FlagId };
+            ctx.FeatureFlags.Add(flag);
+        }
+        else
+        {
+            flag.IsDeleted = false;
+            flag.DeletedAt = null;
+            flag.CreatedAt = DateTimeOffset.UtcNow;
+        }
+
+        flag.Description        = input.Description;
+        flag.DefaultEnabled     = input.DefaultEnabled;
+        flag.RolloutPercentage  = input.RolloutPercentage;
+        flag.Variants           = input.Variants;
+        flag.UssdActivationCode = code;
+        flag.ExpiresAt          = input.ExpiresAt;
 
         await ctx.SaveChangesAsync();
         await cache.RemoveAsync(SnapshotKey);
@@ -266,6 +277,14 @@ public sealed class FeatureFlagGrain(
         flag.UssdActivationCode = null; // release the USSD code so it can be reused
 
         await ctx.SaveChangesAsync();
+
+        // Its overrides go with it, so a flag created again under this id starts without them.
+        await ctx.FeatureFlagOverrides
+            .Where(o => o.FeatureFlagId == flagId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(o => o.IsDeleted, true)
+                .SetProperty(o => o.DeletedAt, flag.DeletedAt));
+
         await cache.RemoveAsync(SnapshotKey);
 
         logger.LogInformation("Deleted feature flag {FlagId}", flagId);
@@ -284,7 +303,7 @@ public sealed class FeatureFlagGrain(
         if (!await ctx.FeatureFlags.AnyAsync(f => f.Id == input.FlagId && !f.IsDeleted))
             return FeatureFlagOpResult.Fail($"Flag '{input.FlagId}' not found");
 
-        var existing = await ctx.FeatureFlagOverrides.FirstOrDefaultAsync(o =>
+        var existing = await ctx.FeatureFlagOverrides.IgnoreQueryFilters().FirstOrDefaultAsync(o =>
             o.FeatureFlagId == input.FlagId && o.Scope == input.Scope && o.TargetId == input.TargetId);
 
         if (existing is null)
