@@ -14,8 +14,9 @@ public interface ITeamAccessChecker
 /// request is allowed to name a team id.
 /// </summary>
 /// <remarks>
-/// Answers are cached in process for <c>accountConsole:accessCacheTtl</c>, so a membership that is
-/// revoked stays usable on an already-warm console node until the entry expires.
+/// Grants are cached in process for <c>accountConsole:accessCacheTtl</c>, so a membership that is
+/// revoked stays usable on an already-warm console node until the entry expires. Refusals are not
+/// cached: an invitee who looked before accepting would be locked out of the team they then joined.
 /// </remarks>
 public sealed class TeamAccessChecker(
     IClusterClient cluster,
@@ -44,7 +45,9 @@ public sealed class TeamAccessChecker(
             return cached;
 
         var allowed = await resolve();
-        cache.Set(key, allowed, CacheTtl);
+
+        if (allowed)
+            cache.Set(key, true, CacheTtl);
 
         return allowed;
     }
