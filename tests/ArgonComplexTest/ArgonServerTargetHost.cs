@@ -4,7 +4,10 @@ using Argon.Core.Features.Integrations.Xsolla;
 using Livekit.Server.Sdk.Dotnet;
 using Argon.Features.Clustering;
 using Argon.Features.EF;
+using Argon.Features.Integrations.Klipy;
+using Argon.Features.Moderation;
 using Argon.Features.Testing;
+using Argon.Features.Vault;
 using ArgonComplexTest.Infrastructure;
 using ArgonComplexTest.Infrastructure.Account;
 using ArgonComplexTest.Infrastructure.Presence;
@@ -69,6 +72,23 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
                 new HttpClient(sp.GetRequiredService<FakeLiveKit>(), disposeHandler: false)));
             services.AddScoped(sp => new EgressServiceClient(SfuCommandUrl, SfuClientId, SfuSecret,
                 new HttpClient(sp.GetRequiredService<FakeLiveKit>(), disposeHandler: false)));
+
+            // Klipy answered in process: the typed client, its resilience handler and KlipyService
+            // stay the shipped ones, only the socket is replaced, so nothing reaches the real API.
+            services.AddSingleton<FakeKlipyApi>();
+            services.AddHttpClient<IKlipyService, KlipyService>()
+               .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeKlipyApi>().CreateHandler());
+
+            // No model in the suite: allows everything, as the no-op the host would pick does,
+            // except the objects a test flags.
+            services.AddSingleton<FakeContentModeration>();
+            services.AddSingleton<IContentModerationService>(sp => sp.GetRequiredService<FakeContentModeration>());
+
+            // No Vault in the suite. Enrolment and revocation go to an in-memory CA (FakeVaultPkiService);
+            // the certificate step-up trusts the operator CA of TestOperatorPki, which forwards the rest.
+            services.AddSingleton<FakeVaultPkiService>();
+            services.AddSingleton<TestOperatorPki>();
+            services.AddSingleton<IVaultPkiService>(sp => sp.GetRequiredService<TestOperatorPki>());
 
             // Somewhere for outgoing mail to land. There is no SMTP server in the suite and every
             // test address is under .local, which resolves to nothing, so EmailManager drops each
@@ -160,6 +180,11 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("Storage:Cdn:Default:BaseUrl", "https://cdn.test.local");
         builder.UseSetting("Storage:Cdn:RedirectCacheSeconds", "300");
         builder.UseSetting("Storage:UseSsl", "false");
+
+        // Keys for the in-process Klipy (FakeKlipyApi); the host name resolves nowhere on purpose.
+        builder.UseSetting("Klipy:BaseUrl", "https://api.klipy.test");
+        builder.UseSetting("Klipy:ApiKey", "test-klipy-key");
+        builder.UseSetting("Klipy:HmacKey", "test-klipy-hmac-key");
 
         builder.UseSetting("CallKit:Sfu:CommandUrl", SfuCommandUrl);
         builder.UseSetting("CallKit:Sfu:ClientId", SfuClientId);

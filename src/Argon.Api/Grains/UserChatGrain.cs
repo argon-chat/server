@@ -280,6 +280,10 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        // A blocked sender is not told: the message is kept for them and never reaches the receiver.
+        var blockedByReceiver = await ctx.UserBlocklist
+            .AnyAsync(x => x.UserId == receiverId && x.BlockedId == senderId, ct);
+
         var now         = DateTimeOffset.UtcNow;
         var previewText = text?.Length > 200 ? text[..200] : text;
 
@@ -303,19 +307,27 @@ public class UserChatGrain(
                         Entities = entities ?? [],
                         CreatedAt = now,
                         CreatorId = senderId,
-                        ReplyTo = replyTo
+                        ReplyTo = replyTo,
+                        IsHiddenFromReceiver = blockedByReceiver
                     };
 
                     ctx.DirectMessages.Add(entity);
+
+                    // Update sender's chat (no unread increment)
+                    await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, token);
+
+                    if (blockedByReceiver)
+                    {
+                        await ctx.SaveChangesAsync(token);
+                        inserted = entity;
+                        return entity;
+                    }
 
                     // Update conversation metadata
                     conversation.LastMessageAt = now;
                     conversation.LastMessageText = previewText;
                     conversation.LastMessageSenderId = senderId;
                     ctx.Conversations.Update(conversation);
-
-                    // Update sender's chat (no unread increment)
-                    await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, token);
 
                     // An ignored sender still gets through — the chat stays honest on both sides — but
                     // they do not raise the receiver's unread count.
@@ -346,7 +358,8 @@ public class UserChatGrain(
         var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
 
         await NotifyAsync(senderId, dmEvent);
-        await NotifyAsync(receiverId, dmEvent);
+        if (!blockedByReceiver)
+            await NotifyAsync(receiverId, dmEvent);
 
         logger.LogInformation("DirectMessage sent: MessageId={MessageId}, ConversationId={ConversationId}",
             message.MessageId, conversation.Id);
@@ -375,7 +388,8 @@ public class UserChatGrain(
         // cover them; a message moderation took down has to be left out here by hand.
         var query = ctx.DirectMessages
             .AsNoTracking()
-            .Where(m => m.ConversationId == conversationId && !m.IsDeleted);
+            .Where(m => m.ConversationId == conversationId && !m.IsDeleted
+                     && (!m.IsHiddenFromReceiver || m.SenderId == me));
 
         if (from.HasValue)
         {

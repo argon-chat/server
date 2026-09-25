@@ -226,21 +226,6 @@ public class InventoryGrain(
         }
     }
 
-    [OneWay]
-    public async Task MarkAllSeenAsync(Guid ownerUserId, CancellationToken ct = default)
-    {
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        var deleted = await ctx.UnreadInventoryItems
-           .Where(x => x.OwnerUserId == ownerUserId)
-           .ExecuteDeleteAsync(ct);
-
-        if (deleted > 0)
-        {
-            await systemNotification.MarkAllReadAsync(ownerUserId, SystemNotificationType.ItemReceived, ct);
-        }
-    }
-
     public async Task<bool> UseItemAsync(Guid itemId, CancellationToken ct = default)
     {
         await using var ctx    = await context.CreateDbContextAsync(ct);
@@ -261,29 +246,29 @@ public class InventoryGrain(
                 if (!usableItem.IsUsable) return null;
                 if (usableItem.Scenario is null) return null;
 
-                List<Guid> grantedItemIds;
+                List<ArgonItemEntity> grantedItems;
 
                 switch (usableItem.Scenario)
                 {
                     case PremiumScenario:
                     {
                         ctx.Remove(usableItem);
-                        grantedItemIds = [];
+                        grantedItems = [];
                         break;
                     }
                     case QualifierBox qualifierBox:
                     {
-                        var grantedId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, token);
-                        if (grantedId is null)
+                        var granted = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, token);
+                        if (granted is null)
                             return null;
 
-                        grantedItemIds = [grantedId.Value];
+                        grantedItems = [granted];
                         break;
                     }
                     case MultipleQualifierBox multipleQualifierBox:
                     {
-                        grantedItemIds = await UseMultipleQualifierBox(ctx, multipleQualifierBox, userId, usableItem, token);
-                        if (grantedItemIds.Count == 0)
+                        grantedItems = await UseMultipleQualifierBox(ctx, multipleQualifierBox, userId, usableItem, token);
+                        if (grantedItems.Count == 0)
                             return null;
 
                         break;
@@ -295,7 +280,8 @@ public class InventoryGrain(
                 await ctx.SaveChangesAsync(token);
                 await trx.CommitAsync(token);
 
-                return new UsedItem(usableItem.Id, usableItem.TemplateId, usableItem.Scenario as PremiumScenario, grantedItemIds);
+                return new UsedItem(usableItem.Id, usableItem.Scenario as PremiumScenario,
+                    grantedItems.Select(x => (x.Id, x.TemplateId)).ToList());
             }, ct);
 
             if (used is null)
@@ -315,14 +301,15 @@ public class InventoryGrain(
                 return true;
             }
 
-            foreach (var grantedId in used.GrantedItemIds)
+            // Each granted item is announced under its own template, not the box's.
+            foreach (var (grantedId, templateId) in used.Granted)
             {
-                await EnsureUnreadAsync(ctx, userId, grantedId, used.TemplateId, ct);
+                await EnsureUnreadAsync(ctx, userId, grantedId, templateId, ct);
             }
 
-            foreach (var grantedId in used.GrantedItemIds)
+            foreach (var (grantedId, templateId) in used.Granted)
             {
-                await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {used.TemplateId}", null, ct: ct);
+                await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {templateId}", null, ct: ct);
             }
 
             return true;
@@ -334,9 +321,9 @@ public class InventoryGrain(
         }
     }
 
-    private sealed record UsedItem(Guid ItemId, string TemplateId, PremiumScenario? Premium, List<Guid> GrantedItemIds);
+    private sealed record UsedItem(Guid ItemId, PremiumScenario? Premium, List<(Guid Id, string TemplateId)> Granted);
 
-    private async Task<Guid?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem,
+    private async Task<ArgonItemEntity?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem,
         CancellationToken ct = default)
     {
         var proto = box.ReferenceItem ?? await ctx.Set<ArgonItemEntity>()
@@ -364,10 +351,10 @@ public class InventoryGrain(
             await AddBadgeToProfileAsync(ctx, userId, granted.TemplateId, ct);
         }
 
-        return granted.Id;
+        return granted;
     }
 
-    private async Task<List<Guid>> UseMultipleQualifierBox(ApplicationDbContext ctx, MultipleQualifierBox box, Guid userId, ArgonItemEntity boxItem,
+    private async Task<List<ArgonItemEntity>> UseMultipleQualifierBox(ApplicationDbContext ctx, MultipleQualifierBox box, Guid userId, ArgonItemEntity boxItem,
         CancellationToken ct = default)
     {
         var referenceItemIds = box.ReferenceItemIds.ToList();
@@ -384,7 +371,7 @@ public class InventoryGrain(
 
         ctx.Remove(boxItem);
 
-        var grantedIds = new List<Guid>();
+        var grantedItems = new List<ArgonItemEntity>();
 
         foreach (var proto in protos)
         {
@@ -398,7 +385,7 @@ public class InventoryGrain(
             };
 
             await ctx.AddAsync(granted, ct);
-            grantedIds.Add(granted.Id);
+            grantedItems.Add(granted);
 
             if (granted.IsAffectBadge)
             {
@@ -406,7 +393,7 @@ public class InventoryGrain(
             }
         }
 
-        return grantedIds;
+        return grantedItems;
     }
 
     public async Task<RedeemError?> RedeemCodeAsync(string code, CancellationToken ct = default)

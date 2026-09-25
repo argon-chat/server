@@ -204,8 +204,10 @@ public class UltimaGrain(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        // A cancelled subscription is still paid up until it expires, so it is extended rather than
+        // joined by a second one with boost slots of its own.
         var existing = await ctx.UltimaSubscriptions
-           .FirstOrDefaultAsync(x => x.UserId == UserId && (x.Status == UltimaStatus.Active || x.Status == UltimaStatus.GracePeriod), ct);
+           .FirstOrDefaultAsync(x => x.UserId == UserId && x.Status != UltimaStatus.Expired, ct);
 
         var now = DateTimeOffset.UtcNow;
 
@@ -220,7 +222,11 @@ public class UltimaGrain(
             existing.Status = UltimaStatus.Active;
             existing.Tier   = tier;
             if (xsollaSubId is not null)
+            {
                 existing.XsollaSubscriptionId = xsollaSubId;
+                existing.AutoRenew            = true;
+                existing.CancelledAt          = null;
+            }
 
             await ctx.SaveChangesAsync(ct);
         }
@@ -284,8 +290,9 @@ public class UltimaGrain(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        // Cancelled only stops the renewal; a refund still has to take away what was paid for.
         var sub = await ctx.UltimaSubscriptions
-           .FirstOrDefaultAsync(x => x.UserId == UserId && (x.Status == UltimaStatus.Active || x.Status == UltimaStatus.GracePeriod), ct);
+           .FirstOrDefaultAsync(x => x.UserId == UserId && x.Status != UltimaStatus.Expired, ct);
 
         if (sub is null)
             return;

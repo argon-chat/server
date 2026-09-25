@@ -133,6 +133,33 @@ public class ActivationStateSerializationTests
         });
     }
 
+    /// <summary>
+    /// A bot gateway carries its open streams, intents, spaces and cursor.
+    /// </summary>
+    [Test]
+    public void A_bot_gateway_carries_its_streams_and_its_cursor()
+    {
+        var space = Guid.NewGuid();
+
+        var original = new Argon.Api.Grains.BotGatewayActivationState
+        {
+            OpenStreams   = 2,
+            Intents       = Argon.Features.BotApi.BotIntent.Messages | Argon.Features.BotApi.BotIntent.Calls,
+            SpaceIds      = [space],
+            LastSequences = new Dictionary<Guid, ulong> { [space] = 42 }
+        };
+
+        var carried = RoundTrip(original);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(carried.OpenStreams, Is.EqualTo(2));
+            Assert.That(carried.Intents, Is.EqualTo(original.Intents));
+            Assert.That(carried.SpaceIds, Is.EqualTo(new[] { space }));
+            Assert.That(carried.LastSequences, Is.EqualTo(original.LastSequences));
+        });
+    }
+
     [Test]
     public void A_session_that_never_started_arrives_usable()
     {

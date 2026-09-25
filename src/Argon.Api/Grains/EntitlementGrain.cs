@@ -306,6 +306,9 @@ public class EntitlementGrain(
         if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
             return null;
 
+        if (!await IsChannelHereAsync(ctx, channelId) || !await IsMemberHereAsync(ctx, memberId))
+            return null;
+
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
             x.ChannelId == channelId &&
             x.SpaceMemberId == memberId
@@ -346,6 +349,9 @@ public class EntitlementGrain(
         if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
             return false;
 
+        if (!await IsChannelHereAsync(ctx, channelId))
+            return false;
+
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
             x.ChannelId == channelId &&
             x.Id == EntitlementOverwriteId
@@ -369,6 +375,10 @@ public class EntitlementGrain(
         var callerId = this.GetUserId();
 
         if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
+            return null;
+
+        if (!await IsChannelHereAsync(ctx, channelId) ||
+            !await ctx.Archetypes.AnyAsync(x => x.Id == archetypeId && x.SpaceId == this.GetPrimaryKey()))
             return null;
 
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
@@ -445,6 +455,10 @@ public class EntitlementGrain(
 
         if (isGrant)
         {
+            // A member id names a row in any space, and every role on that row counts in its space.
+            if (!await IsMemberHereAsync(ctx, memberId))
+                return false;
+
             var existing = await ctx.MemberArchetypes
                .AnyAsync(x => x.SpaceMemberId == memberId && x.ArchetypeId == archetypeId);
 
@@ -472,6 +486,12 @@ public class EntitlementGrain(
         await InvalidateMemberPermissions(ctx, memberId);
         return true;
     }
+
+    private Task<bool> IsChannelHereAsync(ApplicationDbContext ctx, Guid channelId)
+        => ctx.Channels.AnyAsync(x => x.Id == channelId && x.SpaceId == this.GetPrimaryKey());
+
+    private Task<bool> IsMemberHereAsync(ApplicationDbContext ctx, Guid memberId)
+        => ctx.UsersToServerRelations.AnyAsync(x => x.Id == memberId && x.SpaceId == this.GetPrimaryKey());
 
     private async Task InvalidateMemberPermissions(ApplicationDbContext ctx, Guid memberId)
     {

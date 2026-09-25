@@ -57,9 +57,9 @@ public class PresenceBotTests : TestBase
     /// The window a "no second event follows" claim is asserted over.
     /// </summary>
     /// <remarks>
-    /// Bounded by <c>BotGatewayGrain</c>'s own presence tick rather than by the session grain's, and
-    /// that tick is not part of the presence timing options — so this stays a wall-clock window,
-    /// chosen to sit well inside it.
+    /// Bounded by <c>BotGatewayGrain</c>'s Online re-broadcast, the only thing its tick announces,
+    /// which runs every two and a half minutes whatever the presence timing options say — so this
+    /// stays a wall-clock window, chosen to sit well inside it.
     /// </remarks>
     private static readonly TimeSpan NoSecondEventWindow = TimeSpan.FromSeconds(3);
 
@@ -244,7 +244,7 @@ public class PresenceBotTests : TestBase
             PresenceWaits.Settle, beforeReconnect, ct);
 
         // A fixed wait, deliberately: the assertion is that a *second* Online does not arrive, and an
-        // absence has no edge to poll for. Far inside the gateway's own presence tick, so nothing
+        // absence has no edge to poll for. Far inside the gateway's Online re-broadcast, so nothing
         // legitimate can land in it.
         await Task.Delay(NoSecondEventWindow, ct);
 
@@ -359,7 +359,7 @@ public class PresenceBotTests : TestBase
     /// arrived 12 ms apart on the new space's group, and every connected member paid for the second
     /// one with a redundant repaint on every install. The three-second wait after the first event is
     /// a fixed window on purpose: the claim is that no second event follows, and three seconds sits
-    /// well inside the gateway's 30 s presence tick.</para>
+    /// well inside the gateway's two-and-a-half-minute re-broadcast.</para>
     /// </remarks>
     [Test, CancelAfter(120_000), Order(5)]
     public async Task Installing_a_connected_bot_into_a_second_space_announces_it_online_once(
@@ -384,7 +384,7 @@ public class PresenceBotTests : TestBase
             PresenceWaits.Settle, beforeInstall, ct);
 
         // Fixed wait for the same reason as in the reconnect test: the claim is that no second event
-        // follows, and the window sits well inside the gateway's own tick.
+        // follows, and the window sits well inside the gateway's re-broadcast.
         await Task.Delay(NoSecondEventWindow, ct);
 
         var announcements = observer.RecordsOfType<UserChangedStatus>(beforeInstall)

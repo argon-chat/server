@@ -1,9 +1,11 @@
 namespace ArgonComplexTest;
 
 using Argon.Drains;
+using Argon.Features.BotApi;
 using Argon.Features.Clustering;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure;
+using ArgonComplexTest.Tests;
 using System.Net;
 using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
@@ -120,10 +122,61 @@ public class GrainMigrationTests : TestBase
     }
 
     /// <summary>
+    /// A bot's gateway keeps serving the event stream that was open on it when the activation moves.
+    /// </summary>
+    /// <remarks>
+    /// The Bot API side of the stream keeps polling the same grain id and never connects again, so a
+    /// gateway that arrived without knowing a stream is open answers every poll with nothing — and its
+    /// refresh tick, which lived on the old activation, stops renewing the bot's presence.
+    /// </remarks>
+    [Test, Order(1), CancelAfter(600_000)]
+    public async Task A_bot_gateway_keeps_its_open_stream_through_the_move(CancellationToken ct)
+    {
+        var developer = await CreateSessionAsync(ct);
+        var admin     = await CreateSessionAsync(ct);
+        var team      = await DevTeamsHarness.CreateTeamAsync(developer, "migrate");
+        var bot       = await DevTeamsHarness.CreatePublishedBotAsync(developer, team.teamId, "move");
+
+        var (spaceId, channelId) = await DevTeamsHarness.CreateSpaceWithChannelAsync(admin, "Migrating bot", ct);
+        await DevTeamsHarness.InstallAsync(admin, spaceId, bot.appId, ct);
+
+        var gateway = Grains.GetGrain<IBotGatewayGrain>(bot.appId);
+        await gateway.ConnectAsync(BotIntent.Messages);
+
+        var before = await HostOf(gateway, ct);
+        await MoveAsync(gateway, Elsewhere(before), ct);
+        var after = await WaitForMoveAsync(gateway, before, ct);
+
+        Assert.That(after, Is.Not.EqualTo(before), "the activation did not move, so nothing was proven");
+
+        var connected = await gateway.IsConnectedAsync();
+
+        await admin.Channels.SendMessage(spaceId, channelId, "after the move",
+            new ion.runtime.IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+
+        var delivered = false;
+        var deadline  = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+
+        while (!delivered && DateTime.UtcNow < deadline)
+        {
+            delivered = (await gateway.ConsumeEventsAsync(50)).Any(e => e.Type == BotEventType.MessageCreate);
+            await Task.Delay(200, ct);
+        }
+
+        await gateway.DisconnectAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(connected, Is.True, "the gateway arrived without the stream that was open on it");
+            Assert.That(delivered, Is.True, "a message sent after the move never reached the bot");
+        });
+    }
+
+    /// <summary>
     /// Draining a silo carries a live call off it instead of hanging up on everyone.
     /// </summary>
     /// <remarks>
-    /// <para>The test above names its destination, because with nothing draining the placement
+    /// <para>The voice test above names its destination, because with nothing draining the placement
     /// director is free to put the activation back where it was. This one names nothing: it puts a
     /// call on a silo, drains that silo through the same service the deployment calls, and expects
     /// the call to be somewhere else afterwards with the same people in it. That is the whole

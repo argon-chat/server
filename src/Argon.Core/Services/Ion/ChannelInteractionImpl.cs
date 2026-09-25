@@ -31,7 +31,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
 
     public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
         => await this
-           .GetGrain<ISpaceGrain>(request.spaceId)
+           .GetGrain<ISpaceGrain>(spaceId)
            .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId);
 
     public async Task MoveChannel(Guid spaceId, Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId, CancellationToken ct = default)
@@ -72,7 +72,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
            .DuplicateChannel(channelId, ct);
 
         return result.IsSuccess
-            ? new SuccessDuplicateChannel(result.Value.ToDto())
+            ? new SuccessDuplicateChannel(result.Value)
             : new FailedDuplicateChannel(result.Error);
     }
 

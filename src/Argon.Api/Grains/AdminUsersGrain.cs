@@ -426,6 +426,8 @@ public sealed class AdminUsersGrain(
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
+        var now = DateTimeOffset.UtcNow;
+
         var accounts = await db.DeviceObservations
            .Where(o => o.DeviceId == deviceId)
            .Join(db.Users, o => o.UserId, u => u.Id, (o, u) => new { o, u })
@@ -437,7 +439,7 @@ public sealed class AdminUsersGrain(
                 x.o.FirstSeenAt,
                 x.o.LastSeenAt,
                 x.o.Logins,
-                x.u.LockdownReason != LockdownReason.NONE))
+                x.u.LockdownReason != LockdownReason.NONE && (x.u.LockDownExpiration == null || x.u.LockDownExpiration > now)))
            .ToListAsync(ct);
 
         return new DeviceAccountList(accounts);
@@ -478,6 +480,9 @@ public sealed class AdminUsersGrain(
 
         await db.SaveChangesAsync(ct);
 
+        // The request pipeline caches whether a machine is banned; the ban starts on its next call.
+        await cache.RemoveAsync(ArgonRequestContext.DeviceBanCacheKey(deviceId), ct);
+
         return new UserActionResult(true, null);
     }
 
@@ -493,6 +498,8 @@ public sealed class AdminUsersGrain(
         db.DeviceBans.Remove(ban);
 
         await db.SaveChangesAsync(ct);
+
+        await cache.RemoveAsync(ArgonRequestContext.DeviceBanCacheKey(deviceId), ct);
 
         return new UserActionResult(true, null);
     }

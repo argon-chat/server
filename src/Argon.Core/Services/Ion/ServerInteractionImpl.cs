@@ -40,7 +40,7 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task<ServerInvites> GetInviteCodes(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IServerInvitesGrain>(spaceId)
-           .GetInviteCodes();
+           .GetInviteCodes(this.GetUserId());
         var invites = new IonArray<InviteCodeEntity>(result.Select(x
             => new InviteCodeEntity(new InviteCode(x.code.inviteCode), x.spaceId, x.issuerId, x.expireTime.UtcDateTime,
                 (ulong)x.used, x.maxUses, x.createdAt.UtcDateTime)));
@@ -62,7 +62,7 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     }
 
     public async Task RevokeInviteCode(Guid spaceId, InviteCode code, CancellationToken ct = default)
-        => await this.GetGrain<IServerInvitesGrain>(spaceId).RevokeInviteAsync(code.inviteCode);
+        => await this.GetGrain<IServerInvitesGrain>(spaceId).RevokeInviteAsync(this.GetUserId(), code.inviteCode);
 
     public async Task UpdateSpaceInfo(Guid spaceId, string name, string description, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).UpdateSpace(new ServerInput(name, description, null));

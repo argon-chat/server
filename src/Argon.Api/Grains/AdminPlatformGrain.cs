@@ -297,14 +297,7 @@ public sealed class AdminPlatformGrain(
             }
 
             db.Items.Remove(item);
-            var rowsAffected = await db.SaveChangesAsync(ct);
-
-            if (rowsAffected == 0)
-            {
-                logger.LogError("DeleteItemFromUserInventory failed: no rows affected when deleting item {ItemId} from user {UserId}", itemId,
-                    userId);
-                return new DeleteItemResult(false, null, $"Failed to delete item {itemId} from database");
-            }
+            await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Deleted item {ItemId} (template: '{TemplateId}') from user {UserId} inventory",
                 itemId, item.TemplateId, userId);
@@ -362,13 +355,7 @@ public sealed class AdminPlatformGrain(
             }
 
             db.Items.Remove(item);
-            var rowsAffected = await db.SaveChangesAsync(ct);
-
-            if (rowsAffected == 0)
-            {
-                logger.LogError("DeleteItemTemplate failed: no rows affected when deleting template {ItemId}", itemId);
-                return new DeleteItemResult(false, null, $"DeleteItemTemplate failed: no rows affected when deleting template {itemId}");
-            }
+            await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Deleted item template {ItemId} with TemplateId '{TemplateId}'", itemId, item.TemplateId);
             return new DeleteItemResult(true, itemId, null);
@@ -395,6 +382,12 @@ public sealed class AdminPlatformGrain(
             {
                 logger.LogWarning("CreateItemTemplate failed: templateId is empty");
                 return new CreateItemTemplateResult(false, null, "Template ID cannot be empty");
+            }
+
+            if (input is { scenarioType: ItemScenarioKind.QualifierBox, boxContentTemplateIds.Size: 0 })
+            {
+                logger.LogWarning("CreateItemTemplate failed: qualifier box '{TemplateId}' has no contents", input.templateId);
+                return new CreateItemTemplateResult(false, null, "A qualifier box needs at least one item");
             }
 
             List<Guid>? boxContentIds = null;
@@ -519,13 +512,7 @@ public sealed class AdminPlatformGrain(
             };
 
             db.Items.Add(item);
-            var rowsAffected = await db.SaveChangesAsync(ct);
-
-            if (rowsAffected == 0)
-            {
-                logger.LogError("CreateItemTemplate failed: no rows affected when saving template '{TemplateId}'", input.templateId);
-                return new CreateItemTemplateResult(false, null, "Failed to save item template to database");
-            }
+            await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Created item template '{TemplateId}' with ID {ItemId}, type {ScenarioType}",
                 input.templateId, item.Id, input.scenarioType);
@@ -651,6 +638,10 @@ public sealed class AdminPlatformGrain(
         var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
         if (t is null)
             return new AdminTenantChange(new TenantActionResult(false, tenantId, "Tenant not found"), null);
+
+        // Discovery sends the domain's sign-ins to this URL, so a new one needs verifying again.
+        if (t.InstanceUrl != instanceUrl)
+            t.IsVerified = false;
 
         t.InstanceUrl = instanceUrl;
         t.OrgName     = orgName;

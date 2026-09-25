@@ -5,8 +5,10 @@ using Argon.Core.Grains.Interfaces;
 using Argon.Core.Services;
 using Argon.Sfu;
 using Livekit.Server.Sdk.Dotnet;
+using Microsoft.EntityFrameworkCore;
 
 public sealed class CallGrain(
+    IDbContextFactory<ApplicationDbContext> context,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
     ISfuAuthScope authScope,
@@ -17,12 +19,23 @@ public sealed class CallGrain(
     private          IGrainTimer?    ringTimer;
     public static    TimeSpan        RingTimeout = TimeSpan.FromSeconds(45);
     private          DateTimeOffset? _callStartTime;
+    private          bool            _hiddenFromCallee;
 
     public async Task<Either<CallInfo, CallFailedError>> StartCallAsync(Guid callerId, Guid calleeId, CancellationToken ct = default)
     {
         var callId = this.GetPrimaryKey();
 
         logger.LogInformation("Starting call {CallId}: {Caller} → {Callee}", callId, callerId, calleeId);
+
+        // A caller the callee has blocked rings into the void, the same as calling someone offline.
+        await using (var ctx = await context.CreateDbContextAsync(ct))
+        {
+            if (await ctx.UserBlocklist.AnyAsync(x => x.UserId == calleeId && x.BlockedId == callerId, ct))
+            {
+                _hiddenFromCallee = true;
+                return await CallRouteToVoid(callerId, calleeId, ct);
+            }
+        }
 
         var sessions = await sessionDiscovery.GetUserSessionsAsync(calleeId, ct);
         if (sessions.Count == 0)
@@ -101,7 +114,8 @@ public sealed class CallGrain(
 
         logger.LogInformation("Call {CallId} timed out", _state.CallId);
 
-        await systemMessageService.SendCallTimeoutMessageAsync(_state.CallerId, _state.CalleeId, _state.CallId, ct);
+        if (!_hiddenFromCallee)
+            await systemMessageService.SendCallTimeoutMessageAsync(_state.CallerId, _state.CalleeId, _state.CallId, ct);
 
         await HangupAsync(_state.CalleeId, "timeout", ct);
     }
@@ -113,6 +127,10 @@ public sealed class CallGrain(
 
         if (userId != _state.CalleeId)
             return new AnswerResult(false, "not_callee");
+
+        // The callee was never rung; answering by id would tell the blocked caller they got through.
+        if (_hiddenFromCallee)
+            return new AnswerResult(false, "not_ringing");
 
         if (ringTimer is not null)
         {
@@ -143,6 +161,12 @@ public sealed class CallGrain(
         if (_state.Status == CallStatus.Ended)
             return;
 
+        if (userId != _state.CallerId && userId != _state.CalleeId)
+        {
+            logger.LogWarning("User {UserId} is not in call {CallId} and cannot end it", userId, this.GetPrimaryKey());
+            return;
+        }
+
         var wasAccepted = _state.Status == CallStatus.Accepted;
         _state.Status = CallStatus.Ended;
 
@@ -172,9 +196,10 @@ public sealed class CallGrain(
             sessionsCaller,
             new CallFinished(_state.CallerId, _state.CallId), ct);
 
-        await notifier.NotifySessionsAsync(
-            sessionsCallee,
-            new CallFinished(_state.CalleeId, _state.CallId), ct);
+        if (!_hiddenFromCallee)
+            await notifier.NotifySessionsAsync(
+                sessionsCallee,
+                new CallFinished(_state.CalleeId, _state.CallId), ct);
 
 
         if (ringTimer is not null)

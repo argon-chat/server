@@ -10,6 +10,12 @@ public class FakeXsollaService : IXsollaService
     public ConcurrentBag<string> CancelledSubscriptions { get; } = [];
     public bool ShouldValidateSignature { get; set; } = true;
 
+    /// <summary>
+    /// Users whose attribute sync fails as an exhausted retry would. Keyed per user and left alone by
+    /// <see cref="Reset"/>, so it cannot reach a fixture running beside the one that set it.
+    /// </summary>
+    public ConcurrentDictionary<Guid, bool> FailAttributeUpdatesFor { get; } = new();
+
     public Task<(string checkoutUrl, string sessionId)> CreateSubscriptionCheckoutAsync(
         Guid userId, string email, UltimaPlan plan, string countryCode, CancellationToken ct = default)
         => Task.FromResult(($"https://fake-checkout.test/sub?user={userId}&plan={plan}", Guid.NewGuid().ToString()));
@@ -30,6 +36,9 @@ public class FakeXsollaService : IXsollaService
 
     public Task UpdateUserAttributeAsync(Guid userId, string key, string value, CancellationToken ct = default)
     {
+        if (FailAttributeUpdatesFor.ContainsKey(userId))
+            throw new HttpRequestException("Xsolla attribute sync failed (test)");
+
         AttributeUpdates.Add((userId, key, value));
         return Task.CompletedTask;
     }

@@ -3,6 +3,7 @@ namespace Argon.Api.Grains;
 using Argon.Features.BotApi;
 using Argon.Features.Logic;
 using Argon.Features.NatsStreaming;
+using Argon.Features.Orleanse.Storages;
 using Argon.Core.Entities.Data;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -13,11 +14,15 @@ using NATS.Client.JetStream.Models;
 /// Uses durable NATS consumers that persist across reconnects for automatic resume.
 /// </summary>
 public sealed class BotGatewayGrain(
+    // Stores nothing; it is here so the runtime carries this across a migration. See VolatileGrainStorage.
+    [PersistentState("activation", VolatileGrainStorage.ProviderName)]
+    IPersistentState<BotGatewayActivationState> activation,
     INatsJSContext                            js,
     BotSseEventSerializer                     serializer,
     IUserPresenceService                      presenceService,
     IDbContextFactory<ApplicationDbContext>    dbContextFactory,
     BotEventPublisher                         botEventPublisher,
+    IOptions<PresenceTimingOptions>           timingOptions,
     ILogger<BotGatewayGrain>                  logger) : Grain, IBotGatewayGrain
 {
     private static readonly Dictionary<BotEventType, BotIntent> EventIntents = BuildEventIntentMap();
@@ -30,7 +35,10 @@ public sealed class BotGatewayGrain(
         return map;
     }
 
-    private BotIntent                                       _intents;
+    /// <summary>How often the bot is re-announced Online to its spaces, independent of the refresh tick.</summary>
+    private static readonly TimeSpan RebroadcastInterval = TimeSpan.FromMinutes(2.5);
+
+    private BotGatewayActivationState State => activation.State;
 
     /// <summary>
     /// How many SSE streams are open for this bot, not whether one is.
@@ -50,16 +58,23 @@ public sealed class BotGatewayGrain(
     /// than each seeing all of them — that is the shape of one gateway per bot, and unchanged here.
     /// What changed is that closing one no longer silences the others.</para>
     /// </remarks>
-    private int                                             _openStreams;
-    private IGrainTimer?                                    _heartbeatTimer;
-    private readonly Dictionary<Guid, INatsJSConsumer>      _consumers = new();
-    private readonly List<Guid>                             _spaceIds  = new();
-    private INatsJSConsumer?                                _directConsumer;
+    private int _openStreams
+    {
+        get => State.OpenStreams;
+        set => State.OpenStreams = value;
+    }
+
+    private BotIntent  _intents  => State.Intents;
+    private List<Guid> _spaceIds => State.SpaceIds;
 
     // Track last consumed NATS sequence per space for cursor/resume
-    private readonly Dictionary<Guid, ulong>                _lastSequences = new();
+    private Dictionary<Guid, ulong> _lastSequences => State.LastSequences;
+
+    private IGrainTimer?                                    _heartbeatTimer;
+    private readonly Dictionary<Guid, INatsJSConsumer>      _consumers = new();
+    private INatsJSConsumer?                                _directConsumer;
     private ulong                                           _lastDirectSeq;
-    private int                                             _presenceTickCount;
+    private DateTimeOffset                                  _lastBroadcast;
 
     private bool _isConnected => _openStreams > 0;
 
@@ -67,9 +82,31 @@ public sealed class BotGatewayGrain(
 
     private string BotSessionId => $"bot_{BotUserId:N}";
 
+    /// <summary>
+    /// Picks the open streams back up on an activation that migrated here with them.
+    /// </summary>
+    /// <remarks>
+    /// The Bot API keeps polling the same grain id and never connects again, so the consumers and the
+    /// refresh tick the previous activation held have to be rebuilt here. The consumers are durable and
+    /// keep their position, so nothing published during the move is lost.
+    /// </remarks>
+    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    {
+        if (!_isConnected)
+            return;
+
+        foreach (var spaceId in _spaceIds)
+            await CreateConsumerForSpace(spaceId);
+
+        await CreateDirectConsumer();
+
+        _lastBroadcast = DateTimeOffset.UtcNow;
+        ArmHeartbeat();
+    }
+
     public async Task<List<BotSpaceInfo>> ConnectAsync(BotIntent intents)
     {
-        _intents = intents;
+        State.Intents = intents;
         _openStreams++;
 
         // Get bot's spaces
@@ -101,16 +138,15 @@ public sealed class BotGatewayGrain(
         foreach (var spaceId in spaceIds)
             _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
 
+        _lastBroadcast = DateTimeOffset.UtcNow;
+
         // Disposed before it is replaced: ConnectAsync runs once per stream, not once per bot (see
         // _openStreams), so a second stream opening while the first is alive used to overwrite the
         // field and leak the previous timer — DisconnectAsync then disposed only the tracked one and
         // the orphan kept ticking for the life of the activation. Harmless today because
         // BotPresenceTickAsync short-circuits on !_isConnected, which is exactly the kind of
         // accident-of-the-moment this class should not depend on.
-        _heartbeatTimer?.Dispose();
-        _heartbeatTimer = this.RegisterGrainTimer(
-            BotPresenceTickAsync,
-            new GrainTimerCreationOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)));
+        ArmHeartbeat();
 
         // Bulk-query locked bot archetypes to build per-space entitlement info
         var spaceInfos = await BuildSpaceInfosAsync(spaceIds);
@@ -373,6 +409,22 @@ public sealed class BotGatewayGrain(
         return result;
     }
 
+    /// <summary>
+    /// Renews the bot's presence keys on the same tick a person's session renews them.
+    /// </summary>
+    /// <remarks>
+    /// The keys are written with <c>Presence:SessionTtl</c>, so the renewal follows
+    /// <c>Presence:RefreshPeriod</c>, which <see cref="PresenceTimingOptions"/> validates to fit inside
+    /// it. A fixed thirty seconds let a bot lapse to offline under any TTL shorter than that.
+    /// </remarks>
+    private void ArmHeartbeat()
+    {
+        var period = timingOptions.Value.RefreshPeriod;
+
+        _heartbeatTimer?.Dispose();
+        _heartbeatTimer = this.RegisterGrainTimer(BotPresenceTickAsync, new GrainTimerCreationOptions(period, period));
+    }
+
     private async Task BotPresenceTickAsync(CancellationToken ct)
     {
         if (!_isConnected)
@@ -381,14 +433,15 @@ public sealed class BotGatewayGrain(
         await presenceService.RefreshSessionStatusTtlAsync(BotUserId, BotSessionId, ct);
         await presenceService.HeartbeatAsync(BotUserId, BotSessionId, ct);
 
-        // Every 5th tick (~2.5 min), re-broadcast Online to all spaces
-        // This recovers from SpaceGrain reactivations that lose real-time push state
-        _presenceTickCount++;
-        if (_presenceTickCount % 5 == 0)
-        {
-            foreach (var spaceId in _spaceIds)
-                _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
-        }
+        // Re-broadcast Online now and then: this recovers from SpaceGrain reactivations that lose
+        // real-time push state.
+        if (DateTimeOffset.UtcNow - _lastBroadcast < RebroadcastInterval)
+            return;
+
+        _lastBroadcast = DateTimeOffset.UtcNow;
+
+        foreach (var spaceId in _spaceIds)
+            _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
     }
 
     private async Task CreateConsumerForSpace(Guid spaceId)
@@ -497,8 +550,9 @@ public sealed class BotGatewayGrain(
     /// connect to a bot going dark. <c>UserSessionGrain.OnDeactivateAsync</c> spells out the same
     /// reasoning for human sessions and returns early on the same reason code; this is that guard.</para>
     ///
-    /// <para>Nothing is lost by skipping the teardown here: the presence key carries a TTL that the
-    /// tick on the new activation renews, and the NATS consumers are durable, so the target picks
+    /// <para>Nothing is lost by skipping the teardown here: the open streams, intents and spaces travel
+    /// in <see cref="BotGatewayActivationState"/>, <see cref="OnActivateAsync"/> on the target re-arms
+    /// the tick that renews the presence key, and the NATS consumers are durable, so the target picks
     /// the stream up where this one left it.</para>
     /// </remarks>
     public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
@@ -521,4 +575,32 @@ public sealed class BotGatewayGrain(
 
         await base.OnDeactivateAsync(reason, cancellationToken);
     }
+}
+
+/// <summary>
+/// What a gateway activation holds that has to survive a move to another silo.
+/// </summary>
+/// <remarks>
+/// Held as <c>IPersistentState</c> against the storage that stores nothing, so the runtime carries it
+/// across a migration and a fresh activation starts from an empty one. The NATS consumers and the
+/// timer are not here: they are rebuilt from this on the far side.
+/// </remarks>
+[GenerateSerializer]
+public sealed record BotGatewayActivationState
+{
+    /// <summary>SSE streams open on the Bot API for this bot.</summary>
+    [Id(0)]
+    public int OpenStreams { get; set; }
+
+    /// <summary>The intents the latest stream asked for.</summary>
+    [Id(1)]
+    public BotIntent Intents { get; set; }
+
+    /// <summary>The spaces the gateway consumes.</summary>
+    [Id(2)]
+    public List<Guid> SpaceIds { get; set; } = [];
+
+    /// <summary>Last NATS sequence consumed per space, which the heartbeat hands out as the cursor.</summary>
+    [Id(3)]
+    public Dictionary<Guid, ulong> LastSequences { get; set; } = new();
 }

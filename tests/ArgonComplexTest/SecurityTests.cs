@@ -1211,5 +1211,42 @@ public class SecurityTests : TestBase
         });
     }
 
+    /// <summary>
+    /// A machine's first proofs arriving together enrol it once, and every one of them resolves.
+    /// </summary>
+    /// <remarks>
+    /// The resolver is a stateless worker, so simultaneous first refreshes from one machine — two
+    /// accounts on it, or one client starting several connections — run on separate activations and
+    /// all find no key on file. Only one insert can win the unique thumbprint; a loser that answered
+    /// "no device" would get its bound token refused by the refresh path.
+    /// </remarks>
+    [Test, CancelAfter(1000 * 60 * 2), Order(73)]
+    public async Task SimultaneousFirstProofsFromOneMachine_AllResolveToTheOneDevice(CancellationToken ct = default)
+    {
+        var first     = await CreateSessionAsync(ct);
+        var second    = await CreateSessionAsync(ct);
+        var publicKey = NewDevicePublicKey();
+
+        var resolved = await Task.WhenAll(Enumerable.Range(0, 12)
+           .Select(i => Devices.ResolveByKeyAsync(i % 2 == 0 ? first.UserId : second.UserId, publicKey, ct)));
+
+        await using var db = await NewDbAsync(ct);
+
+        var thumbprint = DeviceProofVerifier.Thumbprint(publicKey);
+        var keys       = await db.DeviceKeys.AsNoTracking().Where(k => k.Thumbprint == thumbprint).ToListAsync(ct);
+        var deviceId   = keys.Single().DeviceId;
+        var accounts   = await db.DeviceObservations.AsNoTracking()
+           .Where(o => o.DeviceId == deviceId)
+           .Select(o => o.UserId)
+           .ToListAsync(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolved, Is.All.EqualTo(deviceId),
+                "a proof that lost the race to enrol the machine resolved to no device");
+            Assert.That(accounts, Is.EquivalentTo(new[] { first.UserId, second.UserId }));
+        });
+    }
+
     #endregion
 }

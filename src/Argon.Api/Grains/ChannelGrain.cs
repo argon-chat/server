@@ -295,6 +295,7 @@ public class ChannelGrain(
     [OneWay]
     public async ValueTask OnTypingEmit()
     {
+        // Unchecked on purpose: a purely visual event, frequent, and seen only by the channel's viewers.
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "typing"));
         
@@ -317,6 +318,10 @@ public class ChannelGrain(
     {
         var userId    = this.GetUserId();
         var channelId = ChannelId.ShardId;
+
+        // Bots are outside code and the bot API's Permission() is declarative, so this is the only gate.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.SendMessages))
+            return;
 
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "bot_typing"));
@@ -758,29 +763,6 @@ public class ChannelGrain(
         ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
     }
 
-    public async Task<ChannelEntity> UpdateChannel(ChannelInput input)
-    {
-        var callerId = this.GetUserId();
-
-        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels))
-            throw new UnauthorizedAccessException("No permission to manage channels");
-
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var channel = await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
-        channel.Name        = input.Name;
-        channel.Description = input.Description ?? channel.Description;
-        channel.ChannelType = input.ChannelType;
-
-        await ctx.SaveChangesAsync();
-        _self = channel;
-
-        // The channel list is cached per space, and this just changed a row in it.
-        await readCache.SignalInvalidationAsync(SpaceId);
-
-        return channel;
-    }
-
     public async Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
         int? bitrate, CancellationToken ct = default)
     {
@@ -951,6 +933,8 @@ public class ChannelGrain(
         if (affected == 0)
             return DeleteMessageError.MESSAGE_NOT_FOUND;
 
+        ForgetReactions(messageId);
+
         await FireChannel(new MessageDeleted(SpaceId, channelId, messageId, callerId), ct);
 
         return DeleteMessageError.NONE;
@@ -975,6 +959,8 @@ public class ChannelGrain(
 
         if (affected == 0)
             return false;
+
+        ForgetReactions(messageId);
 
         logger.LogWarning("Moderation removed message {MessageId} in channel {ChannelId} of space {SpaceId} (operator {OperatorId})",
             messageId, channelId, SpaceId, operatorId);
@@ -1549,7 +1535,7 @@ public class ChannelGrain(
             await using var ctx = await context.CreateDbContextAsync();
 
             var message = await ctx.Messages
-               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
                .FirstOrDefaultAsync();
 
             // Deleted in the meantime, or the stub is gone: nothing to tell anyone.
@@ -1627,7 +1613,8 @@ public class ChannelGrain(
             if (mentionedUsers.Count > 0)
                 await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), mentionedUsers);
 
-            var hasEveryoneMention = entities.OfType<MessageEntityMentionEveryone>().Any();
+            var hasEveryoneMention = entities.OfType<MessageEntityMentionEveryone>().Any()
+                && await entitlementChecker.HasChannelAccessAsync(_self.SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.MentionEveryone);
             var roleMentions = entities.OfType<MessageEntityMentionRole>().ToList();
 
             if (hasEveryoneMention || roleMentions.Count > 0)
@@ -1823,7 +1810,7 @@ public class ChannelGrain(
         // Load the message
         var message = await ctx.Messages
            .AsNoTracking()
-           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
            .Select(m => new { m.MessageId, m.CreatorId, m.Controls })
            .FirstOrDefaultAsync();
 
@@ -1892,7 +1879,7 @@ public class ChannelGrain(
 
         var message = await ctx.Messages
            .AsNoTracking()
-           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
            .Select(m => new { m.MessageId, m.CreatorId, m.Controls })
            .FirstOrDefaultAsync();
 
@@ -1970,12 +1957,16 @@ public class ChannelGrain(
         var senderId  = this.GetUserId();
         var channelId = this.GetPrimaryKey();
 
-        var ctx = botEventPublisher.InteractionStore.TryConsume(interactionId);
+        var ctx = botEventPublisher.InteractionStore.TryPeek(interactionId);
         if (ctx is null)
             return new FailedSubmitModal(SubmitModalError.INTERACTION_EXPIRED);
 
-        if (ctx.UserId != senderId)
+        // Checked before consuming, so a submit from anyone else cannot use up the member's modal.
+        if (ctx.UserId != senderId || ctx.ChannelId != channelId)
             return new FailedSubmitModal(SubmitModalError.INTERACTION_NOT_FOUND);
+
+        if (botEventPublisher.InteractionStore.TryConsume(interactionId) is null)
+            return new FailedSubmitModal(SubmitModalError.INTERACTION_EXPIRED);
 
         var user = await botUserCache.GetOrResolveAsync(senderId);
 
@@ -1999,7 +1990,7 @@ public class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var message = await ctx.Messages
-           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && m.CreatorId == botUserId)
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && m.CreatorId == botUserId && !m.IsDeleted)
            .FirstOrDefaultAsync();
 
         if (message is null)
@@ -2117,6 +2108,13 @@ public class ChannelGrain(
 
     public async Task<Dictionary<long, List<ReactionInfo>>> BatchGetReactions(List<long> messageIds)
     {
+        var callerId = this.GetUserId();
+
+        // The refusal QueryMessages gives: who reacted with what is part of the history.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.ViewChannel)
+         || !await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.ReadHistory))
+            return new();
+
         const int maxBatch = 50;
         var ids = messageIds.Count > maxBatch ? messageIds.Take(maxBatch).ToList() : messageIds;
 
@@ -2145,7 +2143,7 @@ public class ChannelGrain(
             var channelId = this.GetPrimaryKey();
 
             var rows = await ctx.Messages
-               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && uncachedIds.Contains(m.MessageId))
+               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && uncachedIds.Contains(m.MessageId) && !m.IsDeleted)
                .Select(m => new { m.MessageId, m.Reactions })
                .ToListAsync();
 
@@ -2188,7 +2186,7 @@ public class ChannelGrain(
 
         await using var ctx = await context.CreateDbContextAsync();
         var message = await ctx.Messages
-           .Where(m => m.SpaceId == SpaceId && m.ChannelId == this.GetPrimaryKey() && m.MessageId == messageId)
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == this.GetPrimaryKey() && m.MessageId == messageId && !m.IsDeleted)
            .Select(m => new { m.Reactions })
            .FirstOrDefaultAsync();
 
@@ -2210,6 +2208,13 @@ public class ChannelGrain(
         }
 
         return reactions;
+    }
+
+    // A pending write for the message stays in _dirtyReactions; the flush skips ids no longer cached.
+    private void ForgetReactions(long messageId)
+    {
+        if (_reactionCache.Remove(messageId))
+            _reactionLru.Remove(messageId);
     }
 
     private async Task FlushReactionsAsync()

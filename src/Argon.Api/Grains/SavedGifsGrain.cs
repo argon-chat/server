@@ -52,7 +52,7 @@ public class SavedGifsGrain(
             return new SuccessSaveGif(new SavedGif(existing.Id, existing.Slug, existing.FileId, url, url, existing.Width, existing.Height, existing.AddedAt.DateTime));
         }
 
-        await EnforceLimitsAsync(db, userId, ct);
+        var evicted = await EnforceLimitsAsync(db, userId, ct);
 
         var cdnKey = klipy.ComputeCachePath(slug);
         var file = await db.Files
@@ -84,8 +84,19 @@ public class SavedGifsGrain(
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+
+        // Removal soft-deletes, and the (UserId, Slug) unique index still covers the tombstone.
+        await db.SavedGifs
+            .IgnoreQueryFilters()
+            .Where(x => x.UserId == userId && x.Slug == slug && x.IsDeleted)
+            .ExecuteDeleteAsync(ct);
+
         db.SavedGifs.Add(savedGif);
         await db.SaveChangesAsync(ct);
+
+        // Only once the eviction has committed: a save that failed evicted nothing.
+        foreach (var fileId in evicted)
+            await refCount.DecrementAsync(fileId, ct: ct);
 
         var resultUrl = s3.GetDownloadUrl(cdnKey);
         return new SuccessSaveGif(new SavedGif(savedGif.Id, slug, file.Id, resultUrl, resultUrl, 0, 0, savedGif.AddedAt.DateTime));
@@ -110,7 +121,8 @@ public class SavedGifsGrain(
 
     #region Private Helpers
 
-    private async Task EnforceLimitsAsync(ApplicationDbContext db, Guid userId, CancellationToken ct)
+    /// <summary>Marks the oldest for removal and returns their files; the caller releases them after saving.</summary>
+    private async Task<List<Guid>> EnforceLimitsAsync(ApplicationDbContext db, Guid userId, CancellationToken ct)
     {
         var isPremium = await db.Set<UserEntity>()
             .Where(u => u.Id == userId)
@@ -122,7 +134,7 @@ public class SavedGifsGrain(
 
         var count = await db.SavedGifs.CountAsync(x => x.UserId == userId, ct);
         if (count < visibleLimit)
-            return;
+            return [];
 
         var toEvict = Math.Max(count - hardLimit + 1, 1);
 
@@ -135,10 +147,11 @@ public class SavedGifsGrain(
         foreach (var gif in oldest)
         {
             db.SavedGifs.Remove(gif);
-            await refCount.DecrementAsync(gif.FileId, ct: ct);
             logger.LogInformation("SavedGif evicted: userId={UserId}, slug={Slug}, fileId={FileId}",
                 userId, gif.Slug ?? gif.FileId.ToString(), gif.FileId);
         }
+
+        return oldest.Select(x => x.FileId).ToList();
     }
 
     private string ResolveCdnKey(SavedGifEntity sg)

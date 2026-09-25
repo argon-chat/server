@@ -137,23 +137,13 @@ public class UserStatsGrain(
         // This prevents spam farming while still rewarding engagement
         if (state.State.MessageXpEarnedToday < MaxMessageXpPerDay && state.State.MessagesSent % MessagesPerXp == 0)
         {
-            var xpToAward = XpPerMessage;
-            
-            // Check if we would exceed the cap
-            var potentialTotal = state.State.MessageXpEarnedToday + xpToAward;
-            if (potentialTotal > MaxMessageXpPerDay)
-            {
-                xpToAward = MaxMessageXpPerDay - state.State.MessageXpEarnedToday;
-            }
+            var xpToAward = Math.Min(XpPerMessage, MaxMessageXpPerDay - state.State.MessageXpEarnedToday);
 
-            if (xpToAward > 0)
-            {
-                state.State.MessageXpEarnedToday += xpToAward;
-                state.State.XpEarnedToday += xpToAward;
+            state.State.MessageXpEarnedToday += xpToAward;
+            state.State.XpEarnedToday += xpToAward;
 
-                var levelGrain = grainFactory.GetGrain<IUserLevelGrain>(this.GetPrimaryKey());
-                await levelGrain.AwardXpAsync(xpToAward, XpSource.Message);
-            }
+            var levelGrain = grainFactory.GetGrain<IUserLevelGrain>(this.GetPrimaryKey());
+            await levelGrain.AwardXpAsync(xpToAward, XpSource.Message);
         }
         
         await state.WriteStateAsync();

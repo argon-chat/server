@@ -95,7 +95,9 @@ public sealed class AdminOperatorsGrain(
         if (string.IsNullOrWhiteSpace(input.displayName) || string.IsNullOrWhiteSpace(input.email))
             return new CreateOperatorResult(false, null, "Display name and email are required");
 
-        var exists = await db.Operators.AnyAsync(o => o.Email == input.email && !o.IsDeleted, ct);
+        var email = input.email.Trim().ToLowerInvariant();
+
+        var exists = await db.Operators.AnyAsync(o => o.Email == email && !o.IsDeleted, ct);
         if (exists)
             return new CreateOperatorResult(false, null, "An operator with this email already exists");
 
@@ -113,7 +115,7 @@ public sealed class AdminOperatorsGrain(
         var entity = new OperatorEntity
         {
             DisplayName      = input.displayName.Trim(),
-            Email            = input.email.Trim().ToLowerInvariant(),
+            Email            = email,
             UserId           = input.userId,
             IsActive         = true,
             IsSystemOperator = input.isSystemOperator
@@ -121,6 +123,8 @@ public sealed class AdminOperatorsGrain(
 
         db.Operators.Add(entity);
         await db.SaveChangesAsync(ct);
+
+        await InvalidateOperatorCacheAsync(entity.UserId, ct);
 
         logger.LogInformation("Operator={CallerId} created operator={OperatorId} email={Email}", callerOperatorId, entity.Id, entity.Email);
 
@@ -149,6 +153,8 @@ public sealed class AdminOperatorsGrain(
 
         op.IsActive = isActive;
         await db.SaveChangesAsync(ct);
+
+        await InvalidateOperatorCacheAsync(op.UserId, ct);
 
         logger.LogInformation("Operator={CallerId} {Verb}d operator={OperatorId}", callerOperatorId, verb, operatorId);
         return new OperatorActionResult(true, null);
@@ -201,14 +207,16 @@ public sealed class AdminOperatorsGrain(
             SerialNumber       = signed.SerialNumber,
             Thumbprint         = Convert.ToHexString(cert.GetCertHash(HashAlgorithmName.SHA256)),
             Subject            = cert.Subject,
-            NotBefore          = cert.NotBefore,
-            NotAfter           = cert.NotAfter,
+            NotBefore          = cert.NotBefore.ToUniversalTime(),
+            NotAfter           = cert.NotAfter.ToUniversalTime(),
             DeviceName         = string.IsNullOrWhiteSpace(deviceName) ? null : deviceName.Trim(),
             DeviceSerialNumber = string.IsNullOrWhiteSpace(deviceSerialNumber) ? null : deviceSerialNumber.Trim(),
         };
 
         db.OperatorCertificates.Add(certificate);
         await db.SaveChangesAsync(ct);
+
+        await InvalidateOperatorCacheAsync(op.UserId, ct);
 
         logger.LogInformation("Enrolled certificate {CertificateId} for operator={OperatorId}, serial={Serial}, device={Device}",
             certificate.Id, operatorId, signed.SerialNumber, certificate.DeviceSerialNumber);
@@ -253,6 +261,9 @@ public sealed class AdminOperatorsGrain(
 
             cert.RevokedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
+
+            var userId = await db.Operators.Where(o => o.Id == cert.OperatorId).Select(o => o.UserId).FirstOrDefaultAsync(ct);
+            await InvalidateOperatorCacheAsync(userId, ct);
 
             logger.LogInformation("Operator={CallerId} revoked certificate={CertificateId} (serial={Serial}) for operator={OperatorId}",
                 callerOperatorId, cert.Id, cert.SerialNumber, cert.OperatorId);
@@ -464,13 +475,20 @@ public sealed class AdminOperatorsGrain(
 
     /// <summary>
     /// Invalidate Aegis-side HybridCache entries for operator app access.
-    /// Keys match CachedTeamsRepository patterns; clears Redis L2 immediately,
+    /// Keys match AegisDirectory; clears Redis L2 immediately,
     /// L1 on Aegis side expires within LocalCacheExpiration (1 min).
     /// </summary>
     private async Task InvalidateAppAccessCacheAsync(Guid operatorId, Guid appId, CancellationToken ct)
     {
         await cache.RemoveAsync($"aegis:operator:app-access:{operatorId}:{appId}", ct);
         await cache.RemoveAsync($"aegis:operator:has-app-access:{operatorId}", ct);
+    }
+
+    /// <summary>Drops Aegis's cached operator record (active, live certificate) for the linked account.</summary>
+    private async Task InvalidateOperatorCacheAsync(Guid? userId, CancellationToken ct)
+    {
+        if (userId is { } id)
+            await cache.RemoveAsync($"aegis:user:operator:{id}", ct);
     }
 
     private static OperatorInfo MapOperatorInfo(OperatorEntity op)

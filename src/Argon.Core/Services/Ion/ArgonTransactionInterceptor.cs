@@ -309,7 +309,7 @@ public sealed class ArgonTransactionInterceptor(
         try
         {
             return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
-                $"device:banned:{deviceId}",
+                ArgonRequestContext.DeviceBanCacheKey(deviceId),
                 async token => await sp.GetRequiredService<IGrainFactory>()
                    .GetGrain<IDeviceIdentityGrain>(Guid.Empty)
                    .IsBannedAsync(deviceId, token),

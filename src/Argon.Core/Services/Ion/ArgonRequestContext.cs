@@ -16,6 +16,8 @@ public static class ArgonRequestContext
     // v2: the cached value grew an expiry (see LockdownSnapshot). A new key rather than a new
     // shape under the old one, so entries a previous build wrote are never read as the new type.
     public static string LockdownCacheKey(Guid userId) => $"lockdown:v2:{userId}";
+
+    public static string DeviceBanCacheKey(Guid deviceId) => $"device:banned:{deviceId}";
 }
 
 public sealed class ArgonRequestContextData

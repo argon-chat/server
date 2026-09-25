@@ -5,6 +5,7 @@ using Argon.Features.EF;
 using Argon.Grains.Interfaces;
 using Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -308,6 +309,219 @@ public class TtlSweepTests : TestBase
             Assert.That(report.At, Is.GreaterThanOrEqualTo(before), "the grain published nothing");
             Assert.That(report.Verdict, Is.Not.EqualTo(TtlSweepVerdict.Failed), Explain(report));
         });
+    }
+
+    /// <summary>
+    /// Turning the sweeper <c>Off</c> takes its reminder away at the next tick, and that tick sweeps
+    /// nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>A reminder is persistent: one registered by a pod that has since been replaced keeps firing
+    /// against configuration nobody can see any more, so <c>Off</c> has to be able to stop it rather
+    /// than merely return early for ever. The tick is delivered by hand, as a call on
+    /// <see cref="IRemindable"/> — which is how the reminder service delivers it — to an activation of
+    /// this test's own, so the singleton's schedule is left as the host armed it.</para>
+    ///
+    /// <para>The mode is flipped in the host's configuration, which the grain reads on every
+    /// activation and every tick. Safe here and nowhere else: this fixture runs alone.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task Turning_the_sweeper_off_unregisters_its_reminder_at_the_next_tick(CancellationToken ct = default)
+    {
+        var sweeper = GetGrainFactory().GetGrain<ITtlSweepGrain>(Guid.NewGuid());
+        var table   = FactoryAsp.Services.GetRequiredService<IReminderTable>();
+        var state   = FactoryAsp.Services.GetRequiredService<TtlSweepState>();
+
+        await sweeper.EnsureSweeperActiveAsync();
+
+        var armed  = await table.ReadRow(sweeper.GetGrainId(), SweepReminder);
+        var before = state.Report;
+
+        using (SweeperMode(TtlSweepMode.Off))
+            await TickAsync(sweeper, SweepReminder);
+
+        var after = await table.ReadRow(sweeper.GetGrainId(), SweepReminder);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(armed, Is.Not.Null, "premise: an activation in report mode arms the sweep");
+            Assert.That(after, Is.Null, "the reminder survived a tick with the sweeper off");
+            Assert.That(state.Report, Is.SameAs(before), "a tick with the sweeper off ran a pass");
+        });
+    }
+
+    /// <summary>
+    /// An activation while the sweeper is <c>Off</c> removes a reminder somebody else left behind.
+    /// </summary>
+    /// <remarks>
+    /// The other way a stale reminder is met: the grain is activated — by the startup call, on a pod
+    /// carrying <c>Off</c> — with a reminder already in the table from before. The row is written into
+    /// the reminder table directly, which is exactly what a previous deployment leaves.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task An_activation_while_the_sweeper_is_off_removes_a_reminder_left_behind(CancellationToken ct = default)
+    {
+        var sweeper = GetGrainFactory().GetGrain<ITtlSweepGrain>(Guid.NewGuid());
+        var table   = FactoryAsp.Services.GetRequiredService<IReminderTable>();
+
+        await table.UpsertRow(new ReminderEntry
+        {
+            GrainId      = sweeper.GetGrainId(),
+            ReminderName = SweepReminder,
+            StartAt      = DateTime.UtcNow.AddHours(1),
+            Period       = TimeSpan.FromHours(1)
+        });
+
+        var planted = await table.ReadRow(sweeper.GetGrainId(), SweepReminder);
+
+        using (SweeperMode(TtlSweepMode.Off))
+            await sweeper.EnsureSweeperActiveAsync();
+
+        var after = await table.ReadRow(sweeper.GetGrainId(), SweepReminder);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(planted, Is.Not.Null, "premise: the stale reminder was written");
+            Assert.That(after, Is.Null, "an activation with the sweeper off left a stale reminder armed");
+        });
+    }
+
+    /// <summary>A tick in the default mode runs a pass and publishes it — the reminder is what sweeps.</summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_tick_in_report_mode_runs_a_pass_and_publishes_it(CancellationToken ct = default)
+    {
+        var sweeper = GetGrainFactory().GetGrain<ITtlSweepGrain>(ITtlSweepGrain.SingletonId);
+        var state   = FactoryAsp.Services.GetRequiredService<TtlSweepState>();
+        var before  = DateTimeOffset.UtcNow;
+
+        await TickAsync(sweeper, SweepReminder);
+
+        var report = state.Report;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.At, Is.GreaterThanOrEqualTo(before), "the tick published nothing");
+            Assert.That(report.Verdict, Is.Not.EqualTo(TtlSweepVerdict.Failed), Explain(report));
+            Assert.That(report.Deleted, Is.Zero, "the host's default mode is report, which never deletes");
+        });
+    }
+
+    /// <summary>A tick for a reminder the sweeper does not own sweeps nothing.</summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_tick_for_another_reminder_sweeps_nothing(CancellationToken ct = default)
+    {
+        var sweeper = GetGrainFactory().GetGrain<ITtlSweepGrain>(ITtlSweepGrain.SingletonId);
+        var state   = FactoryAsp.Services.GetRequiredService<TtlSweepState>();
+
+        await sweeper.EnsureSweeperActiveAsync();
+
+        var before = state.Report;
+
+        await TickAsync(sweeper, "some-other-reminder");
+
+        Assert.That(state.Report, Is.SameAs(before), "a foreign reminder ran a pass");
+    }
+
+    /// <summary>
+    /// A pass that throws publishes a failed verdict instead of rethrowing.
+    /// </summary>
+    /// <remarks>
+    /// <para>Never rethrown, because an exception out of a reminder is retried by Orleans and a retried
+    /// delete pass is what the sweeper refuses to do to itself; still published, because a pass that
+    /// failed quietly is indistinguishable from one that found nothing, and <c>/health</c> reads this
+    /// verdict.</para>
+    ///
+    /// <para>The fault is the lease table's shape: its <c>fence</c> column is renamed for the length of
+    /// one apply pass, so the compare-and-swap that takes the lease is a statement PostgreSQL refuses.
+    /// The server is put in apply mode for that one call, since report mode takes no lease; nothing is
+    /// deleted, because the pass fails before its first table.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_pass_that_throws_publishes_a_failed_verdict_instead_of_rethrowing(CancellationToken ct = default)
+    {
+        OnlyOnPostgres();
+
+        var sweeper = GetGrainFactory().GetGrain<ITtlSweepGrain>(ITtlSweepGrain.SingletonId);
+        var state   = FactoryAsp.Services.GetRequiredService<TtlSweepState>();
+
+        // The lease table exists after any apply pass; this one makes sure of it.
+        await SweepAsync(TtlSweepMode.Apply, ct);
+
+        Exception? thrown = null;
+        TtlSweepReport faulted;
+
+        await ExecuteAsync($"ALTER TABLE \"{TtlSweeper.LockTable}\" RENAME COLUMN fence TO fence_hidden_by_test", ct);
+
+        try
+        {
+            using (SweeperMode(TtlSweepMode.Apply))
+            {
+                try
+                {
+                    await sweeper.RunSweepAsync();
+                }
+                catch (Exception e)
+                {
+                    thrown = e;
+                }
+            }
+
+            faulted = state.Report;
+        }
+        finally
+        {
+            await ExecuteAsync($"ALTER TABLE \"{TtlSweeper.LockTable}\" RENAME COLUMN fence_hidden_by_test TO fence", ct);
+        }
+
+        await sweeper.RunSweepAsync();
+
+        var healed = state.Report;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(thrown, Is.Null, "a failed pass escaped the grain; Orleans would retry it");
+            Assert.That(faulted.Verdict, Is.EqualTo(TtlSweepVerdict.Failed), Explain(faulted));
+            Assert.That(faulted.Description, Does.Contain("fence"), "the verdict should say what failed");
+            Assert.That(healed.Verdict, Is.Not.EqualTo(TtlSweepVerdict.Failed), Explain(healed));
+        });
+    }
+
+    private const string SweepReminder = "ttl-sweep";
+
+    /// <summary>
+    /// Puts the host's <see cref="TtlSweepOptions.ModeKey"/> at <paramref name="mode"/> until disposed.
+    /// </summary>
+    private IDisposable SweeperMode(TtlSweepMode mode)
+    {
+        var configuration = FactoryAsp.Services.GetRequiredService<IConfiguration>();
+        var previous      = configuration[TtlSweepOptions.ModeKey];
+
+        configuration[TtlSweepOptions.ModeKey] = mode.ToString();
+
+        return new ModeRestore(configuration, previous);
+    }
+
+    private sealed class ModeRestore(IConfiguration configuration, string? previous) : IDisposable
+    {
+        public void Dispose() => configuration[TtlSweepOptions.ModeKey] = previous;
+    }
+
+    private static Task TickAsync(ITtlSweepGrain sweeper, string reminder)
+        => sweeper.AsReference<IRemindable>()
+           .ReceiveReminder(reminder, new TickStatus(DateTime.UtcNow, TimeSpan.FromHours(1), DateTime.UtcNow));
+
+    private async Task ExecuteAsync(string sql, CancellationToken ct)
+    {
+        await using var db = await FactoryAsp.Services
+           .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+           .CreateDbContextAsync(ct);
+
+        await db.Database.OpenConnectionAsync(ct);
+
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>
