@@ -12,9 +12,10 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
 
         await using var db = await context.CreateDbContextAsync();
 
+        // The space row filters itself out once deleted; its invite rows do not.
         var invite = await db.Invites
            .AsNoTracking()
-           .FirstOrDefaultAsync(x => x.Id == inviteId.Value);
+           .FirstOrDefaultAsync(x => x.Id == inviteId.Value && db.Spaces.Any(s => s.Id == x.SpaceId));
 
         if (invite is null)
             return (Guid.Empty, AcceptInviteError.NOT_FOUND);
@@ -46,7 +47,7 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
 
         var invite = await db.Invites
            .AsNoTracking()
-           .FirstOrDefaultAsync(x => x.Id == inviteId.Value);
+           .FirstOrDefaultAsync(x => x.Id == inviteId.Value && db.Spaces.Any(s => s.Id == x.SpaceId));
 
         if (invite is null)
             return (null, AcceptInviteError.NOT_FOUND);
@@ -69,10 +70,5 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
         return channel is null
             ? (new InviteTarget(invite.SpaceId, ExpiresAt: invite.ExpireAt), AcceptInviteError.NONE)
             : (new InviteTarget(invite.SpaceId, channelId, channel.Name, invite.ExpireAt), AcceptInviteError.NONE);
-    }
-
-    public async ValueTask DropInviteCodeAsync()
-    {
-        // TODO
     }
 }
