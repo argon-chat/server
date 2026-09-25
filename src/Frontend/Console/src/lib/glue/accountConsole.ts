@@ -7,44 +7,39 @@
 //     Generator: IonPath Codegen
 // </auto-generated>
 //------------------------------------------------------------------------------
-import { 
-  CborReader, 
-  CborWriter, 
-  
-  DateOnly, 
-  IonDateTime, 
-  IonDecimal, 
-  Duration, 
-  TimeOnly, 
-  Guid, 
-  
+import {
+  CborReader,
+  CborWriter,
+  IonDateTime,
+  IonDecimal,
   IonFormatterStorage,
-
+  ServiceExecutor,
+  IonRequest
+} from "@argon-chat/ion.webcore";
+import type {
+  DateOnly,
+  Duration,
+  TimeOnly,
+  Guid,
   IonArray,
-  IonMaybe,
-  IonPartial,
-
   IIonService,
   IIonUnion,
-  
-  ServiceExecutor,
   IonClientContext,
-  IonRequest,
-  IonWsClient,
-  IonInterceptor
+  IonInterceptor,
+  IonStreamOptions
 } from "@argon-chat/ion.webcore";
 
-type guid = Guid;
-type timeonly = TimeOnly;
-type duration = Duration;
+declare type guid = Guid;
+declare type timeonly = TimeOnly;
+declare type duration = Duration;
 // IonDateTime, never the deprecated `DateTimeOffset { date: Date; offsetMinutes }`
 // shape: `Date` is millisecond-resolution, so it cannot hold the 100ns ticks the
 // wire form carries, and the webcore "datetime" formatter now reads and writes
 // IonDateTime — leaving the old alias here would be a live type mismatch, not just
 // a lossy one.
-type datetime = IonDateTime;
-type decimal = IonDecimal;
-type dateonly = DateOnly;
+declare type datetime = IonDateTime;
+declare type decimal = IonDecimal;
+declare type dateonly = DateOnly;
 
 declare type bool = boolean;
 
@@ -1624,12 +1619,28 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
 IonFormatterStorage.registerClientExecutor<IAppManagement>('AppManagement', AppManagement_Executor);
 
 
-export function createClient(endpoint: string, interceptors: IonInterceptor[]) {
-  const ctx = {
+/**
+ * A client for every service in this module.
+ *
+ * `options.streamOptions` configures `stream` calls (transport order, heartbeat, reconnect);
+ * `options.sessionId` identifies this client instance to the server across calls (a fresh one
+ * by default); `options.signal` cancels every call made through the client.
+ */
+export function createClient(
+  endpoint: string,
+  interceptors: IonInterceptor[],
+  options?: { streamOptions?: IonStreamOptions; sessionId?: string; signal?: AbortSignal }
+) {
+  const ctx: IonClientContext = {
     baseUrl: endpoint,
-    interceptors: interceptors
-  } as IonClientContext;
+    interceptors: interceptors,
+    sessionId: options?.sessionId ?? crypto.randomUUID(),
+    streamOptions: options?.streamOptions
+  };
   const controller = new AbortController();
+  const outer = options?.signal;
+  if (outer?.aborted) controller.abort(outer.reason);
+  else outer?.addEventListener("abort", () => controller.abort(outer.reason), { once: true });
 
   return new Proxy(
     {},
