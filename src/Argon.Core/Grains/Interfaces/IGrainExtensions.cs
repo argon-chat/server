@@ -135,6 +135,10 @@ public static class CallerContext
     /// <summary>The verified hardware-key thumbprint of the calling machine, or null when none was proven.</summary>
     public static string? DeviceThumbprint => RequestContext.Get(DeviceThumbprintKey) as string;
 
+    /// <summary>The caller's address, as <c>GetUserIp</c> reads it, for an entry point that is not an Ion call.</summary>
+    public static void SetIp(string ip)
+        => RequestContext.Set("$caller_user_ip", ip);
+
     /// <summary>Sets a value, or clears the key when there is nothing to say — a null in the context is a stale answer waiting to be read.</summary>
     public static void SetOptional(string key, string? value)
     {

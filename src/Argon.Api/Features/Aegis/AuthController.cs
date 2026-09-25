@@ -34,7 +34,16 @@ public class AuthController(
     IOptions<AegisOptions> aegis,
     ILogger<AuthController> logger) : ControllerBase
 {
-    private IAuthorizationGrain Authorization => cluster.GetGrain<IAuthorizationGrain>(Guid.NewGuid());
+    // The caller's address goes with every call, as the Ion interceptor sends it: the one-time codes
+    // the grain sends are limited per address.
+    private IAuthorizationGrain Authorization
+    {
+        get
+        {
+            CallerContext.SetIp(HttpContext.GetIpAddress());
+            return cluster.GetGrain<IAuthorizationGrain>(Guid.NewGuid());
+        }
+    }
 
     /// <summary>
     /// The OAuth authorization endpoint. Turns an established browser session into a code.

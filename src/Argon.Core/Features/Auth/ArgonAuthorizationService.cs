@@ -140,7 +140,7 @@ public class ArgonAuthorizationService(
     /// hands this whatever the request body carried, so an omitted <c>email</c> answered
     /// <c>500 server_error</c> from <c>AuthController</c>'s catch instead of refusing the grant.
     /// </remarks>
-    public async Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input)
+    public async Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input, string userIp)
     {
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -167,8 +167,8 @@ public class ArgonAuthorizationService(
         var result = user.PreferredAuthMode switch
         {
             ArgonAuthMode.EmailPassword    => await AuthorizePassword(user, input, false),
-            ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false, requiredMachineId: false),
-            ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true, requiredMachineId: false),
+            ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false, requiredMachineId: false, userIp),
+            ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true, requiredMachineId: false, userIp),
             ArgonAuthMode.PasskeyOnly or ArgonAuthMode.PasskeyWithOtp
                                            => AuthorizationError.BAD_CREDENTIALS, // passkey users must use passkey login flow
             _                              => AuthorizationError.NONE
@@ -578,6 +578,10 @@ public class ArgonAuthorizationService(
         user.PasswordDigest = passwordHashingService.HashPassword(newPassword);
         await db.SaveChangesAsync();
 
+        // As a password change does: whoever else held the old credentials is signed out. The token
+        // minted below comes after the floor, so the device doing the reset stays signed in.
+        await SessionRevocation.RaiseFloorAsync(cacheDatabase, user.Id);
+
         sw.Stop();
 
         AuthorizationGrainInstrument.PasswordResets.Add(1,
@@ -656,7 +660,7 @@ public class ArgonAuthorizationService(
         }
     }
 
-    public async Task<PasskeyLoginResult> CompletePasskeyLogin(string assertionResponseJson, CancellationToken ct)
+    public async Task<PasskeyLoginResult> CompletePasskeyLogin(string assertionResponseJson, string userIp, CancellationToken ct)
     {
         try
         {
@@ -737,7 +741,7 @@ public class ArgonAuthorizationService(
                 var method = user.PreferredOtpMethod;
                 await otpService.SendAsync(
                     new SendOtpRequest(user.Email, user.Id, OtpPurpose.SignIn, null, method),
-                    "passkey-login");
+                    userIp);
 
                 logger.LogInformation("Passkey verified for user {UserId}, OTP sent via {Method}", userId, method);
                 return new PasskeyLoginResult(false, null, userId, true, passkeyNonce, PasskeyLoginError.NONE);

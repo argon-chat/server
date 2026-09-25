@@ -1,10 +1,15 @@
 namespace ArgonComplexTest.Tests;
 
+using System.Net;
 using System.Text.Json;
 using Argon.Entities;
 using Argon.Features.Auth;
+using Argon.Features.Clustering;
 using Argon.Grains.Interfaces;
+using Argon.Services;
+using ArgonComplexTest.Infrastructure;
 using ArgonContracts;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,12 +22,26 @@ using Microsoft.Extensions.DependencyInjection;
 /// real "none" attestation and real ES256 assertions, so the server's own Fido2 verification decides
 /// every outcome here — registration, sign-in on the security screen, sign-in at the identity server,
 /// and each way those can be refused.</para>
+///
+/// <para>The identity server's own host runs too, for the one-time codes its sign-ins send: those are
+/// limited per caller address, and the address only exists on a request that arrived over HTTP.</para>
 /// </remarks>
 [TestFixture]
 public class PasskeyCeremonyTests : TestBase
 {
     /// <summary>A YubiKey 5 NFC, so the authenticator's name has something to resolve to.</summary>
     private static readonly Guid YubiKey5Nfc = Guid.Parse("ee882879-721c-4913-9775-3dfcce97072a");
+
+    private RoleHost aegis = null!;
+
+    [OneTimeSetUp]
+    public void StartTheIdentityServer()
+        => aegis = new RoleHost(ArgonTestEnvironment.Instance.Host.Settings, ArgonRoleId.Aegis,
+            siloPort: 0, ArgonClusterEndpoints.DefaultClusterId);
+
+    [OneTimeTearDown]
+    public async Task StopTheIdentityServer()
+        => await aegis.DisposeAsync();
 
     private Task<ApplicationDbContext> NewDbAsync(CancellationToken ct)
         => FactoryAsp.Services.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContextAsync(ct);
@@ -381,53 +400,168 @@ public class PasskeyCeremonyTests : TestBase
         });
     }
 
+    // ── codes sent by the identity server are limited per caller address ─────────────────────────
+
     /// <summary>
-    /// One person's passkey sign-ins cannot use up the codes of everyone else's.
+    /// A request to the identity server from a caller at <paramref name="address"/>.
     /// </summary>
     /// <remarks>
-    /// <para>Open. <c>ArgonAuthorizationService.CompletePasskeyLogin</c> (reached through
-    /// <c>AuthorizationGrain.CompletePasskeyLogin</c>) sends the second-factor code with
-    /// <c>otpService.SendAsync(request, "passkey-login")</c>, and that second argument is the caller's
-    /// address. <c>EmailOtpStrategy</c> rate-limits by address at thirty codes an hour, so every
-    /// passkey-plus-code sign-in on the platform draws from one bucket of thirty: the thirty-first
-    /// person in an hour passes the passkey step, is told a code is on its way, and none is sent.</para>
-    ///
-    /// <para>The test stands in for those thirty sign-ins by putting the bucket's counter where they
-    /// would have left it. The fix is to pass the caller's real address — the grain has
-    /// <c>this.GetUserIp()</c> — through a new parameter on <c>IArgonAuthorizationService</c>; it is
-    /// not made here because the identity server's controller does not put the address in the request
-    /// context, so the grain would fall back to <c>"unknown"</c>, which is one shared bucket again.
-    /// The address has to be carried from <c>AuthController</c> first.</para>
+    /// Sent through the test server directly rather than an <see cref="HttpClient"/>, because the
+    /// in-memory transport leaves the peer address unset for every caller alike — and the address is
+    /// the thing under test.
     /// </remarks>
-    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
-    public async Task One_accounts_passkey_sign_ins_do_not_use_up_anothers_codes(CancellationToken ct = default)
+    private async Task<JsonElement> PostFromAsync(IPAddress address, string path, object body, CancellationToken ct)
     {
-        var account             = await CreateSessionAsync(ct);
-        using var authenticator = new SoftwareAuthenticator(YubiKey5Nfc);
-        await RegisterAsync(account, authenticator, "Key", ct);
+        var json = JsonSerializer.SerializeToUtf8Bytes(body);
 
-        await using (var db = await NewDbAsync(ct))
-            await db.Users.Where(u => u.Id == account.UserId)
-               .ExecuteUpdateAsync(set => set.SetProperty(u => u.PreferredAuthMode, ArgonAuthMode.PasskeyWithOtp), ct);
+        var context = await aegis.Server.SendAsync(c =>
+        {
+            c.Request.Method             = HttpMethods.Post;
+            c.Request.Scheme             = "https";
+            c.Request.Host               = new HostString("aegis.test.local");
+            c.Request.Path               = path;
+            c.Request.ContentType        = "application/json";
+            c.Request.Body               = new MemoryStream(json);
+            c.Connection.RemoteIpAddress = address;
+        }, ct);
 
-        var cache  = FactoryAsp.Services.GetRequiredService<Argon.Services.IArgonCacheDatabase>();
-        var bucket = "rl:otp:ip:passkey-login:hour";
+        using var reader = new StreamReader(context.Response.Body);
+        var text = await reader.ReadToEndAsync(ct);
 
-        // Where thirty other accounts' passkey sign-ins this hour would have left it.
-        await cache.StringSetAsync(bucket, "30", TimeSpan.FromMinutes(5), ct);
+        Assert.That(context.Response.StatusCode, Is.EqualTo(StatusCodes.Status200OK), $"{path}: {text}");
+
+        return JsonDocument.Parse(text).RootElement.Clone();
+    }
+
+    /// <summary>Two neighbouring addresses in a documentation range.</summary>
+    private static (IPAddress Crowded, IPAddress Quiet) TwoAddresses(string prefix)
+    {
+        var host = Random.Shared.Next(1, 250);
+        return (IPAddress.Parse($"{prefix}.{host}"), IPAddress.Parse($"{prefix}.{host + 1}"));
+    }
+
+    private static string CodeBucket(IPAddress address) => $"rl:otp:ip:{address}:hour";
+
+    private async Task<TestUserSession> AccountSigningInWithAsync(ArgonAuthMode mode, CancellationToken ct)
+    {
+        var account = await CreateSessionAsync(ct);
+
+        await using var db = await NewDbAsync(ct);
+        await db.Users.Where(u => u.Id == account.UserId)
+           .ExecuteUpdateAsync(set => set.SetProperty(u => u.PreferredAuthMode, mode), ct);
+
+        return account;
+    }
+
+    /// <summary>
+    /// The code a passkey sign-in asks for is counted against the caller's own address, so one
+    /// address using up its allowance does not stop anyone else's code.
+    /// </summary>
+    /// <remarks>
+    /// Every passkey-plus-code sign-in on the platform used to be counted against one address, the
+    /// literal <c>"passkey-login"</c>: thirty sign-ins an hour, by anyone, and the next person passed
+    /// the passkey step, was told a code was on its way, and got none. The crowded address stands in
+    /// for thirty sign-ins from one place by putting its counter where they would have left it.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_passkey_sign_in_code_is_limited_by_the_callers_own_address(CancellationToken ct = default)
+    {
+        var (crowded, quiet) = TwoAddresses("198.51.100");
+        var cache            = FactoryAsp.Services.GetRequiredService<IArgonCacheDatabase>();
+
+        var fromCrowded = await AccountSigningInWithAsync(ArgonAuthMode.PasskeyWithOtp, ct);
+        var fromQuiet   = await AccountSigningInWithAsync(ArgonAuthMode.PasskeyWithOtp, ct);
+
+        using var crowdedKey = new SoftwareAuthenticator(YubiKey5Nfc);
+        using var quietKey   = new SoftwareAuthenticator(YubiKey5Nfc);
+
+        await RegisterAsync(fromCrowded, crowdedKey, "Key", ct);
+        await RegisterAsync(fromQuiet, quietKey, "Key", ct);
+
+        async Task<JsonElement> SignInAsync(IPAddress address, TestUserSession account, SoftwareAuthenticator key)
+        {
+            var begun = await PostFromAsync(address, "/api/auth/passkey/begin", new { email = account.Credentials.email }, ct);
+
+            using var options = JsonDocument.Parse(begun.GetProperty("optionsJson").GetString()!);
+
+            return await PostFromAsync(address, "/api/auth/passkey/complete", new
+            {
+                nonce                 = options.RootElement.GetProperty("nonce").GetString(),
+                assertionResponseJson = key.Assert(options.RootElement.GetProperty("options").GetRawText())
+            }, ct);
+        }
+
+        await cache.StringSetAsync(CodeBucket(crowded), "30", TimeSpan.FromMinutes(5), ct);
 
         try
         {
-            var (nonce, options) = ReadLoginOptions(await Authorization.BeginPasskeyLogin(account.Credentials.email, ct));
-            var verified         = await Authorization.CompletePasskeyLogin(LoginPayload(nonce, authenticator.Assert(options)), ct);
+            var crowdedSignIn = await SignInAsync(crowded, fromCrowded, crowdedKey);
+            var quietSignIn   = await SignInAsync(quiet, fromQuiet, quietKey);
 
-            Assert.That(verified.RequiresOtp, Is.True);
-            Assert.That(await GetEmailCodeAsync(account.Credentials.email, ct: ct), Is.Not.Null,
-                "the code for this account's sign-in was never sent, because other accounts had used up a bucket they all share");
+            var crowdedCode = await GetEmailCodeAsync(fromCrowded.Credentials.email, TimeSpan.FromSeconds(2), ct);
+            var quietCode   = await GetEmailCodeAsync(fromQuiet.Credentials.email, ct: ct);
+            var quietCount  = await cache.StringGetAsync(CodeBucket(quiet), ct);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(crowdedSignIn.GetProperty("requiresOtp").GetBoolean(), Is.True, crowdedSignIn.ToString());
+                Assert.That(quietSignIn.GetProperty("requiresOtp").GetBoolean(), Is.True, quietSignIn.ToString());
+                Assert.That(crowdedCode, Is.Null,
+                    "an address past its allowance was sent a code anyway, so the limit was not counted against it");
+                Assert.That(quietCode, Is.Not.Null,
+                    "a caller's code was withheld because another address had used up its allowance");
+                Assert.That(quietCount, Is.EqualTo("1"), "the code was not counted against the address that asked for it");
+            });
         }
         finally
         {
-            await cache.KeyDeleteAsync(bucket, ct);
+            await cache.KeyDeleteAsync(CodeBucket(crowded), ct);
+            await cache.KeyDeleteAsync(CodeBucket(quiet), ct);
+        }
+    }
+
+    /// <summary>
+    /// The same for the one-time code of an email-code sign-in at the identity server.
+    /// </summary>
+    /// <remarks>
+    /// That path handed the code sender no address at all, so every such sign-in was counted against
+    /// the empty one — the same shared allowance under another name.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task An_email_code_sign_in_is_limited_by_the_callers_own_address(CancellationToken ct = default)
+    {
+        var (crowded, quiet) = TwoAddresses("203.0.113");
+        var cache            = FactoryAsp.Services.GetRequiredService<IArgonCacheDatabase>();
+
+        var fromCrowded = await AccountSigningInWithAsync(ArgonAuthMode.EmailOtp, ct);
+        var fromQuiet   = await AccountSigningInWithAsync(ArgonAuthMode.EmailOtp, ct);
+
+        await cache.StringSetAsync(CodeBucket(crowded), "30", TimeSpan.FromMinutes(5), ct);
+
+        try
+        {
+            var crowdedSignIn = await PostFromAsync(crowded, "/api/auth/oauth/authorize",
+                new { email = fromCrowded.Credentials.email, clientId = "none" }, ct);
+            var quietSignIn = await PostFromAsync(quiet, "/api/auth/oauth/authorize",
+                new { email = fromQuiet.Credentials.email, clientId = "none" }, ct);
+
+            var crowdedCode = await GetEmailCodeAsync(fromCrowded.Credentials.email, TimeSpan.FromSeconds(2), ct);
+            var quietCode   = await GetEmailCodeAsync(fromQuiet.Credentials.email, ct: ct);
+            var quietCount  = await cache.StringGetAsync(CodeBucket(quiet), ct);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(crowdedSignIn.GetProperty("requiresOtp").GetBoolean(), Is.True, crowdedSignIn.ToString());
+                Assert.That(quietSignIn.GetProperty("requiresOtp").GetBoolean(), Is.True, quietSignIn.ToString());
+                Assert.That(crowdedCode, Is.Null, "an address past its allowance was sent a code anyway");
+                Assert.That(quietCode, Is.Not.Null, "a caller's code was withheld because another address had used up its allowance");
+                Assert.That(quietCount, Is.EqualTo("1"), "the code was not counted against the address that asked for it");
+            });
+        }
+        finally
+        {
+            await cache.KeyDeleteAsync(CodeBucket(crowded), ct);
+            await cache.KeyDeleteAsync(CodeBucket(quiet), ct);
         }
     }
 

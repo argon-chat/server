@@ -3,7 +3,7 @@ namespace Argon.Features.Auth;
 public interface IArgonAuthorizationService
 {
     Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input, string userIp, string machineId);
-    Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input);
+    Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input, string userIp);
     Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input, string machineId);
     Task<Either<SuccessAuthorize, FailedRegistration>> ExternalRegister(NewUserCredentialsInput input);
     Task<bool>                                         BeginResetPass(string email, string userIp, string machineId);
@@ -11,7 +11,7 @@ public interface IArgonAuthorizationService
     Task<string>                 GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct);
 
     Task<BeginPasskeyLoginResult> BeginPasskeyLogin(string? email, CancellationToken ct);
-    Task<PasskeyLoginResult>      CompletePasskeyLogin(string assertionResponseJson, CancellationToken ct);
+    Task<PasskeyLoginResult>      CompletePasskeyLogin(string assertionResponseJson, string userIp, CancellationToken ct);
     Task<PasskeyLoginResult>      ConfirmPasskeyOtp(string passkeyNonce, string otpCode, CancellationToken ct);
 }
 

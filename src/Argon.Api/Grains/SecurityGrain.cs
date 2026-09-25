@@ -321,11 +321,7 @@ public class SecurityGrain(
             // sessions still visible to discovery and only tokens minted since the sid claim
             // existed. A floor reaches every token by date, including the caller's own — which is
             // correct here and is why this does not live in RevokeAllSessions.
-            await cache.StringSetAsync(
-                SessionRevocation.FloorKey(UserId),
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
-                SessionRevocation.Window,
-                ct);
+            await SessionRevocation.RaiseFloorAsync(cache, UserId, ct);
 
             var emailGrain = GrainFactory.GetGrain<IEmailManager>(Guid.NewGuid());
             await emailGrain.SendNotificationResetPasswordAsync(user.Email);

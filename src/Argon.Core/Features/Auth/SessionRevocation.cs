@@ -236,6 +236,29 @@ public static class SessionRevocation
         => floor is { } watermark && (issuedAt is not { } when || when <= watermark);
 
     /// <summary>
+    /// Ends every credential this user was issued up to now, and returns once a credential minted
+    /// afterwards is sure to be above the floor.
+    /// </summary>
+    /// <remarks>
+    /// The floor and every issued-at are whole seconds, and <see cref="IsBelowFloor"/> ends a
+    /// credential issued in the floor's own second because it cannot tell which side of the write it
+    /// was minted on. So this waits that second out: whatever the caller mints next — the token a
+    /// password reset hands back, a sign-in straight after a password change — is issued strictly
+    /// after the floor instead of on it.
+    /// </remarks>
+    public static async Task RaiseFloorAsync(IArgonCacheDatabase store, Guid userId, CancellationToken ct = default)
+    {
+        var floor = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await store.StringSetAsync(FloorKey(userId), floor.ToString(), Window, ct);
+
+        var rest = DateTimeOffset.FromUnixTimeSeconds(floor + 1) - DateTimeOffset.UtcNow;
+
+        if (rest > TimeSpan.Zero)
+            await Task.Delay(rest, ct);
+    }
+
+    /// <summary>
     /// How long a revocation may take to be honoured on a path that reads it through a cache.
     /// </summary>
     /// <remarks>

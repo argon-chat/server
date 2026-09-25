@@ -653,43 +653,78 @@ public class AccountSecurityTests : TestBase
     }
 
     /// <summary>
-    /// A password reset should end the sessions that were signed in before it, as a password change does.
+    /// A password reset ends the sessions signed in before it, as a password change does, and keeps
+    /// the one it signs in.
     /// </summary>
     /// <remarks>
-    /// <para>Open. <c>SecurityGrain.ChangePasswordAsync</c> writes a revocation floor
-    /// (<c>SessionRevocation.FloorKey</c>) because "changing a password is the one action that means
-    /// whoever else is holding my credentials, stop". <c>ArgonAuthorizationService.ResetPass</c>,
-    /// reached through <c>AuthorizationGrain.ResetPass</c>, replaces the password digest and writes
-    /// nothing, so a refresh token taken before the reset keeps minting access tokens for its ten-year
-    /// lifetime. A reset is the flow a person uses precisely when they no longer control the account.</para>
-    ///
-    /// <para>Not fixed here because the fix is not a one-liner: <c>SessionRevocation.IsBelowFloor</c>
-    /// compares with <c>&lt;=</c> in whole seconds, and <c>ResetPass</c> mints the caller a fresh token
-    /// in the same call — a floor written at "now" would revoke the very token the reset hands back.
-    /// Whether the reset should sign the resetting device in at all, or write the floor a second
-    /// earlier, is the decision this is waiting on.</para>
+    /// A reset is the flow a person uses when they no longer control the account, so a refresh token
+    /// taken before it must stop minting. The token the reset hands back is minted in the same call,
+    /// which is what makes the second half worth asserting: the floor and every issued-at are whole
+    /// seconds, and a floor that caught its own reset's token would sign the person straight out again.
+    /// The earlier token is minted with no pause before the reset, so it may share the floor's second —
+    /// that case has to be ended too.
     /// </remarks>
-    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
+    [Test, CancelAfter(120_000)]
     public async Task A_password_reset_ends_the_sessions_signed_in_before_it(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
 
         var account = await CreateSessionAsync(ct);
-        var before  = scope.ServiceProvider.GetRequiredService<ClassicJwtFlow>()
-           .GenerateRefreshToken(account.UserId, MachineId, ["user"], Guid.CreateVersion7());
-
-        // Whole seconds on both sides of the comparison: step past the one the token was minted in.
-        await Task.Delay(TimeSpan.FromSeconds(1.2), ct);
 
         await GetIdentityService().BeginResetPassword(account.Credentials.email, ct);
-        var code  = await GetEmailCodeAsync(account.Credentials.email, ct: ct);
+        var code = await GetEmailCodeAsync(account.Credentials.email, ct: ct);
+
+        var before = scope.ServiceProvider.GetRequiredService<ClassicJwtFlow>()
+           .GenerateRefreshToken(account.UserId, MachineId, ["user"], Guid.CreateVersion7());
+
         var reset = await GetIdentityService().ResetPassword(account.Credentials.email, code!, $"Rs!{Guid.NewGuid():N}"[..20], ct);
 
-        Assert.That(reset, Is.InstanceOf<SuccessAuthorize>());
+        Assert.That(reset, Is.InstanceOf<SuccessAuthorize>(), $"the reset was refused: {(reset as FailedAuthorize)?.error}");
 
-        var refreshed = await GetIdentityService().GetMyAuthorization("", before, ct);
+        var issued = (SuccessAuthorize)reset;
+        var old    = await GetIdentityService().GetMyAuthorization("", before, ct);
+        var own    = await GetIdentityService().GetMyAuthorization(issued.token, issued.refreshToken, ct);
 
-        Assert.That(refreshed, Is.InstanceOf<BadAuthStatus>(),
-            "a refresh token issued before the password reset still mints access tokens");
+        Assert.Multiple(() =>
+        {
+            Assert.That(old, Is.InstanceOf<BadAuthStatus>(),
+                "a refresh token issued before the password reset still mints access tokens");
+            Assert.That((old as BadAuthStatus)?.error, Is.EqualTo(BadAuthKind.SESSION_EXPIRED));
+            Assert.That(own, Is.InstanceOf<GoodAuthStatus>(),
+                $"the reset signed the resetting device out with the rest: {(own as BadAuthStatus)?.error}");
+        });
+    }
+
+    /// <summary>
+    /// Signing in with the new password straight after changing it keeps the session it opens.
+    /// </summary>
+    /// <remarks>
+    /// A password change ends every credential issued up to it, the caller's own included, so a client
+    /// has to sign in again at once. That sign-in used to land in the floor's own second more often
+    /// than not, and <c>SessionRevocation.IsBelowFloor</c> ends a credential issued in that second — so
+    /// the fresh session was dead on arrival. The change now returns only once that second is over.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task Signing_in_straight_after_a_password_change_keeps_the_new_session(CancellationToken ct = default)
+    {
+        var account     = await CreateSessionAsync(ct);
+        var newPassword = $"Nw!{Guid.NewGuid():N}"[..20];
+        var browser     = CreateBrowser();
+
+        var changed = await account.Security.ChangePassword(account.Credentials.password, newPassword, ct);
+        var signIn  = await browser.Identity.Authorize(
+            new UserCredentialsInput(account.Credentials.email, null, null, newPassword, null, null), ct);
+
+        Assert.That(signIn, Is.InstanceOf<SuccessAuthorize>(), $"the new password was refused: {(signIn as FailedAuthorize)?.error}");
+
+        var issued    = (SuccessAuthorize)signIn;
+        var refreshed = await browser.Identity.GetMyAuthorization(issued.token, issued.refreshToken, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(changed, Is.InstanceOf<SuccessChangePassword>());
+            Assert.That(refreshed, Is.InstanceOf<GoodAuthStatus>(),
+                $"the sign-in that followed the change was ended by the change's own floor: {(refreshed as BadAuthStatus)?.error}");
+        });
     }
 }

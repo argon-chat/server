@@ -12,7 +12,7 @@ public class AuthorizationGrain(
         => await authorizationService.Authorize(input, this.GetUserIp() ?? "unknown", this.GetUserMachineId());
 
     public async Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input)
-        => await authorizationService.ExternalAuthorize(input);
+        => await authorizationService.ExternalAuthorize(input, this.GetUserIp() ?? "unknown");
 
     public async Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input)
         => await authorizationService.Register(input, this.GetUserMachineId());
@@ -33,7 +33,7 @@ public class AuthorizationGrain(
         => await authorizationService.BeginPasskeyLogin(email, ct);
 
     public async Task<PasskeyLoginResult> CompletePasskeyLogin(string assertionResponseJson, CancellationToken ct)
-        => await authorizationService.CompletePasskeyLogin(assertionResponseJson, ct);
+        => await authorizationService.CompletePasskeyLogin(assertionResponseJson, this.GetUserIp() ?? "unknown", ct);
 
     public async Task<PasskeyLoginResult> ConfirmPasskeyOtp(string passkeyNonce, string otpCode, CancellationToken ct)
         => await authorizationService.ConfirmPasskeyOtp(passkeyNonce, otpCode, ct);
