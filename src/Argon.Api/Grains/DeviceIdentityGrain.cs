@@ -48,7 +48,19 @@ public sealed class DeviceIdentityGrain(
             if (seen is not { LastProvenAt: { } proven, ObservedAt: { } observed } || proven <= fresh || observed <= fresh)
             {
                 var recorded = await db.Database.CreateExecutionStrategy().ExecuteAsync(
-                    token => RecordSightingAsync(userId, thumbprint, publicKey, now, token), ct);
+                    async token =>
+                    {
+                        // A concurrent first sighting can win the unique key, then the pairing; each lost
+                        // race leaves a row the next pass updates instead of inserting.
+                        for (var attempt = 1;; attempt++)
+                        {
+                            try
+                            {
+                                return await RecordSightingAsync(userId, thumbprint, publicKey, now, token);
+                            }
+                            catch (DbUpdateException) when (attempt < 3) { }
+                        }
+                    }, ct);
 
                 return seen?.Banned == true ? null : recorded;
             }
