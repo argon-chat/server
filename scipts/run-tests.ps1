@@ -140,6 +140,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$inActions = $env:GITHUB_ACTIONS -eq 'true'
 $shardPlanScript = Join-Path $PSScriptRoot 'test-shards.ps1'
 
 # The category a test carries when it is red on purpose — it pins a confirmed defect that is still
@@ -243,7 +244,110 @@ function Invoke-TestProject {
     if ($Workers -gt 0) { $runSettings += "NUnit.NumberOfTestWorkers=$Workers" }
     $testArgs += @('--') + $runSettings
 
+    # Collapsed in the Actions log: the host's own logging is most of these lines, and what failed is
+    # listed after the run by Write-FailedTests. Write-Host leaves $LASTEXITCODE alone.
+    if ($inActions) { Write-Host "::group::dotnet test $Project" }
     dotnet @testArgs
+    if ($inActions) { Write-Host '::endgroup::' }
+}
+
+<#
+.SYNOPSIS
+    The failed tests of every .trx under a directory: name, message and the test line that failed.
+.DESCRIPTION
+    Printed last, so a red run ends on what broke instead of on the tail of a log a hundred thousand
+    lines long. On GitHub Actions each failure is also an error annotation (listed at the top of the
+    run page, linked to the line) and a section of the job summary.
+#>
+function Write-FailedTests {
+    param(
+        [Parameter(Mandatory)] [string] $ResultsDirectory,
+        [string] $Label = 'tests'
+    )
+
+    $trxFiles = @(Get-ChildItem -Path $ResultsDirectory -Filter *.trx -Recurse -ErrorAction SilentlyContinue)
+    if (-not $trxFiles) {
+        Write-Host "==> $Label failed before any test reported (no .trx under $ResultsDirectory) - the cause is in the log above" -ForegroundColor Red
+        return
+    }
+
+    $ns = @{ t = 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010' }
+    $failures = foreach ($trx in $trxFiles) {
+        $doc = [xml]::new()
+        $doc.Load($trx.FullName)
+
+        $classes = @{}
+        foreach ($def in Select-Xml -Xml $doc -XPath '//t:UnitTest' -Namespace $ns) {
+            $classes[$def.Node.id] = ($def.Node.TestMethod.className -split '\.')[-1]
+        }
+
+        foreach ($result in Select-Xml -Xml $doc -XPath "//t:UnitTestResult[@outcome='Failed']" -Namespace $ns) {
+            $node = $result.Node
+            $message = "$($node.Output.ErrorInfo.Message)".Trim()
+            $stack = "$($node.Output.ErrorInfo.StackTrace)"
+
+            # The first frame with a source line is the test's own assertion.
+            $file = $null; $line = $null
+            if ($stack -match ' in (.+?):line (\d+)') {
+                $file = $Matches[1] -replace '\\', '/'
+                $root = $repoRoot -replace '\\', '/'
+                if ($file.StartsWith($root)) { $file = $file.Substring($root.Length).TrimStart('/') }
+                $line = $Matches[2]
+            }
+
+            $class = $classes[$node.testId]
+            $took = [TimeSpan]::Zero
+            [void][TimeSpan]::TryParse("$($node.duration)", [ref]$took)
+            [pscustomobject]@{
+                Name     = if ($class) { "$class.$($node.testName)" } else { $node.testName }
+                Duration = if ($took.TotalSeconds -ge 1) { '{0:0.#} s' -f $took.TotalSeconds } else { '{0:0} ms' -f $took.TotalMilliseconds }
+                Message  = if ($message) { $message } else { '(no message)' }
+                File     = $file
+                Line     = $line
+            }
+        }
+    }
+    $failures = @($failures)
+
+    if (-not $failures) {
+        Write-Host "==> $Label failed, but no test in the results did - the run itself broke; the cause is in the log above" -ForegroundColor Red
+        return
+    }
+
+    Write-Host ''
+    Write-Host "==> $($failures.Count) failed test(s) in $Label" -ForegroundColor Red
+    foreach ($f in $failures) {
+        Write-Host ''
+        Write-Host "  FAILED $($f.Name)  [$($f.Duration)]" -ForegroundColor Red
+        foreach ($text in ($f.Message -split "`r?`n" | Select-Object -First 12)) { Write-Host "      $text" }
+        if ($f.File) { Write-Host "      at $($f.File):$($f.Line)" -ForegroundColor DarkGray }
+    }
+    Write-Host ''
+
+    if (-not $inActions) { return }
+
+    # Workflow-command escaping: % first, then line breaks; property values also escape , and :.
+    $escapeData = { param($s) $s -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A' }
+    $escapeProp = { param($s) (& $escapeData $s) -replace ':', '%3A' -replace ',', '%2C' }
+
+    foreach ($f in $failures) {
+        $where = if ($f.File) { "file=$(& $escapeProp $f.File),line=$($f.Line)," } else { '' }
+        Write-Host "::error $($where)title=$(& $escapeProp $f.Name)::$(& $escapeData $f.Message)"
+    }
+
+    if ($env:GITHUB_STEP_SUMMARY) {
+        $md = @("### :x: $($failures.Count) failed test(s) in $Label", '')
+        foreach ($f in $failures) {
+            $where = if ($f.File) { " - ``$($f.File):$($f.Line)``" } else { '' }
+            $md += "**$($f.Name)**$where"
+            $md += ''
+            $md += '```text'
+            $md += ($f.Message -split "`r?`n" | Select-Object -First 30)
+            $md += '```'
+            $md += ''
+        }
+        $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+    }
 }
 
 <#
@@ -485,7 +589,10 @@ try {
             -TestFilter $mine.Filter
         if ($LASTEXITCODE -ne 0) { $failed = $true }
 
-        if ($failed) { throw "Shard '$($mine.Name)' failed" }
+        if ($failed) {
+            Write-FailedTests -ResultsDirectory $shardResults -Label "shard '$($mine.Name)'"
+            throw "Shard '$($mine.Name)' failed"
+        }
         Write-Host "==> Shard '$($mine.Name)' passed" -ForegroundColor Green
         exit 0
     }
@@ -598,12 +705,17 @@ try {
     }
 
     if (-not $Coverage) {
-        if ($failed) { throw "Tests failed" }
+        if ($failed) {
+            Write-FailedTests -ResultsDirectory $resultsDir
+            throw "Tests failed"
+        }
         Write-Host "==> All tests passed" -ForegroundColor Green
         exit 0
     }
 
     $lineCoverage = Invoke-CoverageReport -Source $resultsDir -ReportDir $reportDir -TestsFailed:$failed
+
+    if ($failed) { Write-FailedTests -ResultsDirectory $resultsDir }
 
     if ($Threshold -gt 0 -and $lineCoverage -lt $Threshold) {
         Write-Host "==> FAIL: line coverage $lineCoverage% is below the required $Threshold%" -ForegroundColor Red

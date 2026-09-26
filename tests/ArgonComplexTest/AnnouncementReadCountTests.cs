@@ -220,7 +220,7 @@ public class AnnouncementReadCountTests : TestBase
                .ToDictionary(e => e.messageId);
 
         var byOwner = await PollAsync(() => BatchAsync(owner, [ofOwner, ofHerald, unknown, ofOwner]),
-            b => b.Count == 2 && b[ofOwner].readers == 2 && b[ofHerald].readers == 1, Window, ct);
+            b => b.Count == 2 && b[ofOwner].readers == 3 && b[ofHerald].readers == 1, Window, ct);
         var byHerald = await BatchAsync(herald, [ofOwner, ofHerald]);
         var byReader = await BatchAsync(both, [ofOwner, ofHerald]);
 
@@ -232,7 +232,8 @@ public class AnnouncementReadCountTests : TestBase
         Assert.Multiple(() =>
         {
             Assert.That(byOwner.Keys, Is.EquivalentTo(new[] { ofOwner, ofHerald }), "a moderator sees every post and nothing unknown");
-            Assert.That(byOwner[ofOwner].readers, Is.EqualTo(2), "both read past the owner's post, first read up to it");
+            // The herald posted after it, and posting reads the channel up to your own post.
+            Assert.That(byOwner[ofOwner].readers, Is.EqualTo(3), "both and the herald read past the owner's post, first read up to it");
             Assert.That(byOwner[ofHerald].readers, Is.EqualTo(1));
             Assert.That(byOwner[ofOwner].members, Is.EqualTo(5));
             Assert.That(byHerald.Keys, Is.EqualTo(new[] { ofHerald }), "the herald saw the count of someone else's post");
