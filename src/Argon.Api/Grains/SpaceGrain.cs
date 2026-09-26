@@ -23,7 +23,7 @@ using Services.L1L2;
 using Instruments;
 using System.Linq;
 
-public class SpaceGrain(
+public partial class SpaceGrain(
     [PersistentState("realtime-server", IUserSessionGrain.StorageId)]
     IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
@@ -94,12 +94,13 @@ public class SpaceGrain(
                 x.IsOfficial,
                 x.HideBoostStrip,
                 x.InviteImageFileId,
-                x.IsCommunity
+                x.IsCommunity,
+                x.MainAnnouncementChannelId
             })
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
         return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId,
             result.BoostCount, result.BoostLevel, result.IsVerified, result.IsOfficial, result.HideBoostStrip, result.InviteImageFileId,
-            result.IsCommunity);
+            result.IsCommunity, result.MainAnnouncementChannelId);
     }
 
     public async Task<SpaceEntity> GetSpace()
@@ -139,7 +140,7 @@ public class SpaceGrain(
 
         var spaceBase = new ArgonSpaceBase(server.Id, server.Name, server.Description!, server.AvatarFileId, server.TopBannedFileId,
             server.BoostCount, server.BoostLevel, server.IsVerified, server.IsOfficial, server.HideBoostStrip, server.InviteImageFileId,
-            server.IsCommunity);
+            server.IsCommunity, server.MainAnnouncementChannelId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
         await Fire(new ServerModified(spaceId, IonArray<string>.Empty));
         return server;
@@ -326,7 +327,7 @@ public class SpaceGrain(
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
             space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
-            space.IsCommunity);
+            space.IsCommunity, space.MainAnnouncementChannelId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
     }
 
@@ -354,7 +355,7 @@ public class SpaceGrain(
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
             space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
-            space.IsCommunity);
+            space.IsCommunity, space.MainAnnouncementChannelId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 
@@ -706,7 +707,9 @@ public class SpaceGrain(
 
         ctx.Spaces.Remove(space);
         await ctx.SaveChangesAsync();
+        await ForgetSpaceFollowsAsync(ctx, space.Id);
         await Invalidate();
+        await DropSpaceWebhooksAsync(ctx);
     }
 
     public async Task AnnounceDeletionScheduled(SpaceDeletionState deletionState)
@@ -984,6 +987,9 @@ public class SpaceGrain(
         await Invalidate();
         await Fire(new ChannelGroupRemoved(spaceId, groupId));
         await UntargetChannelsAsync(ctx, spaceId, deleted);
+        await ForgetMainAnnouncementChannelsAsync(deleted);
+        await ForgetFollowsAsync(ctx, deleted);
+        await DropWebhooksAsync(ctx, deleted);
     }
 
     public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null)
@@ -1175,6 +1181,9 @@ public class SpaceGrain(
         await Invalidate();
         await Fire(new ChannelRemoved(spaceId, channelId));
         await UntargetChannelsAsync(ctx, spaceId, [channelId]);
+        await ForgetMainAnnouncementChannelsAsync([channelId]);
+        await ForgetFollowsAsync(ctx, [channelId]);
+        await DropWebhooksAsync(ctx, [channelId]);
     }
 
     public async Task UntargetChannelAsync(Guid channelId)
@@ -1271,6 +1280,7 @@ public class SpaceGrain(
             Bitrate               = source.Bitrate,
             DoNotRestrictBoosters = source.DoNotRestrictBoosters,
             Broadcast             = source.Broadcast,
+            Announcement          = source.Announcement,
         };
 
         // The overwrites are what make a duplicate worth having over "add channel": a private room
@@ -1423,7 +1433,7 @@ public class SpaceGrain(
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
             space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
-            space.IsCommunity);
+            space.IsCommunity, space.MainAnnouncementChannelId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 

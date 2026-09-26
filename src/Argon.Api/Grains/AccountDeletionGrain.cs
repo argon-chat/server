@@ -1711,6 +1711,16 @@ public class AccountDeletionGrain(
             .Where(g => g.UserId == userId)
             .ExecuteDeleteAsync();
 
+        // Composer drafts and scheduled posts; a pending post must not go out after the erasure.
+        await ctx.MessageDrafts
+            .Where(d => d.UserId == userId)
+            .ExecuteDeleteAsync();
+
+        await ctx.ScheduledPosts
+            .IgnoreQueryFilters()
+            .Where(p => p.AuthorId == userId)
+            .ExecuteDeleteAsync();
+
         // Pending contact changes — a plaintext address and phone number, unverified and unreferenced
         await ctx.PendingEmailChanges
             .IgnoreQueryFilters()

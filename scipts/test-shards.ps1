@@ -134,6 +134,10 @@ $presenceFixtures = @(
 # VoiceModerationTests, LiveKitWebhookTests and UssdTests (added 2026-09-24, with voice moderation;
 # ~15 s together, measured) likewise, into the first shard.
 # VoiceBroadcastSettingsTests and VoiceBroadcastTests (added 2026-09-26, with broadcast channels) likewise, into the first shard.
+# ChannelFollowTests (added 2026-09-26, with channel follows) likewise, into the first shard.
+# ChannelWebhookTests, AnnouncementReadCountTests, AnnouncementReportTests and AnnouncementDataLifecycleTests
+# (added 2026-09-26, with announcement channels phase 2) likewise, into the first shard.
+# ChannelComposerTests (added 2026-09-26, with scheduled posts and drafts) likewise, into the first shard.
 # The grain-coverage fixtures of 2026-09-24/25 are hand-placed until the next -FromTrx rebalance:
 # the Admin*, security, dev-team and space ones into the first shard, the commerce, user-state and social ones into the second,
 # PresenceSessionGateTests into the presence shard, and ChannelSendCapTests (NonParallelizable: it
@@ -152,12 +156,19 @@ $generalShards = @(
         'AdminConsoleTests'
         'AdminModerationWorkflowTests'
         'AdminOperatorsTests'
+        'AnnouncementDataLifecycleTests'
+        'AnnouncementReadCountTests'
+        'AnnouncementReportTests'
         'AppManagementTests'
         'ArchetypeTests'
         'BotDirectoryTests'
         'BotGatewayTests'
+        'ChannelFollowTests'
+        'ChannelComposerTests'
         'ChannelHighWaterMarkTests'
         'ChannelModerationTests'
+        'ChannelPinTests'
+        'ChannelWebhookTests'
         'CosmeticEquipTests'
         'DataExportTests'
         'DevTeamConsoleTests'
@@ -198,6 +209,7 @@ $generalShards = @(
         'AegisOAuthTests'
         'AegisRoleTests'
         'AnnouncementChannelTests'
+        'AnnouncementSettingsTests'
         'ArchetypePermissionTests'
         'BotApiTests'
         'ChannelBadgeTests'
@@ -230,6 +242,7 @@ $generalShards = @(
         'SavedGifTests'
         'SentryTunnelCorsTests'
         'SessionTests'
+        'SpaceAnnouncementTests'
         'SpaceDeletionTests'
         'SpaceJoinNoticeTests'
         'SystemMessageTests'

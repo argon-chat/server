@@ -5,6 +5,7 @@ import { GlassButton, GlassCard, GlassDialog, GlassInput, GlassSelect } from "@/
 import { useToast } from "@/composables/useToast"
 import { useApi } from "@/store/apiStore"
 import { CheckBotUsernameValid, ClientAppPlatform, type TeamShortDetails } from "@/lib/glue/accountConsole"
+import { appManagementErrorMessage } from "@/lib/consoleErrors"
 import InputWithError from "./InputWithError.vue"
 import { logger } from "@argon/core"
 
@@ -102,10 +103,14 @@ async function createApp() {
     }
     try {
       isCreating.value = true
-      const bot = await api.appsManagement.CreateBotApp(props.selectedTeam.teamId, appName.value.trim(), appUsername.value.trim())
-      toast({ title: "Bot created successfully", description: `New bot "${bot.name}" has been created.` })
-      emit("app-created")
-      resetForm()
+      const result = await api.appsManagement.CreateBotApp(props.selectedTeam.teamId, appName.value.trim(), appUsername.value.trim())
+      if (result.isSuccessAppDetails()) {
+        toast({ title: "Bot created successfully", description: `New bot "${result.app.name}" has been created.` })
+        emit("app-created")
+        resetForm()
+      } else if (result.isFailedAppDetails()) {
+        toast({ title: "Failed to create bot", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      }
     } catch (err: any) {
       toast({ title: "Failed to create bot", description: err?.message ?? "Unexpected error", variant: "destructive" })
     } finally {
@@ -119,10 +124,14 @@ async function createApp() {
     try {
       isCreating.value = true
       logger.info("Creating client app with platform:", appPlatform.value, getClientAppPlatformByPlatform(appPlatform.value)!)
-      const app = await api.appsManagement.CreateClientApp(props.selectedTeam.teamId, appName.value.trim(), getClientAppPlatformByPlatform(appPlatform.value)!)
-      toast({ title: "Client app created successfully", description: `New client app "${app.name}" has been created.` })
-      emit("app-created")
-      resetForm()
+      const result = await api.appsManagement.CreateClientApp(props.selectedTeam.teamId, appName.value.trim(), getClientAppPlatformByPlatform(appPlatform.value)!)
+      if (result.isSuccessAppDetails()) {
+        toast({ title: "Client app created successfully", description: `New client app "${result.app.name}" has been created.` })
+        emit("app-created")
+        resetForm()
+      } else if (result.isFailedAppDetails()) {
+        toast({ title: "Failed to create client app", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      }
     } catch (err: any) {
       logger.error("Failed to create client app:", err)
       toast({ title: "Failed to create client app", description: err?.message ?? "Unexpected error", variant: "destructive" })

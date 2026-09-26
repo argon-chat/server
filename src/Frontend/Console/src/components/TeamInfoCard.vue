@@ -10,6 +10,7 @@ import {
   type TeamInviteInfo,
   InviteUserError,
 } from "@/lib/glue/accountConsole"
+import { teamConsoleErrorMessage } from "@/lib/consoleErrors"
 import ArgonAvatar from "./ArgonAvatar.vue"
 
 const props = defineProps<{
@@ -52,6 +53,9 @@ async function sendInvite() {
       case InviteUserError.ALREADY_IN_TEAM:
         toast({ title: "Already a member", description: `User @${inviteUsername.value} is already a team member.`, variant: "destructive" })
         break
+      case InviteUserError.NO_PERMISSION:
+        toast({ title: "No permission", description: "You don't have permission to invite members to this team.", variant: "destructive" })
+        break
       default:
         toast({ title: "Error", description: "Internal server error.", variant: "destructive" })
     }
@@ -73,8 +77,18 @@ async function fetchTeamMembersAndInvites() {
   try {
     isLoading.value = true
     const details = await api.teamsManagement.GetTeamDetails(props.selectedTeam.teamId)
-    members.value = details.members ?? []
-    invites.value = (await api.teamsManagement.GetTeamInvites(props.selectedTeam.teamId)) ?? []
+    if (details.isSuccessGetTeamDetails()) {
+      members.value = details.team.members ?? []
+    } else if (details.isFailedGetTeamDetails()) {
+      toast({ title: "Failed to load team info", description: teamConsoleErrorMessage(details.error), variant: "destructive" })
+      return
+    }
+    const inviteList = await api.teamsManagement.GetTeamInvites(props.selectedTeam.teamId)
+    if (inviteList.isSuccessGetTeamInvites()) {
+      invites.value = inviteList.invites ?? []
+    } else if (inviteList.isFailedGetTeamInvites()) {
+      toast({ title: "Failed to load team invites", description: teamConsoleErrorMessage(inviteList.error), variant: "destructive" })
+    }
   } catch (err: any) {
     toast({ title: "Failed to load team info", description: err?.message ?? "Unexpected error", variant: "destructive" })
   } finally {

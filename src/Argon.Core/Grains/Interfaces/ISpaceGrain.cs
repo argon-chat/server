@@ -204,6 +204,14 @@ public interface ISpaceGrain : IGrainWithGuidKey
     /// <summary>A synchronous read, interleaved so a grain this one is waiting on can still ask it.</summary>
     [Alias(nameof(GetUserVoiceSlotAsync)), AlwaysInterleave]
     Task<VoiceSlot?> GetUserVoiceSlotAsync(Guid userId);
+
+    /// <summary>Sets or clears (null) the main announcement channel. Needs ManageServer.</summary>
+    [Alias(nameof(SetMainAnnouncementChannel))]
+    Task<SetMainAnnouncementChannelError> SetMainAnnouncementChannel(Guid? channelId);
+
+    /// <summary>The channel stopped being an announcement channel: clears it if it was the main one.</summary>
+    [OneWay, Alias(nameof(ForgetMainAnnouncementChannelAsync))]
+    Task ForgetMainAnnouncementChannelAsync(Guid channelId);
 }
 
 [DataContract, Serializable, GenerateSerializer]

@@ -189,4 +189,97 @@ public class ChannelMentionTests : TestBase
         Assert.That(delivered.entities.Values.OfType<MessageEntityMentionEveryone>(), Is.Not.Empty,
             "the message itself goes out as written; only the ping is withheld");
     }
+
+    /// <summary>
+    /// A role pings when it is marked mentionable, or when the sender may mention everyone anyway.
+    /// </summary>
+    [Test, CancelAfter(180_000)]
+    public async Task A_member_without_MentionEveryone_pings_a_role_only_once_it_is_mentionable(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var holder = await CreateSessionAsync(ct);
+        var sender = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "roles", ChannelType.Text, ct);
+
+        foreach (var member in new[] { holder, sender })
+            await JoinAsync(owner, member, spaceId, ct);
+
+        await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.MentionEveryone, ct);
+
+        var archetypes = ArchetypesOf(owner);
+        var raiders    = await archetypes.CreateArchetype(spaceId, "raiders", ct);
+        Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, holder.UserId, ct), raiders.id, true, ct),
+            Is.True);
+
+        await using var observer = await RealtimeClient.ConnectAsync(holder, ct);
+
+        bool IsRolePing(BatchMentionOccurred e) => e.channelId == channelId && e.mentionType == MentionTargetType.Role;
+
+        await sender.Channels.SendMessage(spaceId, channelId, "@raiders", Entities(Role(raiders.id)), NextRandomId(), null, ct);
+
+        await observer.AssertNoneWithinAsync<BatchMentionOccurred>(IsRolePing, TimeSpan.FromSeconds(3),
+            "a role that is not mentionable was pinged by a member who may not mention everyone", ct: ct);
+
+        await archetypes.UpdateArchetype(spaceId, raiders with { isMentionable = true }, ct);
+        await sender.Channels.SendMessage(spaceId, channelId, "@raiders", Entities(Role(raiders.id)), NextRandomId(), null, ct);
+
+        await observer.WaitForAsync<BatchMentionOccurred>(IsRolePing, Window, ct: ct);
+        Assert.That(await WaitForMentionsAsync(holder, channelId, 1, ct), Is.EqualTo(1));
+    }
+
+    /// <summary>
+    /// A role id is only a guid on the wire: one from another space, or the everyone role itself, must
+    /// not turn into pings here.
+    /// </summary>
+    [Test, CancelAfter(180_000)]
+    public async Task A_role_of_another_space_and_the_everyone_role_ping_nobody(CancellationToken ct = default)
+    {
+        var owner      = await CreateSessionAsync(ct);
+        var holder     = await CreateSessionAsync(ct);
+        var bystander  = await CreateSessionAsync(ct);
+        var otherOwner = await CreateSessionAsync(ct);
+        var outsider   = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "roles", ChannelType.Text, ct);
+
+        foreach (var member in new[] { holder, bystander })
+            await JoinAsync(owner, member, spaceId, ct);
+
+        var otherSpace = await CreateSpaceAsync(otherOwner, ct);
+        await JoinAsync(otherOwner, outsider, otherSpace, ct);
+
+        var foreign = await ArchetypesOf(otherOwner).CreateArchetype(otherSpace, "foreign", ct);
+        Assert.That(await ArchetypesOf(otherOwner).SetArchetypeToMember(otherSpace,
+            await MemberIdOfAsync(otherOwner, otherSpace, outsider.UserId, ct), foreign.id, true, ct), Is.True);
+
+        var archetypes = ArchetypesOf(owner);
+        var fence      = await archetypes.CreateArchetype(spaceId, "fence", ct);
+        Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, holder.UserId, ct), fence.id, true, ct),
+            Is.True);
+        var everyone = await EveryoneAsync(owner, spaceId, ct);
+
+        await using var observer = await RealtimeClient.ConnectAsync(holder, ct);
+
+        bool IsRolePing(BatchMentionOccurred e) => e.channelId == channelId && e.mentionType == MentionTargetType.Role;
+
+        // Every role that pings announces itself once, so one announcement means the other two were dropped.
+        await owner.Channels.SendMessage(spaceId, channelId, "@foreign @everyone @fence",
+            Entities(Role(foreign.id), Role(everyone.id), Role(fence.id)), NextRandomId(), null, ct);
+
+        await observer.WaitForAsync<BatchMentionOccurred>(IsRolePing, Window, ct: ct);
+        var mark = observer.Mark();
+        await observer.AssertNoneWithinAsync<BatchMentionOccurred>(IsRolePing, TimeSpan.FromSeconds(2),
+            "more than one of the mentioned roles pinged", from: mark, ct: ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(observer.EventsOfType<BatchMentionOccurred>().Count(IsRolePing), Is.EqualTo(1));
+            Assert.That(await WaitForMentionsAsync(holder, channelId, 1, ct), Is.EqualTo(1));
+            Assert.That(await MentionsAsync(outsider, channelId, ct), Is.Zero, "a role of another space was pinged into this channel");
+            Assert.That(await MentionsAsync(bystander, channelId, ct), Is.Zero, "mentioning the everyone role pinged everybody");
+        });
+    }
 }

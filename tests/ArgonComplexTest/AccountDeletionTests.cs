@@ -542,6 +542,8 @@ public class AccountDeletionTests : TestBase
             Assert.That(before.TeamInvites, Is.GreaterThan(0), "no team invite was seeded: " + before);
             Assert.That(before.CosmeticEquips, Is.GreaterThan(0), "nothing worn was seeded: " + before);
             Assert.That(before.CosmeticGrants, Is.GreaterThan(0), "no cosmetic grant was seeded: " + before);
+            Assert.That(before.MessageDrafts, Is.GreaterThan(0), "no composer draft was seeded: " + before);
+            Assert.That(before.ScheduledPosts, Is.GreaterThan(0), "no scheduled post was seeded: " + before);
         });
 
         Assert.Multiple(() =>
@@ -597,6 +599,10 @@ public class AccountDeletionTests : TestBase
                 "what the erased account was wearing survives it");
             Assert.That(census.CosmeticGrants, Is.Zero,
                 "the cosmetics granted to the erased account survive it");
+            Assert.That(census.MessageDrafts, Is.Zero,
+                "the erased account's unsent composer drafts survive it");
+            Assert.That(census.ScheduledPosts, Is.Zero,
+                "the erased account's scheduled posts survive it, and a pending one would still go out");
         });
     }
 
@@ -2230,6 +2236,19 @@ public class AccountDeletionTests : TestBase
             CreatedAt = now, UpdatedAt = now
         });
 
+        db.MessageDrafts.Add(new MessageDraftEntity
+        {
+            UserId = victim.UserId, ChannelId = Guid.CreateVersion7(), SpaceId = Guid.CreateVersion7(),
+            Text = "unsent", UpdatedAt = now
+        });
+
+        db.ScheduledPosts.Add(new ScheduledPostEntity
+        {
+            Id = Guid.CreateVersion7(), SpaceId = Guid.CreateVersion7(), ChannelId = Guid.CreateVersion7(),
+            AuthorId = victim.UserId, Text = "later", PublishAt = now.AddDays(1),
+            Status = ScheduledPostStatus.PENDING, RandomId = 1, CreatedAt = now, UpdatedAt = now
+        });
+
         db.PendingEmailChanges.Add(new PendingEmailChangeEntity
         {
             Id = Guid.CreateVersion7(), UserId = victim.UserId,
@@ -2417,7 +2436,9 @@ public class AccountDeletionTests : TestBase
             TeamInvites:          await db.TeamInvites.IgnoreQueryFilters()
                                      .CountAsync(i => i.FromUserId == userId || i.ToUserId == userId, ct),
             CosmeticEquips:       await db.CosmeticEquips.CountAsync(e => e.UserId == userId, ct),
-            CosmeticGrants:       await db.CosmeticOwnerships.IgnoreQueryFilters().CountAsync(g => g.UserId == userId, ct));
+            CosmeticGrants:       await db.CosmeticOwnerships.IgnoreQueryFilters().CountAsync(g => g.UserId == userId, ct),
+            MessageDrafts:        await db.MessageDrafts.CountAsync(d => d.UserId == userId, ct),
+            ScheduledPosts:       await db.ScheduledPosts.IgnoreQueryFilters().CountAsync(p => p.AuthorId == userId, ct));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
@@ -2648,14 +2669,16 @@ public class AccountDeletionTests : TestBase
         int TeamMemberships,
         int TeamInvites,
         int CosmeticEquips,
-        int CosmeticGrants)
+        int CosmeticGrants,
+        int MessageDrafts,
+        int ScheduledPosts)
     {
         public int Total
             => Friendships + Blocks + MuteSettings + AutoDeleteSettings + DeviceHistories + Passkeys
              + FriendRequests + PrivacyRules + SavedGifs + PendingEmailChanges + PendingPhoneChanges
              + DeviceObservations + ChannelReadStates + NotificationCounters + SystemNotifications
              + TrustScores + Ignores + InventoryItems + UnreadInventoryItems + TeamMemberships
-             + TeamInvites + CosmeticEquips + CosmeticGrants;
+             + TeamInvites + CosmeticEquips + CosmeticGrants + MessageDrafts + ScheduledPosts;
     }
 
     /// <summary>The account this fixture deleted, and everything that was watching when it happened.</summary>

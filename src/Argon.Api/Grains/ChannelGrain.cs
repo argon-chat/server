@@ -27,7 +27,7 @@ using ion.runtime;
 using Services.L1L2;
 using Argon.Features.Orleanse.Storages;
 
-public class ChannelGrain(
+public partial class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
     // Stores nothing; it is here so the runtime carries this across a migration. See VolatileGrainStorage.
@@ -881,6 +881,88 @@ public class ChannelGrain(
         return await WithStoredMarkAsync(ctx, channel, ct);
     }
 
+    public async Task<Either<ChannelEntity, UpdateChannelError>> SetChannelType(ChannelType type, CancellationToken ct = default)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        // It rewrites who may post, so it takes what editing the channel's overwrites takes.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageChannels, ct)
+         || !await entitlementChecker.HasAccessAsync(SpaceId, callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype, ct))
+            return UpdateChannelError.INSUFFICIENT_PERMISSIONS;
+
+        if (_self.ChannelType is not (ChannelType.Text or ChannelType.Announcement)
+         || type is not (ChannelType.Text or ChannelType.Announcement))
+            return UpdateChannelError.TYPE_NOT_CONVERTIBLE;
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var channel = await ctx.Channels.FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        if (channel is null)
+            return UpdateChannelError.CHANNEL_NOT_FOUND;
+
+        if (channel.ChannelType == type)
+            return await WithStoredMarkAsync(ctx, channel, ct);
+
+        var everyoneId = await ctx.Archetypes
+           .Where(a => a.SpaceId == SpaceId && a.IsDefault)
+           .Select(a => a.Id)
+           .FirstOrDefaultAsync(ct);
+        var everyone = await ctx.ChannelEntitlementOverwrites
+           .FirstOrDefaultAsync(o => o.ChannelId == channelId && o.Scope == IArchetypeScope.Archetype && o.ArchetypeId == everyoneId, ct);
+
+        var patch = new IonPartial<ArgonChannel>();
+        channel.ChannelType = type;
+        patch.Modify(x => x.type, type);
+        PatchAnnouncementForType(patch, channel);
+
+        if (type == ChannelType.Announcement)
+        {
+            if (everyone is not null)
+            {
+                everyone.Allow &= ~ArgonEntitlement.SendMessages;
+                everyone.Deny  |= ArgonEntitlement.SendMessages;
+            }
+            else if (everyoneId != Guid.Empty)
+                ctx.ChannelEntitlementOverwrites.Add(new ChannelEntitlementOverwriteEntity
+                {
+                    ChannelId   = channelId,
+                    ArchetypeId = everyoneId,
+                    Scope       = IArchetypeScope.Archetype,
+                    Allow       = ArgonEntitlement.None,
+                    Deny        = ArgonEntitlement.SendMessages,
+                    CreatorId   = callerId
+                });
+
+            if (channel.SlowMode is not null)
+            {
+                channel.SlowMode = null;
+                patch.Remove(x => x.slowModeSeconds);
+            }
+        }
+        else if (everyone is not null && everyone.Deny.HasFlag(ArgonEntitlement.SendMessages))
+        {
+            everyone.Deny &= ~ArgonEntitlement.SendMessages;
+            if (everyone is { Allow: ArgonEntitlement.None, Deny: ArgonEntitlement.None })
+                ctx.ChannelEntitlementOverwrites.Remove(everyone);
+        }
+
+        await ctx.SaveChangesAsync(ct);
+
+        _self = channel;
+
+        if (type == ChannelType.Text)
+            await ForgetFollowersAsync(ctx, ct);
+
+        await readCache.SignalInvalidationAsync(SpaceId, ct: ct);
+        await Fire(new ChannelModifiedV2(SpaceId, channelId, patch), ct);
+        await Fire(new EntitlementsChanged(SpaceId, null), ct);
+        if (type == ChannelType.Text)
+            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).ForgetMainAnnouncementChannelAsync(channelId);
+
+        return await WithStoredMarkAsync(ctx, channel, ct);
+    }
+
     /// <summary>
     /// The channel as the caller should get it back: metadata from its row, high-water mark from
     /// where the high-water mark actually lives.
@@ -915,7 +997,9 @@ public class ChannelGrain(
                .AsNoTracking()
                .Where(m => m.ChannelId == channel.Id)
                .Select(m => m.LastMessageId)
-               .FirstOrDefaultAsync(ct)
+               .FirstOrDefaultAsync(ct),
+            // Overwrites the context tracked do not survive the trip across a grain boundary.
+            EntitlementOverwrites = new List<ChannelEntitlementOverwriteEntity>()
         };
 
     public async Task<ISetBroadcastSettingsResult> SetBroadcastMode(bool enabled)
@@ -1065,14 +1149,15 @@ public class ChannelGrain(
         var message = await ctx.Messages
            .AsNoTracking()
            .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
-           .Select(m => new { m.CreatorId })
+           .Select(m => new { m.CreatorId, IsCrosspost = m.Crosspost != null })
            .FirstOrDefaultAsync(ct);
 
         if (message is null)
             return DeleteMessageError.MESSAGE_NOT_FOUND;
 
         // Retracting your own words needs no permission; taking down somebody else's is moderation.
-        if (message.CreatorId != callerId
+        // A crossposted copy belongs to the channel it landed in, not to the source's author.
+        if ((message.CreatorId != callerId || message.IsCrosspost)
          && !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageMessages, ct))
             return DeleteMessageError.INSUFFICIENT_PERMISSIONS;
 
@@ -1093,6 +1178,7 @@ public class ChannelGrain(
             return DeleteMessageError.MESSAGE_NOT_FOUND;
 
         ForgetReactions(messageId);
+        await DropPinAsync(ctx, messageId, callerId, ct);
 
         await FireChannel(new MessageDeleted(SpaceId, channelId, messageId, callerId), ct);
 
@@ -1120,6 +1206,7 @@ public class ChannelGrain(
             return false;
 
         ForgetReactions(messageId);
+        await DropPinAsync(ctx, messageId, UserEntity.SystemUser, ct);
 
         logger.LogWarning("Moderation removed message {MessageId} in channel {ChannelId} of space {SpaceId} (operator {OperatorId})",
             messageId, channelId, SpaceId, operatorId);
@@ -1178,7 +1265,7 @@ public class ChannelGrain(
             return;
 
         if (activation.State.LastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
-            throw new InvalidOperationException("Slow mode is active in this channel");
+            throw new SlowModeException();
     }
 
     /// <summary>
@@ -1771,6 +1858,24 @@ public class ChannelGrain(
         return recent.Count(e => e.Any(x => x is MessageEntityMentionEveryone or MessageEntityMentionRole)) < perHour;
     }
 
+    /// <summary>
+    /// The mentioned roles that ping: roles of this space marked mentionable, or any of its roles for
+    /// a sender who may mention everyone. Never the everyone role, which only @everyone reaches.
+    /// </summary>
+    private async Task<List<MessageEntityMentionRole>> PingableRolesAsync(List<MessageEntityMentionRole> mentions, bool mayPingAll)
+    {
+        var ids = mentions.Select(r => r.archetypeId).ToList();
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var pingable = await ctx.Archetypes
+           .AsNoTracking()
+           .Where(a => a.SpaceId == SpaceId && ids.Contains(a.Id) && !a.IsDefault && (mayPingAll || a.IsMentionable))
+           .Select(a => a.Id)
+           .ToListAsync();
+
+        return mentions.Where(r => pingable.Contains(r.archetypeId)).ToList();
+    }
+
     private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId, long? replyTo)
     {
         try
@@ -1783,7 +1888,8 @@ public class ChannelGrain(
                 await using var msgCtx = await context.CreateDbContextAsync();
                 var originalAuthor = await msgCtx.Messages
                     .AsNoTracking()
-                    .Where(m => m.SpaceId == _self.SpaceId && m.ChannelId == this.GetPrimaryKey() && m.MessageId == replyTo.Value)
+                    .Where(m => m.SpaceId == _self.SpaceId && m.ChannelId == this.GetPrimaryKey() && m.MessageId == replyTo.Value
+                             && m.Crosspost == null)
                     .Select(m => m.CreatorId)
                     .FirstOrDefaultAsync();
 
@@ -1803,9 +1909,14 @@ public class ChannelGrain(
             if (mentionedUsers.Count > 0)
                 await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), mentionedUsers);
 
-            var hasEveryoneMention = entities.OfType<MessageEntityMentionEveryone>().Any()
+            var everyoneEntity = entities.OfType<MessageEntityMentionEveryone>().Any();
+            var roleMentions   = entities.OfType<MessageEntityMentionRole>().DistinctBy(r => r.archetypeId).ToList();
+            var mayPingAll     = (everyoneEntity || roleMentions.Count > 0)
                 && await entitlementChecker.HasChannelAccessAsync(_self.SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.MentionEveryone);
-            var roleMentions = entities.OfType<MessageEntityMentionRole>().ToList();
+            var hasEveryoneMention = everyoneEntity && mayPingAll;
+
+            if (roleMentions.Count > 0)
+                roleMentions = await PingableRolesAsync(roleMentions, mayPingAll);
 
             if ((hasEveryoneMention || roleMentions.Count > 0)
                 && _self.ChannelType == ChannelType.Announcement
@@ -2231,7 +2342,8 @@ public class ChannelGrain(
         if (message is null)
             return new FailedEditMessage(EditMessageError.MESSAGE_NOT_FOUND);
 
-        if (message.CreatorId != userId)
+        // A crossposted copy is not its author's to rewrite where it landed.
+        if (message.CreatorId != userId || message.Crosspost is not null)
             return new FailedEditMessage(EditMessageError.NOT_AUTHOR);
 
         // Attachments and link cards are not the client's to rewrite: keep the stored ones, and a card
@@ -2274,6 +2386,9 @@ public class ChannelGrain(
                 new KeyValuePair<string, object?>("result", "invalid_channel"));
             return new FailedAddReaction(AddReactionError.NONE);
         }
+
+        if (RefuseReactionIfDisabled() is { } refused)
+            return refused;
 
         var userId = this.GetUserId();
         var channelId = this.GetPrimaryKey();

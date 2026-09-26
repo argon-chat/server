@@ -368,9 +368,10 @@ export enum InviteUserError
   ALREADY_INVITED = 2,
   ALREADY_IN_TEAM = 3,
   INTERNAL_ERROR = 4,
+  NO_PERMISSION = 5,
 }
 
-const declaredInviteUserError: ReadonlySet<unknown> = new Set<unknown>([InviteUserError.OK, InviteUserError.USER_NOT_FOUND, InviteUserError.ALREADY_INVITED, InviteUserError.ALREADY_IN_TEAM, InviteUserError.INTERNAL_ERROR]);
+const declaredInviteUserError: ReadonlySet<unknown> = new Set<unknown>([InviteUserError.OK, InviteUserError.USER_NOT_FOUND, InviteUserError.ALREADY_INVITED, InviteUserError.ALREADY_IN_TEAM, InviteUserError.INTERNAL_ERROR, InviteUserError.NO_PERMISSION]);
 
 /**
  * Open-enum helpers for {@link InviteUserError}.
@@ -527,6 +528,74 @@ export const Ion_AppKind_OpenEnum = {
 } as const;
 
 
+export enum TeamConsoleError
+{
+  NONE = 0,
+  NO_PERMISSION = 1,
+  NOT_FOUND = 2,
+  INTERNAL_ERROR = 3,
+}
+
+const declaredTeamConsoleError: ReadonlySet<unknown> = new Set<unknown>([TeamConsoleError.NONE, TeamConsoleError.NO_PERMISSION, TeamConsoleError.NOT_FOUND, TeamConsoleError.INTERNAL_ERROR]);
+
+/**
+ * Open-enum helpers for {@link TeamConsoleError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_TeamConsoleError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: TeamConsoleError): boolean {
+    return declaredTeamConsoleError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: TeamConsoleError): u4 | undefined {
+    return declaredTeamConsoleError.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
+
+export enum AppManagementError
+{
+  NONE = 0,
+  NO_PERMISSION = 1,
+  NOT_FOUND = 2,
+  INVALID_USERNAME = 3,
+  SUSPENDED_BY_OPERATOR = 4,
+  INTERNAL_ERROR = 5,
+}
+
+const declaredAppManagementError: ReadonlySet<unknown> = new Set<unknown>([AppManagementError.NONE, AppManagementError.NO_PERMISSION, AppManagementError.NOT_FOUND, AppManagementError.INVALID_USERNAME, AppManagementError.SUSPENDED_BY_OPERATOR, AppManagementError.INTERNAL_ERROR]);
+
+/**
+ * Open-enum helpers for {@link AppManagementError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_AppManagementError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: AppManagementError): boolean {
+    return declaredAppManagementError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: AppManagementError): u4 | undefined {
+    return declaredAppManagementError.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
+
 
 export abstract class IUploadAvatarResult implements IIonUnion<IUploadAvatarResult>
 {
@@ -623,6 +692,511 @@ IonFormatterStorage.register("FailedUploadAvatarFile", {
   write(writer: CborWriter, value: FailedUploadAvatarFile): void {
     writer.writeStartArray(1);
     IonFormatterStorage.get<UploadFileError>('UploadFileError').write(writer, value.error);
+    writer.writeEndArray();
+  }
+});
+
+
+
+export abstract class IGetTeamDetailsResult implements IIonUnion<IGetTeamDetailsResult>
+{
+  abstract UnionKey: string;
+  abstract UnionIndex: number;
+  
+  
+  
+  
+  public isSuccessGetTeamDetails(): this is SuccessGetTeamDetails {
+    return this.UnionKey === "SuccessGetTeamDetails";
+  }
+  public isFailedGetTeamDetails(): this is FailedGetTeamDetails {
+    return this.UnionKey === "FailedGetTeamDetails";
+  }
+
+}
+
+
+export class SuccessGetTeamDetails extends IGetTeamDetailsResult
+{
+  constructor(public team: TeamDetails) { super(); }
+
+  UnionKey: string = "SuccessGetTeamDetails";
+  UnionIndex: number = 0;
+}
+
+export class FailedGetTeamDetails extends IGetTeamDetailsResult
+{
+  constructor(public error: TeamConsoleError) { super(); }
+
+  UnionKey: string = "FailedGetTeamDetails";
+  UnionIndex: number = 1;
+}
+
+
+
+IonFormatterStorage.register("IGetTeamDetailsResult", {
+  read(reader: CborReader): IGetTeamDetailsResult {
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "IGetTeamDetailsResult", 2);
+    let value: IGetTeamDetailsResult = null as any;
+
+    if (false)
+    {}
+        else if (unionIndex == 0)
+      value = IonFormatterStorage.get<SuccessGetTeamDetails>("SuccessGetTeamDetails").read(reader);
+    else if (unionIndex == 1)
+      value = IonFormatterStorage.get<FailedGetTeamDetails>("FailedGetTeamDetails").read(reader);
+
+    else IonFormatterStorage.invalidUnionIndex("IGetTeamDetailsResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
+    return value!;
+  },
+  write(writer: CborWriter, value: IGetTeamDetailsResult): void {
+    writer.writeStartArray(2);
+    writer.writeUInt32(value.UnionIndex);
+    if (false)
+    {}
+        else if (value.UnionIndex == 0) {
+        IonFormatterStorage.get<SuccessGetTeamDetails>("SuccessGetTeamDetails").write(writer, value as SuccessGetTeamDetails);
+    }
+    else if (value.UnionIndex == 1) {
+        IonFormatterStorage.get<FailedGetTeamDetails>("FailedGetTeamDetails").write(writer, value as FailedGetTeamDetails);
+    }
+  
+    else throw new Error(`Ion union 'IGetTeamDetailsResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
+    writer.writeEndArray();
+  }
+});
+
+
+IonFormatterStorage.register("SuccessGetTeamDetails", {
+  read(reader: CborReader): SuccessGetTeamDetails {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "SuccessGetTeamDetails");
+    const team = IonFormatterStorage.get<TeamDetails>('TeamDetails').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new SuccessGetTeamDetails(team);
+  },
+  write(writer: CborWriter, value: SuccessGetTeamDetails): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<TeamDetails>('TeamDetails').write(writer, value.team);
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("FailedGetTeamDetails", {
+  read(reader: CborReader): FailedGetTeamDetails {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "FailedGetTeamDetails");
+    const error = IonFormatterStorage.get<TeamConsoleError>('TeamConsoleError').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new FailedGetTeamDetails(error);
+  },
+  write(writer: CborWriter, value: FailedGetTeamDetails): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<TeamConsoleError>('TeamConsoleError').write(writer, value.error);
+    writer.writeEndArray();
+  }
+});
+
+
+
+export abstract class IGetTeamInvitesResult implements IIonUnion<IGetTeamInvitesResult>
+{
+  abstract UnionKey: string;
+  abstract UnionIndex: number;
+  
+  
+  
+  
+  public isSuccessGetTeamInvites(): this is SuccessGetTeamInvites {
+    return this.UnionKey === "SuccessGetTeamInvites";
+  }
+  public isFailedGetTeamInvites(): this is FailedGetTeamInvites {
+    return this.UnionKey === "FailedGetTeamInvites";
+  }
+
+}
+
+
+export class SuccessGetTeamInvites extends IGetTeamInvitesResult
+{
+  constructor(public invites: IonArray<TeamInviteInfo>) { super(); }
+
+  UnionKey: string = "SuccessGetTeamInvites";
+  UnionIndex: number = 0;
+}
+
+export class FailedGetTeamInvites extends IGetTeamInvitesResult
+{
+  constructor(public error: TeamConsoleError) { super(); }
+
+  UnionKey: string = "FailedGetTeamInvites";
+  UnionIndex: number = 1;
+}
+
+
+
+IonFormatterStorage.register("IGetTeamInvitesResult", {
+  read(reader: CborReader): IGetTeamInvitesResult {
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "IGetTeamInvitesResult", 2);
+    let value: IGetTeamInvitesResult = null as any;
+
+    if (false)
+    {}
+        else if (unionIndex == 0)
+      value = IonFormatterStorage.get<SuccessGetTeamInvites>("SuccessGetTeamInvites").read(reader);
+    else if (unionIndex == 1)
+      value = IonFormatterStorage.get<FailedGetTeamInvites>("FailedGetTeamInvites").read(reader);
+
+    else IonFormatterStorage.invalidUnionIndex("IGetTeamInvitesResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
+    return value!;
+  },
+  write(writer: CborWriter, value: IGetTeamInvitesResult): void {
+    writer.writeStartArray(2);
+    writer.writeUInt32(value.UnionIndex);
+    if (false)
+    {}
+        else if (value.UnionIndex == 0) {
+        IonFormatterStorage.get<SuccessGetTeamInvites>("SuccessGetTeamInvites").write(writer, value as SuccessGetTeamInvites);
+    }
+    else if (value.UnionIndex == 1) {
+        IonFormatterStorage.get<FailedGetTeamInvites>("FailedGetTeamInvites").write(writer, value as FailedGetTeamInvites);
+    }
+  
+    else throw new Error(`Ion union 'IGetTeamInvitesResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
+    writer.writeEndArray();
+  }
+});
+
+
+IonFormatterStorage.register("SuccessGetTeamInvites", {
+  read(reader: CborReader): SuccessGetTeamInvites {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "SuccessGetTeamInvites");
+    const invites = IonFormatterStorage.readArray<TeamInviteInfo>(reader, 'TeamInviteInfo');
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new SuccessGetTeamInvites(invites);
+  },
+  write(writer: CborWriter, value: SuccessGetTeamInvites): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.writeArray<TeamInviteInfo>(writer, value.invites, 'TeamInviteInfo');
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("FailedGetTeamInvites", {
+  read(reader: CborReader): FailedGetTeamInvites {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "FailedGetTeamInvites");
+    const error = IonFormatterStorage.get<TeamConsoleError>('TeamConsoleError').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new FailedGetTeamInvites(error);
+  },
+  write(writer: CborWriter, value: FailedGetTeamInvites): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<TeamConsoleError>('TeamConsoleError').write(writer, value.error);
+    writer.writeEndArray();
+  }
+});
+
+
+
+export abstract class IAppManagementResult implements IIonUnion<IAppManagementResult>
+{
+  abstract UnionKey: string;
+  abstract UnionIndex: number;
+  
+  
+  
+  
+  public isSuccessAppManagement(): this is SuccessAppManagement {
+    return this.UnionKey === "SuccessAppManagement";
+  }
+  public isFailedAppManagement(): this is FailedAppManagement {
+    return this.UnionKey === "FailedAppManagement";
+  }
+
+}
+
+
+export class SuccessAppManagement extends IAppManagementResult
+{
+  constructor() { super(); }
+
+  UnionKey: string = "SuccessAppManagement";
+  UnionIndex: number = 0;
+}
+
+export class FailedAppManagement extends IAppManagementResult
+{
+  constructor(public error: AppManagementError) { super(); }
+
+  UnionKey: string = "FailedAppManagement";
+  UnionIndex: number = 1;
+}
+
+
+
+IonFormatterStorage.register("IAppManagementResult", {
+  read(reader: CborReader): IAppManagementResult {
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "IAppManagementResult", 2);
+    let value: IAppManagementResult = null as any;
+
+    if (false)
+    {}
+        else if (unionIndex == 0)
+      value = IonFormatterStorage.get<SuccessAppManagement>("SuccessAppManagement").read(reader);
+    else if (unionIndex == 1)
+      value = IonFormatterStorage.get<FailedAppManagement>("FailedAppManagement").read(reader);
+
+    else IonFormatterStorage.invalidUnionIndex("IAppManagementResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
+    return value!;
+  },
+  write(writer: CborWriter, value: IAppManagementResult): void {
+    writer.writeStartArray(2);
+    writer.writeUInt32(value.UnionIndex);
+    if (false)
+    {}
+        else if (value.UnionIndex == 0) {
+        IonFormatterStorage.get<SuccessAppManagement>("SuccessAppManagement").write(writer, value as SuccessAppManagement);
+    }
+    else if (value.UnionIndex == 1) {
+        IonFormatterStorage.get<FailedAppManagement>("FailedAppManagement").write(writer, value as FailedAppManagement);
+    }
+  
+    else throw new Error(`Ion union 'IAppManagementResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
+    writer.writeEndArray();
+  }
+});
+
+
+IonFormatterStorage.register("SuccessAppManagement", {
+  read(reader: CborReader): SuccessAppManagement {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 0, "SuccessAppManagement");
+    
+    reader.readEndArrayAndSkip(arraySize - 0);
+    return new SuccessAppManagement();
+  },
+  write(writer: CborWriter, value: SuccessAppManagement): void {
+    writer.writeStartArray(0);
+    
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("FailedAppManagement", {
+  read(reader: CborReader): FailedAppManagement {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "FailedAppManagement");
+    const error = IonFormatterStorage.get<AppManagementError>('AppManagementError').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new FailedAppManagement(error);
+  },
+  write(writer: CborWriter, value: FailedAppManagement): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<AppManagementError>('AppManagementError').write(writer, value.error);
+    writer.writeEndArray();
+  }
+});
+
+
+
+export abstract class IAppDetailsResult implements IIonUnion<IAppDetailsResult>
+{
+  abstract UnionKey: string;
+  abstract UnionIndex: number;
+  
+  
+  
+  
+  public isSuccessAppDetails(): this is SuccessAppDetails {
+    return this.UnionKey === "SuccessAppDetails";
+  }
+  public isFailedAppDetails(): this is FailedAppDetails {
+    return this.UnionKey === "FailedAppDetails";
+  }
+
+}
+
+
+export class SuccessAppDetails extends IAppDetailsResult
+{
+  constructor(public app: AppDetails) { super(); }
+
+  UnionKey: string = "SuccessAppDetails";
+  UnionIndex: number = 0;
+}
+
+export class FailedAppDetails extends IAppDetailsResult
+{
+  constructor(public error: AppManagementError) { super(); }
+
+  UnionKey: string = "FailedAppDetails";
+  UnionIndex: number = 1;
+}
+
+
+
+IonFormatterStorage.register("IAppDetailsResult", {
+  read(reader: CborReader): IAppDetailsResult {
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "IAppDetailsResult", 2);
+    let value: IAppDetailsResult = null as any;
+
+    if (false)
+    {}
+        else if (unionIndex == 0)
+      value = IonFormatterStorage.get<SuccessAppDetails>("SuccessAppDetails").read(reader);
+    else if (unionIndex == 1)
+      value = IonFormatterStorage.get<FailedAppDetails>("FailedAppDetails").read(reader);
+
+    else IonFormatterStorage.invalidUnionIndex("IAppDetailsResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
+    return value!;
+  },
+  write(writer: CborWriter, value: IAppDetailsResult): void {
+    writer.writeStartArray(2);
+    writer.writeUInt32(value.UnionIndex);
+    if (false)
+    {}
+        else if (value.UnionIndex == 0) {
+        IonFormatterStorage.get<SuccessAppDetails>("SuccessAppDetails").write(writer, value as SuccessAppDetails);
+    }
+    else if (value.UnionIndex == 1) {
+        IonFormatterStorage.get<FailedAppDetails>("FailedAppDetails").write(writer, value as FailedAppDetails);
+    }
+  
+    else throw new Error(`Ion union 'IAppDetailsResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
+    writer.writeEndArray();
+  }
+});
+
+
+IonFormatterStorage.register("SuccessAppDetails", {
+  read(reader: CborReader): SuccessAppDetails {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "SuccessAppDetails");
+    const app = IonFormatterStorage.get<AppDetails>('AppDetails').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new SuccessAppDetails(app);
+  },
+  write(writer: CborWriter, value: SuccessAppDetails): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<AppDetails>('AppDetails').write(writer, value.app);
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("FailedAppDetails", {
+  read(reader: CborReader): FailedAppDetails {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "FailedAppDetails");
+    const error = IonFormatterStorage.get<AppManagementError>('AppManagementError').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new FailedAppDetails(error);
+  },
+  write(writer: CborWriter, value: FailedAppDetails): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<AppManagementError>('AppManagementError').write(writer, value.error);
+    writer.writeEndArray();
+  }
+});
+
+
+
+export abstract class IRegenerateBotTokenResult implements IIonUnion<IRegenerateBotTokenResult>
+{
+  abstract UnionKey: string;
+  abstract UnionIndex: number;
+  
+  
+  
+  
+  public isSuccessRegenerateBotToken(): this is SuccessRegenerateBotToken {
+    return this.UnionKey === "SuccessRegenerateBotToken";
+  }
+  public isFailedRegenerateBotToken(): this is FailedRegenerateBotToken {
+    return this.UnionKey === "FailedRegenerateBotToken";
+  }
+
+}
+
+
+export class SuccessRegenerateBotToken extends IRegenerateBotTokenResult
+{
+  constructor(public token: string) { super(); }
+
+  UnionKey: string = "SuccessRegenerateBotToken";
+  UnionIndex: number = 0;
+}
+
+export class FailedRegenerateBotToken extends IRegenerateBotTokenResult
+{
+  constructor(public error: AppManagementError) { super(); }
+
+  UnionKey: string = "FailedRegenerateBotToken";
+  UnionIndex: number = 1;
+}
+
+
+
+IonFormatterStorage.register("IRegenerateBotTokenResult", {
+  read(reader: CborReader): IRegenerateBotTokenResult {
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "IRegenerateBotTokenResult", 2);
+    let value: IRegenerateBotTokenResult = null as any;
+
+    if (false)
+    {}
+        else if (unionIndex == 0)
+      value = IonFormatterStorage.get<SuccessRegenerateBotToken>("SuccessRegenerateBotToken").read(reader);
+    else if (unionIndex == 1)
+      value = IonFormatterStorage.get<FailedRegenerateBotToken>("FailedRegenerateBotToken").read(reader);
+
+    else IonFormatterStorage.invalidUnionIndex("IRegenerateBotTokenResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
+    return value!;
+  },
+  write(writer: CborWriter, value: IRegenerateBotTokenResult): void {
+    writer.writeStartArray(2);
+    writer.writeUInt32(value.UnionIndex);
+    if (false)
+    {}
+        else if (value.UnionIndex == 0) {
+        IonFormatterStorage.get<SuccessRegenerateBotToken>("SuccessRegenerateBotToken").write(writer, value as SuccessRegenerateBotToken);
+    }
+    else if (value.UnionIndex == 1) {
+        IonFormatterStorage.get<FailedRegenerateBotToken>("FailedRegenerateBotToken").write(writer, value as FailedRegenerateBotToken);
+    }
+  
+    else throw new Error(`Ion union 'IRegenerateBotTokenResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
+    writer.writeEndArray();
+  }
+});
+
+
+IonFormatterStorage.register("SuccessRegenerateBotToken", {
+  read(reader: CborReader): SuccessRegenerateBotToken {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "SuccessRegenerateBotToken");
+    const token = IonFormatterStorage.get<string>('string').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new SuccessRegenerateBotToken(token);
+  },
+  write(writer: CborWriter, value: SuccessRegenerateBotToken): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<string>('string').write(writer, value.token);
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("FailedRegenerateBotToken", {
+  read(reader: CborReader): FailedRegenerateBotToken {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "FailedRegenerateBotToken");
+    const error = IonFormatterStorage.get<AppManagementError>('AppManagementError').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new FailedRegenerateBotToken(error);
+  },
+  write(writer: CborWriter, value: FailedRegenerateBotToken): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.get<AppManagementError>('AppManagementError').write(writer, value.error);
     writer.writeEndArray();
   }
 });
@@ -1045,55 +1619,25 @@ IonFormatterStorage.register("CheckBotUsernameValid", {
   }
 });
 
+IonFormatterStorage.register("TeamConsoleError", {
+  read(reader: CborReader): TeamConsoleError {
+    return IonFormatterStorage.readOpenEnum<TeamConsoleError>(reader, 'u4');
+  },
+  write(writer: CborWriter, value: TeamConsoleError): void {
+    const casted: u4 = value;
+    IonFormatterStorage.get<u4>('u4').write(writer, casted);
+  }
+});
 
-
-
-export interface IAccountConsole extends IIonService
-{
-  GetMe(): Promise<MeDetails>;
-  RequestDeleteAccount(password: string): Promise<DeleteAccountResult>;
-  CancelDeleteAccount(): Promise<CancelDeleteResult>;
-  RequestExportGDRP(): Promise<RequestExportGDRPStatus>;
-}
-
-
-
-
-export interface ITeamConsole extends IIonService
-{
-  GetMyTeams(): Promise<IonArray<TeamShortDetails>>;
-  GetTeamDetails(teamId: guid): Promise<TeamDetails>;
-  GetTeamInvites(teamId: guid): Promise<IonArray<TeamInviteInfo>>;
-  CreateTeam(name: string): Promise<TeamDetails>;
-  InviteUserToTeam(teamId: guid, username: string): Promise<InviteUserError>;
-  BeginUploadTeamAvatar(): Promise<IUploadAvatarResult>;
-  CompleteUploadTeamAvatar(blobId: guid): Promise<void>;
-  GetMyInvites(): Promise<IonArray<MyInvitesInfo>>;
-  AcceptTeamInvite(teamId: guid): Promise<void>;
-  DeclineTeamInvite(teamId: guid): Promise<void>;
-}
-
-
-export interface IAppManagement extends IIonService
-{
-  CreateBotApp(teamId: guid, name: string, username: string): Promise<AppDetails>;
-  CreateClientApp(teamId: guid, name: string, platform: ClientAppPlatform): Promise<AppDetails>;
-  EnsureCoockiesForApp(teamId: guid, appId: guid): Promise<void>;
-  GetAppDetails(teamId: guid, appId: guid): Promise<AppDetails>;
-  RegenerateBotToken(teamId: guid, appId: guid): Promise<string>;
-  CheckUsernameForBot(teamId: guid, username: string): Promise<CheckBotUsernameValid>;
-  BeginUploadAppAvatar(teamId: guid): Promise<IUploadAvatarResult>;
-  CompleteUploadAppAvatar(teamId: guid, blobId: guid): Promise<void>;
-  UpdateScope(teamId: guid, appId: guid, scope: ScopeKeyValue): Promise<void>;
-  UpdateRedirects(teamId: guid, appId: guid, redirects: IonArray<string>): Promise<void>;
-  AddRedirect(teamId: guid, appId: guid, redirect: string): Promise<AddRedirectResult>;
-  RemoveRedirect(teamId: guid, appId: guid, redirect: string): Promise<void>;
-  PublishBot(teamId: guid, appId: guid): Promise<void>;
-  UnpublishBot(teamId: guid, appId: guid): Promise<void>;
-  SuspendBot(teamId: guid, appId: guid): Promise<void>;
-  UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<void>;
-  SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<void>;
-}
+IonFormatterStorage.register("AppManagementError", {
+  read(reader: CborReader): AppManagementError {
+    return IonFormatterStorage.readOpenEnum<AppManagementError>(reader, 'u4');
+  },
+  write(writer: CborWriter, value: AppManagementError): void {
+    const casted: u4 = value;
+    IonFormatterStorage.get<u4>('u4').write(writer, casted);
+  }
+});
 
 
 
@@ -1112,8 +1656,8 @@ export interface IAccountConsole extends IIonService
 export interface ITeamConsole extends IIonService
 {
   GetMyTeams(): Promise<IonArray<TeamShortDetails>>;
-  GetTeamDetails(teamId: guid): Promise<TeamDetails>;
-  GetTeamInvites(teamId: guid): Promise<IonArray<TeamInviteInfo>>;
+  GetTeamDetails(teamId: guid): Promise<IGetTeamDetailsResult>;
+  GetTeamInvites(teamId: guid): Promise<IGetTeamInvitesResult>;
   CreateTeam(name: string): Promise<TeamDetails>;
   InviteUserToTeam(teamId: guid, username: string): Promise<InviteUserError>;
   BeginUploadTeamAvatar(): Promise<IUploadAvatarResult>;
@@ -1126,23 +1670,73 @@ export interface ITeamConsole extends IIonService
 
 export interface IAppManagement extends IIonService
 {
-  CreateBotApp(teamId: guid, name: string, username: string): Promise<AppDetails>;
-  CreateClientApp(teamId: guid, name: string, platform: ClientAppPlatform): Promise<AppDetails>;
-  EnsureCoockiesForApp(teamId: guid, appId: guid): Promise<void>;
-  GetAppDetails(teamId: guid, appId: guid): Promise<AppDetails>;
-  RegenerateBotToken(teamId: guid, appId: guid): Promise<string>;
+  CreateBotApp(teamId: guid, name: string, username: string): Promise<IAppDetailsResult>;
+  CreateClientApp(teamId: guid, name: string, platform: ClientAppPlatform): Promise<IAppDetailsResult>;
+  EnsureCoockiesForApp(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  GetAppDetails(teamId: guid, appId: guid): Promise<IAppDetailsResult>;
+  RegenerateBotToken(teamId: guid, appId: guid): Promise<IRegenerateBotTokenResult>;
   CheckUsernameForBot(teamId: guid, username: string): Promise<CheckBotUsernameValid>;
   BeginUploadAppAvatar(teamId: guid): Promise<IUploadAvatarResult>;
   CompleteUploadAppAvatar(teamId: guid, blobId: guid): Promise<void>;
-  UpdateScope(teamId: guid, appId: guid, scope: ScopeKeyValue): Promise<void>;
+  UpdateScope(teamId: guid, appId: guid, scope: ScopeKeyValue): Promise<IAppManagementResult>;
   UpdateRedirects(teamId: guid, appId: guid, redirects: IonArray<string>): Promise<void>;
   AddRedirect(teamId: guid, appId: guid, redirect: string): Promise<AddRedirectResult>;
-  RemoveRedirect(teamId: guid, appId: guid, redirect: string): Promise<void>;
-  PublishBot(teamId: guid, appId: guid): Promise<void>;
-  UnpublishBot(teamId: guid, appId: guid): Promise<void>;
-  SuspendBot(teamId: guid, appId: guid): Promise<void>;
-  UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<void>;
-  SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<void>;
+  RemoveRedirect(teamId: guid, appId: guid, redirect: string): Promise<IAppManagementResult>;
+  PublishBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  UnpublishBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  SuspendBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<IAppManagementResult>;
+  SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<IAppManagementResult>;
+}
+
+
+
+
+export interface IAccountConsole extends IIonService
+{
+  GetMe(): Promise<MeDetails>;
+  RequestDeleteAccount(password: string): Promise<DeleteAccountResult>;
+  CancelDeleteAccount(): Promise<CancelDeleteResult>;
+  RequestExportGDRP(): Promise<RequestExportGDRPStatus>;
+}
+
+
+
+
+export interface ITeamConsole extends IIonService
+{
+  GetMyTeams(): Promise<IonArray<TeamShortDetails>>;
+  GetTeamDetails(teamId: guid): Promise<IGetTeamDetailsResult>;
+  GetTeamInvites(teamId: guid): Promise<IGetTeamInvitesResult>;
+  CreateTeam(name: string): Promise<TeamDetails>;
+  InviteUserToTeam(teamId: guid, username: string): Promise<InviteUserError>;
+  BeginUploadTeamAvatar(): Promise<IUploadAvatarResult>;
+  CompleteUploadTeamAvatar(blobId: guid): Promise<void>;
+  GetMyInvites(): Promise<IonArray<MyInvitesInfo>>;
+  AcceptTeamInvite(teamId: guid): Promise<void>;
+  DeclineTeamInvite(teamId: guid): Promise<void>;
+}
+
+
+export interface IAppManagement extends IIonService
+{
+  CreateBotApp(teamId: guid, name: string, username: string): Promise<IAppDetailsResult>;
+  CreateClientApp(teamId: guid, name: string, platform: ClientAppPlatform): Promise<IAppDetailsResult>;
+  EnsureCoockiesForApp(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  GetAppDetails(teamId: guid, appId: guid): Promise<IAppDetailsResult>;
+  RegenerateBotToken(teamId: guid, appId: guid): Promise<IRegenerateBotTokenResult>;
+  CheckUsernameForBot(teamId: guid, username: string): Promise<CheckBotUsernameValid>;
+  BeginUploadAppAvatar(teamId: guid): Promise<IUploadAvatarResult>;
+  CompleteUploadAppAvatar(teamId: guid, blobId: guid): Promise<void>;
+  UpdateScope(teamId: guid, appId: guid, scope: ScopeKeyValue): Promise<IAppManagementResult>;
+  UpdateRedirects(teamId: guid, appId: guid, redirects: IonArray<string>): Promise<void>;
+  AddRedirect(teamId: guid, appId: guid, redirect: string): Promise<AddRedirectResult>;
+  RemoveRedirect(teamId: guid, appId: guid, redirect: string): Promise<IAppManagementResult>;
+  PublishBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  UnpublishBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  SuspendBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
+  UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<IAppManagementResult>;
+  SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<IAppManagementResult>;
 }
 
 
@@ -1239,7 +1833,7 @@ export class TeamConsole_Executor extends ServiceExecutor<ITeamConsole> implemen
           
     return await req.callAsyncT<IonArray<TeamShortDetails>>("IonArray<TeamShortDetails>", writer.data, this.signal);
   }
-  async GetTeamDetails(teamId: guid): Promise<TeamDetails> {
+  async GetTeamDetails(teamId: guid): Promise<IGetTeamDetailsResult> {
     const req = new IonRequest(this.ctx, "ITeamConsole", "GetTeamDetails");
           
     const writer = new CborWriter();
@@ -1250,9 +1844,9 @@ export class TeamConsole_Executor extends ServiceExecutor<ITeamConsole> implemen
       
     writer.writeEndArray();
           
-    return await req.callAsyncT<TeamDetails>("TeamDetails", writer.data, this.signal);
+    return await req.callAsyncT<IGetTeamDetailsResult>("IGetTeamDetailsResult", writer.data, this.signal);
   }
-  async GetTeamInvites(teamId: guid): Promise<IonArray<TeamInviteInfo>> {
+  async GetTeamInvites(teamId: guid): Promise<IGetTeamInvitesResult> {
     const req = new IonRequest(this.ctx, "ITeamConsole", "GetTeamInvites");
           
     const writer = new CborWriter();
@@ -1263,7 +1857,7 @@ export class TeamConsole_Executor extends ServiceExecutor<ITeamConsole> implemen
       
     writer.writeEndArray();
           
-    return await req.callAsyncT<IonArray<TeamInviteInfo>>("IonArray<TeamInviteInfo>", writer.data, this.signal);
+    return await req.callAsyncT<IGetTeamInvitesResult>("IGetTeamInvitesResult", writer.data, this.signal);
   }
   async CreateTeam(name: string): Promise<TeamDetails> {
     const req = new IonRequest(this.ctx, "ITeamConsole", "CreateTeam");
@@ -1368,7 +1962,7 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
   }
 
   
-  async CreateBotApp(teamId: guid, name: string, username: string): Promise<AppDetails> {
+  async CreateBotApp(teamId: guid, name: string, username: string): Promise<IAppDetailsResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "CreateBotApp");
           
     const writer = new CborWriter();
@@ -1381,9 +1975,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    return await req.callAsyncT<AppDetails>("AppDetails", writer.data, this.signal);
+    return await req.callAsyncT<IAppDetailsResult>("IAppDetailsResult", writer.data, this.signal);
   }
-  async CreateClientApp(teamId: guid, name: string, platform: ClientAppPlatform): Promise<AppDetails> {
+  async CreateClientApp(teamId: guid, name: string, platform: ClientAppPlatform): Promise<IAppDetailsResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "CreateClientApp");
           
     const writer = new CborWriter();
@@ -1396,9 +1990,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    return await req.callAsyncT<AppDetails>("AppDetails", writer.data, this.signal);
+    return await req.callAsyncT<IAppDetailsResult>("IAppDetailsResult", writer.data, this.signal);
   }
-  async EnsureCoockiesForApp(teamId: guid, appId: guid): Promise<void> {
+  async EnsureCoockiesForApp(teamId: guid, appId: guid): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "EnsureCoockiesForApp");
           
     const writer = new CborWriter();
@@ -1410,9 +2004,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
-  async GetAppDetails(teamId: guid, appId: guid): Promise<AppDetails> {
+  async GetAppDetails(teamId: guid, appId: guid): Promise<IAppDetailsResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "GetAppDetails");
           
     const writer = new CborWriter();
@@ -1424,9 +2018,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    return await req.callAsyncT<AppDetails>("AppDetails", writer.data, this.signal);
+    return await req.callAsyncT<IAppDetailsResult>("IAppDetailsResult", writer.data, this.signal);
   }
-  async RegenerateBotToken(teamId: guid, appId: guid): Promise<string> {
+  async RegenerateBotToken(teamId: guid, appId: guid): Promise<IRegenerateBotTokenResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "RegenerateBotToken");
           
     const writer = new CborWriter();
@@ -1438,7 +2032,7 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    return await req.callAsyncT<string>("string", writer.data, this.signal);
+    return await req.callAsyncT<IRegenerateBotTokenResult>("IRegenerateBotTokenResult", writer.data, this.signal);
   }
   async CheckUsernameForBot(teamId: guid, username: string): Promise<CheckBotUsernameValid> {
     const req = new IonRequest(this.ctx, "IAppManagement", "CheckUsernameForBot");
@@ -1481,7 +2075,7 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
           
     await req.callAsync(writer.data, this.signal);
   }
-  async UpdateScope(teamId: guid, appId: guid, scope: ScopeKeyValue): Promise<void> {
+  async UpdateScope(teamId: guid, appId: guid, scope: ScopeKeyValue): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "UpdateScope");
           
     const writer = new CborWriter();
@@ -1494,7 +2088,7 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
   async UpdateRedirects(teamId: guid, appId: guid, redirects: IonArray<string>): Promise<void> {
     const req = new IonRequest(this.ctx, "IAppManagement", "UpdateRedirects");
@@ -1526,7 +2120,7 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
           
     return await req.callAsyncT<AddRedirectResult>("AddRedirectResult", writer.data, this.signal);
   }
-  async RemoveRedirect(teamId: guid, appId: guid, redirect: string): Promise<void> {
+  async RemoveRedirect(teamId: guid, appId: guid, redirect: string): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "RemoveRedirect");
           
     const writer = new CborWriter();
@@ -1539,9 +2133,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
-  async PublishBot(teamId: guid, appId: guid): Promise<void> {
+  async PublishBot(teamId: guid, appId: guid): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "PublishBot");
           
     const writer = new CborWriter();
@@ -1553,9 +2147,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
-  async UnpublishBot(teamId: guid, appId: guid): Promise<void> {
+  async UnpublishBot(teamId: guid, appId: guid): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "UnpublishBot");
           
     const writer = new CborWriter();
@@ -1567,9 +2161,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
-  async SuspendBot(teamId: guid, appId: guid): Promise<void> {
+  async SuspendBot(teamId: guid, appId: guid): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "SuspendBot");
           
     const writer = new CborWriter();
@@ -1581,9 +2175,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
-  async UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<void> {
+  async UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "UpdateBotEntitlements");
           
     const writer = new CborWriter();
@@ -1596,9 +2190,9 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
-  async SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<void> {
+  async SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<IAppManagementResult> {
     const req = new IonRequest(this.ctx, "IAppManagement", "SetBotOAuth");
           
     const writer = new CborWriter();
@@ -1611,7 +2205,7 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
       
     writer.writeEndArray();
           
-    await req.callAsync(writer.data, this.signal);
+    return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
   }
 
 }

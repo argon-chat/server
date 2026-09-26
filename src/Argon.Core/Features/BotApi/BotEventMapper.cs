@@ -61,9 +61,13 @@ public static class BotEventMapper
                .ToList()
             : null;
 
+        var crosspost = msg.crosspost is { } cp
+            ? new BotCrosspostV1(cp.sourceSpaceId, cp.sourceChannelId, cp.sourceMessageId, cp.sourceSpaceName, cp.sourceChannelName)
+            : null;
+
         return new BotMessageV1(
             msg.messageId, msg.replyId, msg.channelId, msg.spaceId,
-            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions);
+            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions, crosspost);
     }
 
     private static BotMessageEntityV1 Base(EntityType type, int offset, int length) => new()

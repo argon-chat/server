@@ -58,6 +58,9 @@ public sealed class IonProtocolFeature : IArgonFeature
             x.AddService<IEventBus, EventBusImpl>();
             x.AddService<IServerInteraction, ServerInteractionImpl>();
             x.AddService<IChannelInteraction, ChannelInteractionImpl>();
+            x.AddService<IChannelFollowInteraction, ChannelFollowInteractionImpl>();
+            x.AddService<IChannelWebhookInteraction, ChannelWebhookInteractionImpl>();
+            x.AddService<IChannelInsightsInteraction, ChannelInsightsInteractionImpl>();
             x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
             x.AddService<ICosmeticsInteraction, CosmeticsInteractionImpl>();
             x.AddService<IArchetypeInteraction, ArchetypeInteraction>();
@@ -72,6 +75,9 @@ public sealed class IonProtocolFeature : IArgonFeature
             x.AddService<IReportInteraction, ReportInteractionImpl>();
             x.AddService<IGifInteraction, GifInteractionImpl>();
             x.AddService<ILinkPreviewInteraction, LinkPreviewInteractionImpl>();
+            x.AddService<ISpaceAnnouncementInteraction, SpaceAnnouncementInteractionImpl>();
+            x.AddService<IChannelPinsInteraction, ChannelPinsInteractionImpl>();
+            x.AddService<IChannelComposerInteraction, ChannelComposerInteractionImpl>();
             x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
         });
     }

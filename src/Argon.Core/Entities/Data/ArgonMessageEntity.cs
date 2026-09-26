@@ -25,6 +25,16 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
 
     public DateTimeOffset? EditedAt { get; set; }
 
+    /// <summary>Set on a copy a followed announcement channel published here.</summary>
+    [Column(TypeName = "jsonb")]
+    public MessageCrosspost? Crosspost { get; set; }
+
+    /// <summary>Set on an announcement once it was published to the channel's followers.</summary>
+    public DateTimeOffset? PublishedAt { get; set; }
+
+    [Column(TypeName = "jsonb")]
+    public MessageWebhookAuthor? Webhook { get; set; }
+
     public void Configure(EntityTypeBuilder<ArgonMessageEntity> builder)
     {
         builder.HasKey(m => new
@@ -91,6 +101,30 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
                 v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
                 v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<MessageReactionData>>(v))
            .Metadata.SetValueComparer(new JsonValueComparer<List<MessageReactionData>?>());
+
+        builder.Property(m => m.Crosspost)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<MessageCrosspost>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<MessageCrosspost?>());
+
+        // The publish rate limit counts a channel's recent publishes; only published rows are indexed.
+        builder.HasIndex(m => new
+            {
+                m.SpaceId,
+                m.ChannelId,
+                m.PublishedAt
+            })
+           .HasFilter("\"PublishedAt\" IS NOT NULL")
+           .IsCreatedConcurrently();
+
+        builder.Property(m => m.Webhook)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<MessageWebhookAuthor>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<MessageWebhookAuthor?>());
     }
 
     public const int ReactionUserPreviewLimit = 3;
@@ -103,7 +137,10 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
                 r.UserIds.Take(ReactionUserPreviewLimit).ToList())).ToList()
             ?? [],
             MapControls(self.Controls) ?? [],
-            self.EditedAt?.UtcDateTime);
+            self.EditedAt?.UtcDateTime,
+            MessageCrosspost.ToDto(self.Crosspost),
+            self.PublishedAt?.UtcDateTime,
+            self.Webhook is { } hook ? new WebhookAuthor(hook.WebhookId, hook.Name, hook.AvatarFileId) : null);
 
     private static List<ControlRow>? MapControls(List<ControlRowV1>? rows)
     {

@@ -25,5 +25,11 @@ public record ChannelReadStateEntity : IEntityTypeConfiguration<ChannelReadState
 
         builder.HasIndex(x => new { x.UserId, x.SpaceId })
             .HasDatabaseName("ix_channel_read_states_user_space");
+
+        // Announcement read counts. On ChannelId alone: the mark moves on every ack, and an index on
+        // it would turn each ack into extra index writes on the hottest table.
+        builder.HasIndex(x => x.ChannelId)
+            .HasDatabaseName("ix_channel_read_states_channel")
+            .IsCreatedConcurrently();
     }
 }

@@ -58,7 +58,7 @@ public class ChannelsVersionTests
         var two = Channels(lastMessageId: 1);
 
         two.Add(new CachedChannel(
-            new ArgonChannel(ChannelType.Voice, SpaceId, SiblingId, "voice", null, null, "a1", 0, null, null, null), []));
+            new ArgonChannel(ChannelType.Voice, SpaceId, SiblingId, "voice", null, null, "a1", 0, null, null, null, null), []));
 
         Assert.That(CachedChannel.VersionOf(two), Is.Not.EqualTo(CachedChannel.VersionOf(one)));
     }
@@ -74,7 +74,7 @@ public class ChannelsVersionTests
         =>
         [
             new CachedChannel(
-                new ArgonChannel(ChannelType.Text, SpaceId, ChannelId, name, null, null, "a0", lastMessageId, null, null, null),
+                new ArgonChannel(ChannelType.Text, SpaceId, ChannelId, name, null, null, "a0", lastMessageId, null, null, null, null),
                 [new CachedOverwrite(IArchetypeScope.Archetype, RoleId, null, ArgonEntitlement.ViewChannel, deny)])
         ];
 }

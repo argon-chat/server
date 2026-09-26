@@ -1,8 +1,8 @@
 
 service TeamConsole() {
     GetMyTeams(): TeamShortDetails[];
-    GetTeamDetails(teamId: guid): TeamDetails;
-    GetTeamInvites(teamId: guid): TeamInviteInfo[];
+    GetTeamDetails(teamId: guid): GetTeamDetailsResult;
+    GetTeamInvites(teamId: guid): GetTeamInvitesResult;
 
     CreateTeam(name: string): TeamDetails;
     InviteUserToTeam(teamId: guid, username: string): InviteUserError;
@@ -35,7 +35,8 @@ enum InviteUserError {
     USER_NOT_FOUND,
     ALREADY_INVITED,
     ALREADY_IN_TEAM,
-    INTERNAL_ERROR
+    INTERNAL_ERROR,
+    NO_PERMISSION
 }
 
 msg AddRedirectResult {
@@ -53,31 +54,31 @@ enum ClientAppPlatform {
 }
 
 service AppManagement(teamId: guid) {
-    CreateBotApp(name: string, username: string): AppDetails;
-    CreateClientApp(name: string, platform: ClientAppPlatform): AppDetails;
+    CreateBotApp(name: string, username: string): AppDetailsResult;
+    CreateClientApp(name: string, platform: ClientAppPlatform): AppDetailsResult;
 
-    EnsureCoockiesForApp(appId: guid);
+    EnsureCoockiesForApp(appId: guid): AppManagementResult;
 
-    GetAppDetails(appId: guid): AppDetails;
+    GetAppDetails(appId: guid): AppDetailsResult;
 
-    RegenerateBotToken(appId: guid): string;
+    RegenerateBotToken(appId: guid): RegenerateBotTokenResult;
 
     CheckUsernameForBot(username: string): CheckBotUsernameValid;
 
     BeginUploadAppAvatar(): UploadAvatarResult;
     CompleteUploadAppAvatar(blobId: guid);
 
-    UpdateScope(appId: guid, scope: ScopeKeyValue);
+    UpdateScope(appId: guid, scope: ScopeKeyValue): AppManagementResult;
     UpdateRedirects(appId: guid, redirects: string[]);
 
     AddRedirect(appId: guid, redirect: string): AddRedirectResult;
-    RemoveRedirect(appId: guid, redirect: string);
+    RemoveRedirect(appId: guid, redirect: string): AppManagementResult;
 
-    PublishBot(appId: guid);
-    UnpublishBot(appId: guid);
-    SuspendBot(appId: guid);
-    UpdateBotEntitlements(appId: guid, entitlements: u8);
-    SetBotOAuth(appId: guid, enabled: bool);
+    PublishBot(appId: guid): AppManagementResult;
+    UnpublishBot(appId: guid): AppManagementResult;
+    SuspendBot(appId: guid): AppManagementResult;
+    UpdateBotEntitlements(appId: guid, entitlements: u8): AppManagementResult;
+    SetBotOAuth(appId: guid, enabled: bool): AppManagementResult;
 }
 
 enum CheckBotUsernameValid {
@@ -189,4 +190,45 @@ msg ShortUserDetails {
     avatarFileId: string;
     displayName: string;
     username: string;
+}
+
+enum TeamConsoleError {
+    NONE,
+    NO_PERMISSION,
+    NOT_FOUND,
+    INTERNAL_ERROR
+}
+
+union GetTeamDetailsResult {
+    SuccessGetTeamDetails(team: TeamDetails),
+    FailedGetTeamDetails(error: TeamConsoleError)
+}
+
+union GetTeamInvitesResult {
+    SuccessGetTeamInvites(invites: TeamInviteInfo[]),
+    FailedGetTeamInvites(error: TeamConsoleError)
+}
+
+enum AppManagementError {
+    NONE,
+    NO_PERMISSION,
+    NOT_FOUND,
+    INVALID_USERNAME,
+    SUSPENDED_BY_OPERATOR,
+    INTERNAL_ERROR
+}
+
+union AppManagementResult {
+    SuccessAppManagement(),
+    FailedAppManagement(error: AppManagementError)
+}
+
+union AppDetailsResult {
+    SuccessAppDetails(app: AppDetails),
+    FailedAppDetails(error: AppManagementError)
+}
+
+union RegenerateBotTokenResult {
+    SuccessRegenerateBotToken(token: string),
+    FailedRegenerateBotToken(error: AppManagementError)
 }

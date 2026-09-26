@@ -266,6 +266,39 @@ namespace Argon.Core.Migrations
                     b.ToTable("BotCommands", (string)null);
                 });
 
+            modelBuilder.Entity("Argon.Core.Entities.Data.ChannelFollowEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TargetChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TargetSpaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TargetChannelId");
+
+                    b.HasIndex("SourceChannelId", "TargetChannelId")
+                        .IsUnique();
+
+                    b.ToTable("ChannelFollows", (string)null);
+                });
+
             modelBuilder.Entity("Argon.Core.Entities.Data.ChannelLastMessageEntity", b =>
                 {
                     b.Property<Guid>("ChannelId")
@@ -290,6 +323,28 @@ namespace Argon.Core.Migrations
                     b.HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
                 });
 
+            modelBuilder.Entity("Argon.Core.Entities.Data.ChannelPinEntity", b =>
+                {
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("MessageId")
+                        .HasColumnType("BIGINT");
+
+                    b.Property<DateTimeOffset>("PinnedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PinnedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ChannelId", "MessageId");
+
+                    b.ToTable("ChannelPins", (string)null);
+                });
+
             modelBuilder.Entity("Argon.Core.Entities.Data.ChannelReadStateEntity", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -311,6 +366,9 @@ namespace Argon.Core.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("UserId", "ChannelId");
+
+                    b.HasIndex("ChannelId", "LastReadMessageId")
+                        .HasDatabaseName("ix_channel_read_states_channel_mark");
 
                     b.HasIndex("UserId", "SpaceId")
                         .HasDatabaseName("ix_channel_read_states_user_space");
@@ -1252,6 +1310,9 @@ namespace Argon.Core.Migrations
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Crosspost")
+                        .HasColumnType("jsonb");
+
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1264,6 +1325,9 @@ namespace Argon.Core.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Reactions")
                         .HasColumnType("jsonb");
@@ -1278,6 +1342,9 @@ namespace Argon.Core.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Webhook")
+                        .HasColumnType("jsonb");
+
                     b.HasKey("SpaceId", "ChannelId", "MessageId");
 
                     b.HasIndex("CreatorId");
@@ -1285,6 +1352,9 @@ namespace Argon.Core.Migrations
                     b.HasIndex("SpaceId", "ChannelId", "CreatedAt");
 
                     NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SpaceId", "ChannelId", "CreatedAt"), new[] { "Text", "Entities" });
+
+                    b.HasIndex("SpaceId", "ChannelId", "PublishedAt")
+                        .HasFilter("\"PublishedAt\" IS NOT NULL");
 
                     b.ToTable("Messages");
 
@@ -1350,6 +1420,9 @@ namespace Argon.Core.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Announcement")
+                        .HasColumnType("jsonb");
 
                     b.Property<int?>("Bitrate")
                         .HasColumnType("integer");
@@ -1467,6 +1540,48 @@ namespace Argon.Core.Migrations
                     b.ToTable("ChannelGroupEntity");
 
                     b.HasAnnotation("Regional:Locality", "GLOBAL");
+                });
+
+            modelBuilder.Entity("Argon.Entities.ChannelWebhookEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AvatarFileId")
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId");
+
+                    b.ToTable("ChannelWebhooks", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Entities.ContentViolationEntity", b =>
@@ -2023,6 +2138,33 @@ namespace Argon.Core.Migrations
                     b.ToTable("Files");
 
                     b.HasAnnotation("Cockroach:HashShardedKey", true);
+                });
+
+            modelBuilder.Entity("Argon.Entities.MessageDraftEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Entities")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "ChannelId");
+
+                    b.ToTable("MessageDrafts", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Entities.OperatorAppAccessEntity", b =>
@@ -2691,6 +2833,65 @@ namespace Argon.Core.Migrations
                     b.ToTable("SavedGifs");
                 });
 
+            modelBuilder.Entity("Argon.Entities.ScheduledPostEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Entities")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("Failure")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<long?>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("PublishAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("RandomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("ChannelId", "Status", "PublishAt");
+
+                    b.ToTable("ScheduledPosts", (string)null);
+                });
+
             modelBuilder.Entity("Argon.Entities.SpaceBoostEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2795,6 +2996,9 @@ namespace Argon.Core.Migrations
 
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
+
+                    b.Property<Guid?>("MainAnnouncementChannelId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Name")
                         .IsRequired()

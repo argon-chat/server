@@ -31,6 +31,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
         int? bitrate, CancellationToken ct = default);
 
+    [Alias(nameof(SetChannelType))]
+    Task<Either<ChannelEntity, UpdateChannelError>> SetChannelType(ChannelType type, CancellationToken ct = default);
+
     /// <summary>
     /// Soft-deletes a message. Authors may always retract their own; anyone else needs
     /// <see cref="ArgonEntitlement.ManageMessages"/>.
@@ -187,6 +190,33 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias(nameof(BatchGetReactions))]
     Task<Dictionary<long, List<ReactionInfo>>> BatchGetReactions(List<long> messageIds);
+
+    /// <summary>Pins a message of this text or announcement channel. Needs ManageMessages; idempotent.</summary>
+    [Alias(nameof(PinMessage))]
+    Task<IPinMessageResult> PinMessage(long messageId, CancellationToken ct = default);
+
+    [Alias(nameof(UnpinMessage))]
+    Task<IUnpinMessageResult> UnpinMessage(long messageId, CancellationToken ct = default);
+
+    /// <summary>The channel's pins, newest first; empty for a caller who cannot read its history.</summary>
+    [Alias(nameof(GetPinnedMessages))]
+    Task<List<PinnedMessage>> GetPinnedMessages(CancellationToken ct = default);
+
+    /// <summary>Reactions on/off, post as space and show author of an announcement channel. Needs ManageChannels.</summary>
+    [Alias(nameof(SetAnnouncementSettings))]
+    Task<Either<ChannelEntity, UpdateChannelError>> SetAnnouncementSettings(bool reactions, bool postAsSpace, bool showAuthor,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Marks an announcement published and returns the copy with its targets. The caller delivers it
+    /// (<see cref="ReceiveCrosspostAsync"/> per target), so this channel is not held during the fan-out.
+    /// </summary>
+    [Alias(nameof(PublishMessage))]
+    Task<Either<CrosspostBatch, PublishMessageError>> PublishMessage(long messageId);
+
+    /// <summary>Inserts a crosspost copy into this channel. Null when the channel does not take one.</summary>
+    [Alias(nameof(ReceiveCrosspostAsync))]
+    Task<long?> ReceiveCrosspostAsync(CrosspostDraft draft);
 }
 
 /// <summary>Realtime state for a channel.</summary>

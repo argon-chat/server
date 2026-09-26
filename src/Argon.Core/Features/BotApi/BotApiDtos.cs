@@ -175,7 +175,20 @@ public sealed record BotMessageV1(
     DateTime                  TimeSent,
     BotUserV1?                Sender,
     List<ControlRowV1>?       Controls  = null,
-    List<BotReactionV1>?      Reactions = null);
+    List<BotReactionV1>?      Reactions = null,
+    BotCrosspostV1?           Crosspost = null);
+
+/// <summary>
+/// Set on a message that a followed announcement channel published into this channel: where it came
+/// from. The source space is usually not one the bot is in; the sender is the original author.
+/// </summary>
+[BotDtoVersion(1)]
+public sealed record BotCrosspostV1(
+    Guid   SourceSpaceId,
+    Guid   SourceChannelId,
+    long   SourceMessageId,
+    string SourceSpaceName,
+    string SourceChannelName);
 
 // ─── Presence ────────────────────────────────────────────
 

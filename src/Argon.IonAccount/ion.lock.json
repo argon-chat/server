@@ -549,7 +549,8 @@
         "USER_NOT_FOUND": "1",
         "ALREADY_INVITED": "2",
         "ALREADY_IN_TEAM": "3",
-        "INTERNAL_ERROR": "4"
+        "INTERNAL_ERROR": "4",
+        "NO_PERMISSION": "5"
       },
       "baseType": "u4"
     },
@@ -593,6 +594,28 @@
       },
       "baseType": "u4"
     },
+    "TeamConsoleError": {
+      "kind": "Enum",
+      "members": {
+        "NONE": "0",
+        "NO_PERMISSION": "1",
+        "NOT_FOUND": "2",
+        "INTERNAL_ERROR": "3"
+      },
+      "baseType": "u4"
+    },
+    "AppManagementError": {
+      "kind": "Enum",
+      "members": {
+        "NONE": "0",
+        "NO_PERMISSION": "1",
+        "NOT_FOUND": "2",
+        "INVALID_USERNAME": "3",
+        "SUSPENDED_BY_OPERATOR": "4",
+        "INTERNAL_ERROR": "5"
+      },
+      "baseType": "u4"
+    },
     "UploadAvatarResult": {
       "kind": "Union",
       "nextIndex": 2,
@@ -621,6 +644,140 @@
         }
       ]
     },
+    "GetTeamDetailsResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessGetTeamDetails",
+          "fields": [
+            {
+              "index": 0,
+              "name": "team",
+              "type": "TeamDetails"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "name": "FailedGetTeamDetails",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "TeamConsoleError"
+            }
+          ]
+        }
+      ]
+    },
+    "GetTeamInvitesResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessGetTeamInvites",
+          "fields": [
+            {
+              "index": 0,
+              "name": "invites",
+              "type": "Array\u003CTeamInviteInfo\u003E"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "name": "FailedGetTeamInvites",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "TeamConsoleError"
+            }
+          ]
+        }
+      ]
+    },
+    "AppManagementResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessAppManagement",
+          "fields": []
+        },
+        {
+          "index": 1,
+          "name": "FailedAppManagement",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "AppManagementError"
+            }
+          ]
+        }
+      ]
+    },
+    "AppDetailsResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessAppDetails",
+          "fields": [
+            {
+              "index": 0,
+              "name": "app",
+              "type": "AppDetails"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "name": "FailedAppDetails",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "AppManagementError"
+            }
+          ]
+        }
+      ]
+    },
+    "RegenerateBotTokenResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessRegenerateBotToken",
+          "fields": [
+            {
+              "index": 0,
+              "name": "token",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "name": "FailedRegenerateBotToken",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "AppManagementError"
+            }
+          ]
+        }
+      ]
+    },
     "TeamConsole": {
       "kind": "Service",
       "methods": {
@@ -637,7 +794,7 @@
               "type": "guid"
             }
           ],
-          "returns": "TeamDetails",
+          "returns": "GetTeamDetailsResult",
           "modifiers": []
         },
         "GetTeamInvites": {
@@ -648,7 +805,7 @@
               "type": "guid"
             }
           ],
-          "returns": "Array\u003CTeamInviteInfo\u003E",
+          "returns": "GetTeamInvitesResult",
           "modifiers": []
         },
         "CreateTeam": {
@@ -744,7 +901,7 @@
               "type": "string"
             }
           ],
-          "returns": "AppDetails",
+          "returns": "AppDetailsResult",
           "modifiers": []
         },
         "CreateClientApp": {
@@ -765,7 +922,7 @@
               "type": "ClientAppPlatform"
             }
           ],
-          "returns": "AppDetails",
+          "returns": "AppDetailsResult",
           "modifiers": []
         },
         "EnsureCoockiesForApp": {
@@ -781,7 +938,7 @@
               "type": "guid"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "GetAppDetails": {
@@ -797,7 +954,7 @@
               "type": "guid"
             }
           ],
-          "returns": "AppDetails",
+          "returns": "AppDetailsResult",
           "modifiers": []
         },
         "RegenerateBotToken": {
@@ -813,7 +970,7 @@
               "type": "guid"
             }
           ],
-          "returns": "string",
+          "returns": "RegenerateBotTokenResult",
           "modifiers": []
         },
         "CheckUsernameForBot": {
@@ -877,7 +1034,7 @@
               "type": "ScopeKeyValue"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "UpdateRedirects": {
@@ -940,7 +1097,7 @@
               "type": "string"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "PublishBot": {
@@ -956,7 +1113,7 @@
               "type": "guid"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "UnpublishBot": {
@@ -972,7 +1129,7 @@
               "type": "guid"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "SuspendBot": {
@@ -988,7 +1145,7 @@
               "type": "guid"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "UpdateBotEntitlements": {
@@ -1009,7 +1166,7 @@
               "type": "u8"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         },
         "SetBotOAuth": {
@@ -1030,7 +1187,7 @@
               "type": "bool"
             }
           ],
-          "returns": "void",
+          "returns": "AppManagementResult",
           "modifiers": []
         }
       }

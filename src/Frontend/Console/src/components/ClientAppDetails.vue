@@ -10,6 +10,7 @@ import { useApi } from "@/store/apiStore"
 import { GlassButton, GlassCard, GlassCheckbox, GlassBadge } from "@/components/base"
 import { ClientAppPlatform } from "@/lib/glue/accountConsole"
 import type { AppDetails, ClientAppDetails, ScopeKeyValue } from "@/lib/glue/accountConsole"
+import { appManagementErrorMessage } from "@/lib/consoleErrors"
 
 const props = defineProps<{
   app: AppDetails
@@ -95,11 +96,15 @@ const statusItems = computed(() => [
 async function toggleScope(scope: ScopeKeyValue) {
   try {
     scopeUpdating.value = scope.key
-    await api.appsManagement.UpdateScope(props.app.teamId, props.app.appId, {
+    const result = await api.appsManagement.UpdateScope(props.app.teamId, props.app.appId, {
       key: scope.key,
       isRequired: scope.isRequired,
       isLocked: scope.isLocked,
     })
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     toast({ title: "Updated", description: `Scope "${scope.key}" updated.` })
   } catch (err: any) {
     toast({ title: "Failed", description: err?.message ?? "Error", variant: "destructive" })
@@ -132,7 +137,11 @@ async function deleteRedirect(index: number) {
   const redirect = redirects.value[index]
   try {
     deletingRedirect.value = index
-    await api.appsManagement.RemoveRedirect(props.app.teamId, props.app.appId, redirect)
+    const result = await api.appsManagement.RemoveRedirect(props.app.teamId, props.app.appId, redirect)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed to remove redirect", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     redirects.value.splice(index, 1)
     toast({ title: "Removed", description: "Redirect removed." })
   } catch (err: any) {
@@ -149,7 +158,11 @@ async function generateDevelopmentCookies() {
   }
   try {
     isGeneratingCookies.value = true
-    await api.appsManagement.EnsureCoockiesForApp(props.app.teamId, props.app.appId)
+    const result = await api.appsManagement.EnsureCoockiesForApp(props.app.teamId, props.app.appId)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed to generate cookies", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     toast({ title: "Cookies generated", description: "Development cookies have been set in your browser. Expired in 7 days." })
   } catch (err: any) {
     toast({ title: "Failed to generate cookies", description: err?.message ?? "Error", variant: "destructive" })

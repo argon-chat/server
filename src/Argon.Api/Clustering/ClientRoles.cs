@@ -31,6 +31,7 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<BrowserReportFeature>();
         features.Add<DiscoveryFeature>();
         features.Add<InviteCardFeature>();
+        features.Add<IncomingWebhooksFeature>();
         features.Add<CdnFeature>();
         features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();

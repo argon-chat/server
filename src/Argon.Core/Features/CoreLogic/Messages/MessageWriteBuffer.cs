@@ -114,6 +114,13 @@ public sealed class MessageWriteBuffer(
                 await db.Messages.AddRangeAsync(rows.Select(x => x.Message!), ct);
                 await db.SaveChangesAsync(ct);
             }
+            catch (Exception e) when (rows.Count > 1)
+            {
+                // One row the database refuses must not take the rest of the batch with it.
+                logger.LogWarning(e, "a batch of {Count} message(s) failed; committing them one by one", rows.Count);
+                await WriteOneByOneAsync(batch, rows, ct);
+                return;
+            }
             catch (Exception e)
             {
                 // The senders were told the message was accepted, so this is loss, not a failed call.
@@ -143,6 +150,39 @@ public sealed class MessageWriteBuffer(
         }
 
         foreach (var pending in batch)
+            pending.Committed.TrySetResult();
+    }
+
+    private async Task WriteOneByOneAsync(List<Pending> batch, List<Pending> rows, CancellationToken ct)
+    {
+        foreach (var pending in rows)
+        {
+            try
+            {
+                await using var db = await context.CreateDbContextAsync(ct);
+                db.Messages.Add(pending.Message!);
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "failed to commit message {MessageId}; it is lost", pending.Message!.MessageId);
+                pending.Committed.TrySetException(e);
+                continue;
+            }
+
+            try
+            {
+                await deduplication.SetDeduplicationAsync(pending.Message!, pending.RandomId, ct);
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "failed to record the dedup key for message {MessageId}", pending.Message!.MessageId);
+            }
+
+            pending.Committed.TrySetResult();
+        }
+
+        foreach (var pending in batch.Where(x => x.Message is null))
             pending.Committed.TrySetResult();
     }
 

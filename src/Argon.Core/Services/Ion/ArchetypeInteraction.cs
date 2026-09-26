@@ -11,8 +11,10 @@ public class ArchetypeInteraction : IArchetypeInteraction
     public async Task<Archetype> CreateArchetype(Guid spaceId, string name, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).CreateArchetypeAsync(name);
 
+    // The contract promises a role, so a refusal (unknown, deleted, forbidden or invalid) cannot be a null.
     public async Task<Archetype> UpdateArchetype(Guid spaceId, Archetype data, CancellationToken ct = default)
-        => (await this.GetGrain<IEntitlementGrain>(spaceId).UpdateArchetypeAsync(data))!;
+        => await this.GetGrain<IEntitlementGrain>(spaceId).UpdateArchetypeAsync(data)
+           ?? throw new IonRequestException(new IonProtocolError("ARCHETYPE_UPDATE_REFUSED", "archetype update refused"));
 
     public async Task<bool> SetArchetypeToMember(Guid spaceId, Guid memberId, Guid archetypeId, bool isGrant, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).SetArchetypeToMember(memberId, archetypeId, isGrant);

@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/base"
 import BotAppDetails from "./BotAppDetails.vue"
 import ClientAppDetails from "./ClientAppDetails.vue"
 import type { AppDetails, BotDetails, ClientAppDetails as ClientApp } from "@/lib/glue/accountConsole"
+import { appManagementErrorMessage } from "@/lib/consoleErrors"
 
 const route = useRoute()
 const router = useRouter()
@@ -31,10 +32,14 @@ const isClientApp = computed(() => app.value?.kind === 0)
 async function fetchAppDetails() {
   try {
     isLoading.value = true
-    const details = await api.appsManagement.GetAppDetails(teamId.value, appId.value)
-    app.value = details
-    bot.value = details.botDetails
-    clientApp.value = details.clientAppDetails
+    const result = await api.appsManagement.GetAppDetails(teamId.value, appId.value)
+    if (result.isSuccessAppDetails()) {
+      app.value = result.app
+      bot.value = result.app.botDetails
+      clientApp.value = result.app.clientAppDetails
+    } else if (result.isFailedAppDetails()) {
+      toast({ title: "Failed to load app", description: appManagementErrorMessage(result.error), variant: "destructive" })
+    }
   } catch (err: any) {
     toast({ title: "Failed to load app", description: err?.message ?? "Unexpected error occurred", variant: "destructive" })
   } finally {

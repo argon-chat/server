@@ -23,6 +23,8 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
 
     public bool IsCommunity { get; set; }
     public Guid? DefaultChannelId { get; set; }
+    /// <summary>The announcement channel whose latest message members are shown until they read it.</summary>
+    public Guid? MainAnnouncementChannelId { get; set; }
 
     /// <summary>Platform-controlled verification badge (issued by Argon staff).</summary>
     public bool IsVerified { get; set; }
@@ -44,7 +46,8 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     public static ArgonSpace Map(scoped in SpaceEntity self)
         => new(self.Id, self.Name, self.Description ?? "", self.AvatarFileId, self.TopBannedFileId,
             IonArray<ArgonChannel>.Empty, IonArray<SpaceMember>.Empty, IonArray<Archetype>.Empty,
-            self.IsVerified, self.IsOfficial, self.HideBoostStrip, self.InviteImageFileId, self.IsCommunity);
+            self.IsVerified, self.IsOfficial, self.HideBoostStrip, self.InviteImageFileId, self.IsCommunity,
+            self.MainAnnouncementChannelId);
 
     public void Configure(EntityTypeBuilder<SpaceEntity> builder)
     {

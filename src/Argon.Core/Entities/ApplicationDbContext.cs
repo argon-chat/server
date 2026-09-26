@@ -15,6 +15,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // The channel's high-water mark, which used to be a column on Channels above. See
     // ChannelLastMessageEntity for why it is not one any more.
     public DbSet<ChannelLastMessageEntity>          ChannelLastMessages          => Set<ChannelLastMessageEntity>();
+    public DbSet<ChannelFollowEntity>               ChannelFollows               => Set<ChannelFollowEntity>();
     public DbSet<SpaceMemberEntity>                 UsersToServerRelations       => Set<SpaceMemberEntity>();
     public DbSet<SpaceMemberArchetypeEntity>        MemberArchetypes             => Set<SpaceMemberArchetypeEntity>();
     public DbSet<ArchetypeEntity>                   Archetypes                   => Set<ArchetypeEntity>();
@@ -31,6 +32,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ChannelReadStateEntity>             ChannelReadStates            => Set<ChannelReadStateEntity>();
     public DbSet<MuteSettingsEntity>                 MuteSettings                 => Set<MuteSettingsEntity>();
     public DbSet<SystemNotificationEntity>           SystemNotifications          => Set<SystemNotificationEntity>();
+    public DbSet<ChannelPinEntity>                   ChannelPins                  => Set<ChannelPinEntity>();
+    public DbSet<ChannelWebhookEntity>               ChannelWebhooks              => Set<ChannelWebhookEntity>();
+    public DbSet<ScheduledPostEntity>                ScheduledPosts               => Set<ScheduledPostEntity>();
+    public DbSet<MessageDraftEntity>                 MessageDrafts                => Set<MessageDraftEntity>();
 
 #region Feature Flags
 

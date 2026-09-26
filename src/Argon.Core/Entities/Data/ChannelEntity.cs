@@ -33,6 +33,9 @@ public record ChannelEntity :
     /// <summary>Voice only: broadcast ("radio") mode, null on an ordinary voice channel. Stored as jsonb.</summary>
     public ChannelBroadcast? Broadcast { get; set; }
 
+    /// <summary>Announcement presentation (reactions, post as space); null means the defaults. Stored as jsonb.</summary>
+    public ChannelAnnouncement? Announcement { get; set; }
+
     /// <summary>
     /// Dead. Nothing writes this column any more — the channel's high-water mark lives in
     /// <see cref="Argon.Core.Entities.Data.ChannelLastMessageEntity"/>.
@@ -89,7 +92,8 @@ public record ChannelEntity :
             // representation of "no cooldown" instead of two.
             self.SlowMode is { } window && window > TimeSpan.Zero ? (int)window.TotalSeconds : null,
             self.Bitrate is { } kbps && kbps > 0 ? kbps : null,
-            ChannelBroadcast.ToDto(self.Broadcast));
+            ChannelBroadcast.ToDto(self.Broadcast),
+            ChannelAnnouncement.ToDto(self));
 
     public void Configure(EntityTypeBuilder<ChannelEntity> builder)
     {
@@ -115,5 +119,12 @@ public record ChannelEntity :
                 v => JsonConvert.SerializeObject(v),
                 v => JsonConvert.DeserializeObject<ChannelBroadcast>(v))
            .Metadata.SetValueComparer(new JsonValueComparer<ChannelBroadcast?>());
+
+        builder.Property(c => c.Announcement)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => JsonConvert.SerializeObject(v),
+                v => JsonConvert.DeserializeObject<ChannelAnnouncement>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<ChannelAnnouncement?>());
     }
 }

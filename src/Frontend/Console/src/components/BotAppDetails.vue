@@ -13,6 +13,7 @@ import { GlassButton, GlassCard, GlassCheckbox, GlassBadge } from "@/components/
 import ArgonAvatar from "@/components/ArgonAvatar.vue"
 import { BotLifecycleState } from "@/lib/glue/accountConsole"
 import type { AppDetails, BotDetails, ScopeKeyValue } from "@/lib/glue/accountConsole"
+import { appManagementErrorMessage } from "@/lib/consoleErrors"
 import {
   groupedEntitlements, entitlementsFromMask, maskFromKeys,
   type EntitlementInfo,
@@ -176,7 +177,11 @@ const statusItems = computed(() => [
 async function publishBot() {
   try {
     isLifecycleLoading.value = true
-    await api.appsManagement.PublishBot(props.app.teamId, props.app.appId)
+    const result = await api.appsManagement.PublishBot(props.app.teamId, props.app.appId)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed to publish", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     lifecycleState.value = BotLifecycleState.Published
     toast({ title: "Bot published", description: "Your bot is now publicly installable." })
   } catch (err: any) {
@@ -189,7 +194,11 @@ async function publishBot() {
 async function suspendBot() {
   try {
     isLifecycleLoading.value = true
-    await api.appsManagement.SuspendBot(props.app.teamId, props.app.appId)
+    const result = await api.appsManagement.SuspendBot(props.app.teamId, props.app.appId)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed to suspend", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     lifecycleState.value = BotLifecycleState.Suspended
     toast({ title: "Bot suspended", description: "Your bot has been suspended." })
   } catch (err: any) {
@@ -203,7 +212,11 @@ async function toggleOAuth() {
   try {
     isOAuthLoading.value = true
     const next = !oauthEnabled.value
-    await api.appsManagement.SetBotOAuth(props.app.teamId, props.app.appId, next)
+    const result = await api.appsManagement.SetBotOAuth(props.app.teamId, props.app.appId, next)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     oauthEnabled.value = next
     toast({ title: next ? "OAuth2 enabled" : "OAuth2 disabled", description: next ? "You can now configure scopes and redirects." : "OAuth flow has been disabled." })
   } catch (err: any) {
@@ -217,7 +230,11 @@ async function saveEntitlements() {
   try {
     isEntitlementsLoading.value = true
     const mask = maskFromKeys([...selectedKeys.value])
-    await api.appsManagement.UpdateBotEntitlements(props.app.teamId, props.app.appId, mask)
+    const result = await api.appsManagement.UpdateBotEntitlements(props.app.teamId, props.app.appId, mask)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed to update entitlements", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     toast({ title: "Entitlements updated", description: "Bot entitlements have been saved." })
   } catch (err: any) {
     toast({ title: "Failed to update entitlements", description: err?.message ?? "Error", variant: "destructive" })
@@ -230,11 +247,15 @@ async function saveEntitlements() {
 async function toggleScope(scope: ScopeKeyValue) {
   try {
     scopeUpdating.value = scope.key
-    await api.appsManagement.UpdateScope(props.app.teamId, props.app.appId, {
+    const result = await api.appsManagement.UpdateScope(props.app.teamId, props.app.appId, {
       key: scope.key,
       isRequired: scope.isRequired,
       isLocked: scope.isLocked,
     })
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     toast({ title: "Updated", description: `Scope "${scope.key}" updated.` })
   } catch (err: any) {
     toast({ title: "Failed", description: err?.message ?? "Error", variant: "destructive" })
@@ -268,7 +289,11 @@ async function deleteRedirect(index: number) {
   const redirect = redirects.value[index]
   try {
     deletingRedirect.value = index
-    await api.appsManagement.RemoveRedirect(props.app.teamId, props.app.appId, redirect)
+    const result = await api.appsManagement.RemoveRedirect(props.app.teamId, props.app.appId, redirect)
+    if (result.isFailedAppManagement()) {
+      toast({ title: "Failed to remove redirect", description: appManagementErrorMessage(result.error), variant: "destructive" })
+      return
+    }
     redirects.value.splice(index, 1)
     toast({ title: "Removed", description: "Redirect removed." })
   } catch (err: any) {
@@ -281,10 +306,14 @@ async function deleteRedirect(index: number) {
 async function refreshBotToken() {
   try {
     isRefreshingToken.value = true
-    const token = await api.appsManagement.RegenerateBotToken(props.app.teamId, props.app.appId)
-    botToken.value = token
-    showBotToken.value = true
-    toast({ title: "Token regenerated", description: "A new bot token has been generated. Make sure to update your integration." })
+    const result = await api.appsManagement.RegenerateBotToken(props.app.teamId, props.app.appId)
+    if (result.isSuccessRegenerateBotToken()) {
+      botToken.value = result.token
+      showBotToken.value = true
+      toast({ title: "Token regenerated", description: "A new bot token has been generated. Make sure to update your integration." })
+    } else if (result.isFailedRegenerateBotToken()) {
+      toast({ title: "Failed to refresh token", description: appManagementErrorMessage(result.error), variant: "destructive" })
+    }
   } catch (err: any) {
     toast({ title: "Failed to refresh token", description: err?.message ?? "Unexpected error", variant: "destructive" })
   } finally {

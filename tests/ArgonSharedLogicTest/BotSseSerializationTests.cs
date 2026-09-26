@@ -172,7 +172,10 @@ public class BotSseSerializationTests
             sender: senderId,
             reactions: NoReactions,
             controls: null,
-            editedAt: null);
+            editedAt: null,
+            crosspost: null,
+            publishedAt: null,
+            webhook: null);
 
         var evt = new MessageSent(spaceId, msg);
         var json = JsonConvert.SerializeObject(evt, SseSettings);
@@ -223,7 +226,10 @@ public class BotSseSerializationTests
             sender: senderId,
             reactions: NoReactions,
             controls: null,
-            editedAt: null);
+            editedAt: null,
+            crosspost: null,
+            publishedAt: null,
+            webhook: null);
 
         var evt = new MessageSent(spaceId, msg);
         var json = JsonConvert.SerializeObject(evt, SseSettings);
@@ -273,7 +279,7 @@ public class BotSseSerializationTests
             Type = BotEventType.Ready,
             SpaceId = spaceId,
             Data = new MessageSent(spaceId, new ArgonMessage(
-                42L, null, Guid.NewGuid(), spaceId, "test", entities, DateTime.UtcNow, senderId, NoReactions, null, null))
+                42L, null, Guid.NewGuid(), spaceId, "test", entities, DateTime.UtcNow, senderId, NoReactions, null, null, null, null, null))
         };
 
         // Serialize (NATS write)
@@ -346,6 +352,6 @@ public class BotSseSerializationTests
 
         return new MessageSent(spaceId, new ArgonMessage(
             1L, null, Guid.NewGuid(), spaceId, "Hello",
-            entities, DateTime.UtcNow, Guid.NewGuid(), NoReactions, null, null));
+            entities, DateTime.UtcNow, Guid.NewGuid(), NoReactions, null, null, null, null, null));
     }
 }

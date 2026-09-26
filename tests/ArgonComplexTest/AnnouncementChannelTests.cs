@@ -280,4 +280,111 @@ public class AnnouncementChannelTests : TestBase
             Assert.That(read.Values.Count, Is.EqualTo(4), "a post past the limit was not delivered");
         });
     }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_text_channel_becomes_an_announcement_channel_and_back_keeping_its_history(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var guest = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "news", ChannelType.Text, ct);
+        await JoinAsync(owner, guest, spaceId, ct);
+
+        Assert.That(await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 30, null, ct), Is.InstanceOf<SuccessUpdateChannel>());
+        await guest.Channels.SendMessage(spaceId, channelId, "before", Entities(), NextRandomId(), null, ct);
+
+        await using var observer = await RealtimeClient.ConnectAsync(guest, ct);
+
+        var toNews = await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Announcement, ct);
+        Assert.That(toNews, Is.InstanceOf<SuccessUpdateChannel>(), $"refused: {(toNews as FailedUpdateChannel)?.error}");
+
+        var news     = ((SuccessUpdateChannel)toNews).channel;
+        var everyone = await EveryoneAsync(owner, spaceId, ct);
+        var forAll   = (await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct)).Values
+           .SingleOrDefault(o => o.archetypeId == everyone.id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(news.type, Is.EqualTo(ChannelType.Announcement));
+            Assert.That(news.slowModeSeconds, Is.Null, "slow mode stayed on an announcement channel");
+            Assert.That(forAll?.deny, Is.EqualTo(ArgonEntitlement.SendMessages));
+        });
+
+        await observer.WaitForAsync<EntitlementsChanged>(e => e.spaceId == spaceId, Window, ct: ct);
+
+        // The guest posted a moment ago, so a refusal now also proves the cached permission was dropped.
+        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "during", Entities(), NextRandomId(), null, ct),
+            Throws.Exception, "a plain member still posted after the channel became an announcement channel");
+
+        var toText = await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Text, ct);
+        Assert.That(toText, Is.InstanceOf<SuccessUpdateChannel>(), $"refused: {(toText as FailedUpdateChannel)?.error}");
+        Assert.That(((SuccessUpdateChannel)toText).channel.type, Is.EqualTo(ChannelType.Text));
+
+        Assert.That((await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct)).Values, Is.Empty,
+            "the deny for everyone outlived the announcement channel");
+        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "after", Entities(), NextRandomId(), null, ct),
+            Throws.Nothing);
+
+        var history = await owner.Channels.QueryMessages(spaceId, channelId, null, 10, ct);
+        Assert.That(history.Values.Select(m => m.text), Is.EquivalentTo(new[] { "before", "after" }));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Converting_touches_only_SendMessages_on_the_everyone_overwrite(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
+        await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.AttachFiles, ct);
+
+        var everyone = await EveryoneAsync(owner, spaceId, ct);
+        async Task<ArgonEntitlement?> DenyAsync()
+            => (await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct)).Values
+               .SingleOrDefault(o => o.archetypeId == everyone.id)?.deny;
+
+        await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Announcement, ct);
+        Assert.That(await DenyAsync(), Is.EqualTo(ArgonEntitlement.AttachFiles | ArgonEntitlement.SendMessages));
+
+        await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Text, ct);
+        Assert.That(await DenyAsync(), Is.EqualTo(ArgonEntitlement.AttachFiles), "converting back dropped a deny it never added");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Only_text_and_announcement_channels_convert_and_only_for_who_may_edit_overwrites(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var mod   = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var textId    = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
+        var voiceId   = await CreateChannelAsync(owner, spaceId, "lobby", ChannelType.Voice, ct);
+        await JoinAsync(owner, mod, spaceId, ct);
+
+        var archetypes = ArchetypesOf(owner);
+        var channels   = await archetypes.CreateArchetype(spaceId, "channel-keepers", ct);
+        channels = await archetypes.UpdateArchetype(spaceId, channels with
+        {
+            entitlement = ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory | ArgonEntitlement.SendMessages | ArgonEntitlement.ManageChannels
+        }, ct);
+        Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, mod.UserId, ct), channels.id, true, ct),
+            Is.True);
+
+        var fromVoice = await owner.Channels.SetChannelType(spaceId, voiceId, ChannelType.Text, ct);
+        var toVoice   = await owner.Channels.SetChannelType(spaceId, textId, ChannelType.Voice, ct);
+        var byMod     = await mod.Channels.SetChannelType(spaceId, textId, ChannelType.Announcement, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((fromVoice as FailedUpdateChannel)?.error, Is.EqualTo(UpdateChannelError.TYPE_NOT_CONVERTIBLE));
+            Assert.That((toVoice as FailedUpdateChannel)?.error, Is.EqualTo(UpdateChannelError.TYPE_NOT_CONVERTIBLE));
+            Assert.That((byMod as FailedUpdateChannel)?.error, Is.EqualTo(UpdateChannelError.INSUFFICIENT_PERMISSIONS),
+                "ManageChannels alone rewrote who may post");
+        });
+
+        await archetypes.UpdateArchetype(spaceId, channels with { entitlement = channels.entitlement | ArgonEntitlement.ManageArchetype }, ct);
+
+        Assert.That(await mod.Channels.SetChannelType(spaceId, textId, ChannelType.Announcement, ct), Is.InstanceOf<SuccessUpdateChannel>());
+    }
 }

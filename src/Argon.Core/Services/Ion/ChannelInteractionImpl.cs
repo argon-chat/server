@@ -66,6 +66,17 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
             : new FailedUpdateChannel(result.Error);
     }
 
+    public async Task<IUpdateChannelResult> SetChannelType(Guid spaceId, Guid channelId, ChannelType type, CancellationToken ct = default)
+    {
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .SetChannelType(type, ct);
+
+        return result.IsSuccess
+            ? new SuccessUpdateChannel(result.Value.ToDto())
+            : new FailedUpdateChannel(result.Error);
+    }
+
     public async Task<IDuplicateChannelResult> DuplicateChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {
         var result = await this
@@ -288,5 +299,17 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
         var dict = await this.GetGrain<IChannelGrain>(channelId).BatchGetReactions(messageIds.Values.ToList());
         return new IonArray<MessageReactionsEntry>(
             dict.Select(kv => new MessageReactionsEntry(kv.Key, kv.Value)).ToList());
+    }
+
+    public async Task<IUpdateChannelResult> SetAnnouncementSettings(Guid spaceId, Guid channelId, bool reactions, bool postAsSpace,
+        bool showAuthor, CancellationToken ct = default)
+    {
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .SetAnnouncementSettings(reactions, postAsSpace, showAuthor, ct);
+
+        return result.IsSuccess
+            ? new SuccessUpdateChannel(result.Value.ToDto())
+            : new FailedUpdateChannel(result.Error);
     }
 }

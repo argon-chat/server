@@ -41,7 +41,7 @@ public sealed class AccountConsoleService : IAccountConsole
                 AccountDeletionRequestError.OwnsSpaces            => DeleteAccountError.OwnsSpaces,
                 AccountDeletionRequestError.AccountLocked         => DeleteAccountError.AccountLocked,
                 _                                                 => DeleteAccountError.InternalError
-            }, null, null);
+            }, null, result.ScheduledDeletionAt?.UtcDateTime);
         }
 
         // The request result carries one timestamp — when deletion will run — so the pair the console

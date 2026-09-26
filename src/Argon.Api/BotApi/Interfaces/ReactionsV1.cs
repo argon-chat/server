@@ -44,6 +44,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
     private static readonly BotError AlreadyReacted        = new(409, "already_reacted", "Bot has already reacted with this emoji.");
     private static readonly BotError ReactionLimitReached  = new(422, "reaction_limit_reached", "Maximum 20 unique emoji per message.");
     private static readonly BotError InsufficientRights    = new(403, "insufficient_permissions", "Bot does not have the AddReactions permission.");
+    private static readonly BotError ReactionsDisabled     = new(403, "reactions_disabled", "Reactions are turned off in this announcement channel.");
 
     public void MapRoutes(RouteGroupBuilder group)
     {
@@ -57,6 +58,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
            .Throws(AlreadyReacted)
            .Throws(ReactionLimitReached)
            .Throws(InsufficientRights)
+           .Throws(ReactionsDisabled)
            .Handle(async (_, request) =>
             {
                 var result = await grains.GetGrain<IChannelGrain>(request.ChannelId)
@@ -69,6 +71,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
                         AddReactionError.ALREADY_REACTED          => AlreadyReacted,
                         AddReactionError.REACTION_LIMIT_REACHED   => ReactionLimitReached,
                         AddReactionError.INSUFFICIENT_PERMISSIONS => InsufficientRights,
+                        AddReactionError.REACTIONS_DISABLED       => ReactionsDisabled,
                         _                                         => throw new InvalidOperationException(
                             $"unhandled AddReactionError {failure.error}")
                     }).Raise();

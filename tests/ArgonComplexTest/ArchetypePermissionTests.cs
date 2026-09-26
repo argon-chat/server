@@ -11,9 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 /// to the other.
 /// </summary>
 /// <remarks>
-/// Most calls go through <c>IArchetypeInteraction</c> as the member would. The few that have no Ion
-/// method, or whose refusal an Ion reply cannot carry (a null where the contract promises a role),
-/// call <c>IEntitlementGrain</c> with the caller set in the request context, as the Ion layer does.
+/// Calls go through <c>IArchetypeInteraction</c> as the member would, so the refusal is checked as
+/// the client receives it. Only what has no Ion method calls <c>IEntitlementGrain</c> with the caller
+/// set in the request context.
 /// </remarks>
 [TestFixture]
 public class ArchetypePermissionTests : TestBase
@@ -105,7 +105,7 @@ public class ArchetypePermissionTests : TestBase
         var memberId = await MemberIdAsync(owner, spaceId, member.UserId, ct);
         var all      = (await Roles(member).GetServerArchetypes(spaceId, ct)).Values.Select(a => a.id).ToArray();
 
-        Assert.ThrowsAsync<UnauthorizedAccessException>(() => AsCaller(member.UserId, () => Entitlements(spaceId).CreateArchetypeAsync("mine")));
+        AssertRefused(() => Roles(member).CreateArchetype(spaceId, "mine", ct), "NO_PERMISSION");
 
         var reorder = await Roles(member).ReorderArchetypes(spaceId, new IonArray<Guid>(all), ct);
 
@@ -163,16 +163,34 @@ public class ArchetypePermissionTests : TestBase
         var spaceId  = await SpaceOfAsync(owner, ct);
         var role     = await Roles(owner).CreateArchetype(spaceId, "kept", ct);
 
-        var byStranger = await AsCaller(stranger.UserId, () => Entitlements(spaceId).UpdateArchetypeAsync(role with { name = "taken" }));
-        var unknown    = await AsCaller(owner.UserId, () => Entitlements(spaceId).UpdateArchetypeAsync(role with { id = Guid.NewGuid() }));
+        AssertUpdateRefused(() => Roles(stranger).UpdateArchetype(spaceId, role with { name = "taken" }, ct));
+        AssertUpdateRefused(() => Roles(owner).UpdateArchetype(spaceId, role with { id = Guid.NewGuid() }, ct));
+        AssertUpdateRefused(() => Roles(owner).UpdateArchetype(spaceId, role with { name = " " }, ct));
 
-        await Assert.MultipleAsync(async () =>
-        {
-            Assert.That(byStranger, Is.Null);
-            Assert.That(unknown, Is.Null);
-            Assert.That((await ReadRoleAsync(owner, spaceId, role.id, ct)).name, Is.EqualTo("kept"));
-        });
+        Assert.That((await ReadRoleAsync(owner, spaceId, role.id, ct)).name, Is.EqualTo("kept"));
     }
+
+    // The settings screen's debounced save landing after the role was deleted.
+    [Test, CancelAfter(120_000)]
+    public async Task Updating_a_deleted_role_is_refused_rather_than_failing(CancellationToken ct = default)
+    {
+        var owner   = await CreateSessionAsync(ct);
+        var spaceId = await SpaceOfAsync(owner, ct);
+        var role    = await Roles(owner).CreateArchetype(spaceId, "doomed", ct);
+
+        Assert.That(await Roles(owner).DeleteArchetype(spaceId, role.id, ct), Is.InstanceOf<SuccessDeleteArchetype>());
+
+        AssertUpdateRefused(() => Roles(owner).UpdateArchetype(spaceId, role with { name = "renamed" }, ct));
+    }
+
+    // Checks the code: a server crash also arrives as IonRequestException, just with INTERNAL_ERROR.
+    private static void AssertRefused(Func<Task> call, string code)
+    {
+        var refused = Assert.ThrowsAsync<IonRequestException>(async () => await call());
+        Assert.That(refused?.Error.code, Is.EqualTo(code), $"{refused?.Error}");
+    }
+
+    private static void AssertUpdateRefused(Func<Task<Archetype>> call) => AssertRefused(call, "ARCHETYPE_UPDATE_REFUSED");
 
     [Test, CancelAfter(120_000)]
     public async Task A_moderator_edits_roles_beneath_them_and_nothing_above(CancellationToken ct = default)
@@ -190,30 +208,25 @@ public class ArchetypePermissionTests : TestBase
         var moderatorId = await MemberIdAsync(owner, spaceId, moderator.UserId, ct);
         await GrantAsync(owner, spaceId, moderatorId, mods, ct);
 
-        var grain = Entitlements(spaceId);
-
         // Handing out a right the moderator does not hold.
-        var escalated = await AsCaller(moderator.UserId, () => grain.UpdateArchetypeAsync(plain with { entitlement = plain.entitlement | ArgonEntitlement.ManageServer }));
+        AssertUpdateRefused(() => Roles(moderator).UpdateArchetype(spaceId, plain with { entitlement = plain.entitlement | ArgonEntitlement.ManageServer }, ct));
 
         // Renaming a role that outranks them.
-        var renamedAdmins = await AsCaller(moderator.UserId, () => grain.UpdateArchetypeAsync(admins with { name = "demoted" }));
+        AssertUpdateRefused(() => Roles(moderator).UpdateArchetype(spaceId, admins with { name = "demoted" }, ct));
 
         // Granting a role that outranks them, and deleting one.
         var grantedAdmins = await Roles(moderator).SetArchetypeToMember(spaceId, moderatorId, admins.id, true, ct);
         var deletedAdmins = await Roles(moderator).DeleteArchetype(spaceId, admins.id, ct);
 
         // And what is theirs to change.
-        var renamedPlain = await AsCaller(moderator.UserId, () => grain.UpdateArchetypeAsync(plain with { name = "regulars", colour = unchecked((int)0xFF3366CC) }));
+        var renamedPlain = await Roles(moderator).UpdateArchetype(spaceId, plain with { name = "regulars", colour = unchecked((int)0xFF3366CC) }, ct);
 
         await Assert.MultipleAsync(async () =>
         {
-            Assert.That(escalated, Is.Null);
-            Assert.That(renamedAdmins, Is.Null);
             Assert.That(grantedAdmins, Is.False);
             Assert.That((deletedAdmins as FailedDeleteArchetype)?.error, Is.EqualTo(ArchetypeError.NO_PERMISSION));
 
-            Assert.That(renamedPlain, Is.Not.Null);
-            Assert.That(renamedPlain!.colour, Is.EqualTo(unchecked((int)0xFF3366CC)));
+            Assert.That(renamedPlain.colour, Is.EqualTo(unchecked((int)0xFF3366CC)));
 
             var plainNow  = await ReadRoleAsync(owner, spaceId, plain.id, ct);
             var adminsNow = await ReadRoleAsync(owner, spaceId, admins.id, ct);
@@ -239,12 +252,11 @@ public class ArchetypePermissionTests : TestBase
         await GrantAsync(owner, spaceId, await MemberIdAsync(owner, spaceId, manager.UserId, ct), managers, ct);
 
         var raised = ArgonEntitlementKit.Base | ArgonEntitlement.ManageBots | ArgonEntitlement.ManageEvents;
-        var result = await AsCaller(manager.UserId, () => Entitlements(spaceId).UpdateArchetypeAsync(plain with { entitlement = raised }));
+        var result = await Roles(manager).UpdateArchetype(spaceId, plain with { entitlement = raised }, ct);
 
         await Assert.MultipleAsync(async () =>
         {
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result!.entitlement, Is.EqualTo(raised));
+            Assert.That(result.entitlement, Is.EqualTo(raised));
             Assert.That((await ReadRoleAsync(owner, spaceId, plain.id, ct)).entitlement, Is.EqualTo(raised));
         });
     }

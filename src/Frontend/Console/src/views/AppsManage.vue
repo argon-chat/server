@@ -10,6 +10,7 @@ import ResourcesCard from "@/components/ResourcesCard.vue"
 import TeamInfoCard from "@/components/TeamInfoCard.vue"
 import { useToast } from "@/composables/useToast"
 import { useApi } from "@/store/apiStore"
+import { teamConsoleErrorMessage } from "@/lib/consoleErrors"
 import router from "@/router"
 
 const api = useApi()
@@ -36,13 +37,17 @@ async function fetchApps() {
   try {
     isLoading.value = true
     errorMessage.value = null
-    const details = await api.teamsManagement.GetTeamDetails(selectedTeam.value.teamId)
-    apps.value = (details.apps ?? []).map((app: any) => ({
-      appId: app.appId,
-      name: app.name,
-      kind: appKindLabel(app.kind),
-      createdAt: app.createdAt.toDate().toLocaleDateString(),
-    }))
+    const result = await api.teamsManagement.GetTeamDetails(selectedTeam.value.teamId)
+    if (result.isSuccessGetTeamDetails()) {
+      apps.value = (result.team.apps ?? []).map((app: any) => ({
+        appId: app.appId,
+        name: app.name,
+        kind: appKindLabel(app.kind),
+        createdAt: app.createdAt.toDate().toLocaleDateString(),
+      }))
+    } else if (result.isFailedGetTeamDetails()) {
+      errorMessage.value = teamConsoleErrorMessage(result.error)
+    }
   } catch (err: any) {
     errorMessage.value = err?.message ?? "Failed to load apps"
   } finally {
