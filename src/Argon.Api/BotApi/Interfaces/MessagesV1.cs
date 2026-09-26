@@ -48,7 +48,7 @@ public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
         group.RequireRateLimiting("Bot_IMessages");
 
         group.Post<SendMessageRequest, SendMessageResponse>("/Send")
-           .Summary("Sends a text message to a channel. Include a unique randomId for deduplication. Optionally reply to another message via replyTo.")
+           .Summary("Sends a text message to a channel. Include a unique randomId for deduplication. Optionally reply to another message via replyTo. Bots cannot post in announcement channels.")
            .Permission(ArgonEntitlement.SendMessages)
            .Handle(async (_, request) =>
             {

@@ -34,11 +34,26 @@ public sealed class MessagesOptions : IValidatableFeatureOptions
     /// </remarks>
     public int WriteConcurrency { get; set; } = 8;
 
+    /// <summary>
+    /// Longest message text, in UTF-16 code units, that a send or an edit accepts.
+    /// </summary>
+    public int MaxTextLength { get; set; } = 4096;
+
+    /// <summary>
+    /// Messages with @everyone or a role mention that ping readers of one announcement channel per
+    /// hour, or <c>0</c> for no limit. Past it the message is still posted, without the ping.
+    /// </summary>
+    public int AnnouncementMassMentionsPerHour { get; set; } = 3;
+
     public void Validate(IFeatureConfigurationReport report)
     {
         if (PerChannelPerSecond < 0)
             report.Invalid($"{nameof(PerChannelPerSecond)} cannot be negative; use 0 to disable the cap");
 
         report.RequireRange(WriteConcurrency, 1, 64, nameof(WriteConcurrency));
+        report.RequireRange(MaxTextLength, 1, 65536, nameof(MaxTextLength));
+
+        if (AnnouncementMassMentionsPerHour < 0)
+            report.Invalid($"{nameof(AnnouncementMassMentionsPerHour)} cannot be negative; use 0 to disable the limit");
     }
 }

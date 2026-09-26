@@ -3,6 +3,7 @@ namespace Argon.Grains.Interfaces;
 using Argon.Features.BotApi;
 using ion.runtime;
 using Orleans.Concurrency;
+using Sfu;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]
 public interface IChannelGrain : IGrainWithGuidKey
@@ -91,11 +92,19 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<bool> KickMemberFromChannel(Guid memberId);
 
     /// <summary>
-    /// Tells a member of this voice channel to reconnect to <paramref name="targetChannelId"/>, and
-    /// evicts them from this room if they are still here after <c>ChannelGrain.MoveGrace</c>.
+    /// Moves a member of this voice channel into <paramref name="targetChannelId"/>: the target admits
+    /// them (<see cref="AdmitMovedMemberAsync"/>), this roster lets go, and the SFU moves the participant.
     /// </summary>
     [Alias(nameof(MoveVoiceMember))]
     Task<IMoveVoiceMemberResult> MoveVoiceMember(Guid memberId, Guid targetChannelId);
+
+    /// <summary>
+    /// The target's half of <see cref="MoveVoiceMember"/>: the member goes on this roster and the space's
+    /// voice slot before the SFU moves them, and the rights this channel grants come back for the
+    /// <c>UpdateParticipant</c> that follows the move. Not one-way: the move must not start before this is done.
+    /// </summary>
+    [Alias(nameof(AdmitMovedMemberAsync))]
+    Task<VoiceAdmission> AdmitMovedMemberAsync(Guid userId);
 
     /// <summary>Broadcast ("radio") mode on with the default settings, or off. Needs ManageChannels on a voice channel.</summary>
     [Alias(nameof(SetBroadcastMode))]
@@ -167,6 +176,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(EditBotMessage))]
     Task EditBotMessage(long messageId, Guid botUserId, string? text, List<ControlRowV1>? controls);
 
+    [Alias(nameof(EditMessage))]
+    Task<IEditMessageResult> EditMessage(long messageId, string text, List<IMessageEntity> entities);
+
     [Alias(nameof(AddReaction))]
     Task<IAddReactionResult> AddReaction(long messageId, string emoji);
 
@@ -181,6 +193,11 @@ public interface IChannelGrain : IGrainWithGuidKey
 [GenerateSerializer, Immutable]
 public sealed record ChannelRealtimeState(
     [property: Id(0)] List<RealtimeChannelUser> Members);
+
+/// <summary>What a moved member may publish and hear in the channel that admitted them.</summary>
+[GenerateSerializer, Immutable]
+public sealed record VoiceAdmission(
+    [property: Id(0)] SfuMediaRights Rights);
 
 
 public sealed record ChannelInput(

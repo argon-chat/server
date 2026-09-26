@@ -190,6 +190,7 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("CallKit:Sfu:ClientId", SfuClientId);
         builder.UseSetting("CallKit:Sfu:Secret", SfuSecret);
         builder.UseSetting("CallKit:Sfu:Capabilities:0", "Forward");
+        builder.UseSetting("CallKit:Sfu:Capabilities:1", "Move");
         builder.UseSetting("CallKit:Sfu:S3:Endpoint", "http://localhost:9000");
         builder.UseSetting("CallKit:Sfu:S3:Bucket", "recordings");
         builder.UseSetting("CallKit:Sfu:S3:AccessKey", "test");

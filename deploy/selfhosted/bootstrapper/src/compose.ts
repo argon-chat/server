@@ -186,7 +186,7 @@ export const INFRASTRUCTURE_IMAGES = {
     cache: "valkey/valkey:8-alpine",
     bus: "nats:2.10-alpine",
     storage: "chrislusf/seaweedfs:3.80",
-    sfu: "ghcr.io/argon-chat/livekit:1.13.7-argon.1",
+    sfu: "ghcr.io/argon-chat/livekit:v1.13.7-argon.2",
     /** Traefik v3. The major matters: v2's rule syntax and v3's differ, and the rules below are v3's. */
     edge: "traefik:v3.3",
 } as const;

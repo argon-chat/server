@@ -39,6 +39,31 @@ public class VoiceBroadcastSettingsTests : TestBase
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_channel_is_created_under_the_id_the_client_chose(CancellationToken ct = default)
+    {
+        var owner   = await CreateSessionAsync(ct);
+        var spaceId = await CreateSpaceAsync(owner, ct);
+        var hq      = Guid.CreateVersion7();
+
+        // The client's create dialog: mint the id, create under it, then address the channel by it at once.
+        await owner.Channels.CreateChannel(spaceId, hq, new CreateChannelRequest(spaceId, "hq", ChannelType.Voice, "", null), ct);
+        var enabled = await owner.Channels.SetBroadcastMode(spaceId, hq, true, ct);
+
+        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, hq,
+            new CreateChannelRequest(spaceId, "again", ChannelType.Text, "", null), ct), "the id is taken");
+        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, Guid.NewGuid(),
+            new CreateChannelRequest(spaceId, "v4", ChannelType.Text, "", null), ct), "a v4 carries no timestamp and so no region");
+
+        var channels = await owner.Servers.GetChannels(spaceId, ct);
+        Assert.Multiple(() =>
+        {
+            Assert.That(channels.Values.Select(c => c.channel.channelId), Does.Contain(hq));
+            Assert.That(enabled, Is.InstanceOf<SuccessSetBroadcastSettings>(), $"{Error(enabled)}");
+            Assert.That(channels.Values.Count(c => c.channel.name is "again" or "v4"), Is.Zero, "a refused create leaves no row");
+        });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
     public async Task A_text_channel_cannot_broadcast(CancellationToken ct = default)
     {
         var owner   = await CreateSessionAsync(ct);

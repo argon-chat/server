@@ -23,6 +23,7 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
     [Column(TypeName = "jsonb")]
     public List<MessageReactionData>? Reactions { get; set; }
 
+    public DateTimeOffset? EditedAt { get; set; }
 
     public void Configure(EntityTypeBuilder<ArgonMessageEntity> builder)
     {
@@ -101,7 +102,8 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
                 r.Emoji, r.CustomEmojiId, r.UserIds.Count,
                 r.UserIds.Take(ReactionUserPreviewLimit).ToList())).ToList()
             ?? [],
-            MapControls(self.Controls) ?? []);
+            MapControls(self.Controls) ?? [],
+            self.EditedAt?.UtcDateTime);
 
     private static List<ControlRow>? MapControls(List<ControlRowV1>? rows)
     {

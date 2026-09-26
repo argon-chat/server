@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 /// <para>The anchors, cheapest first, each a relationship the target took part in: a block in
 /// either direction (which is a refusal, and wins), being friends, a request either way, a
 /// conversation that exists, or a space in common. A pending request counts because the target
-/// has to be able to see who is asking.</para>
+/// has to be able to see who is asking. Bots and the platform accounts are public: anyone may
+/// know them, short of a block for bots.</para>
 ///
 /// <para>One definition, used by profile lookup and by the report system. A bare user id must not
 /// be enough to walk the directory, and it must not be enough to file a report against a stranger
@@ -28,6 +29,10 @@ public static class SocialReach
         if (callerId == targetId)
             return true;
 
+        // Platform accounts are in everyone's client from the first launch, with no anchor to find.
+        if (targetId == UserEntity.SystemUser || targetId == UserEntity.EchoUser)
+            return true;
+
         var conversationId = ConversationEntity.GenerateConversationId(callerId, targetId);
 
         return await ctx.Users
@@ -36,7 +41,8 @@ public static class SocialReach
                 !ctx.UserBlocklist.Any(x =>
                     (x.UserId == callerId && x.BlockedId == targetId) ||
                     (x.UserId == targetId && x.BlockedId == callerId)) &&
-                (ctx.Friends.Any(x =>
+                (ctx.BotEntities.Any(b => b.BotAsUserId == targetId) ||
+                 ctx.Friends.Any(x =>
                      (x.UserId == callerId && x.FriendId == targetId) ||
                      (x.UserId == targetId && x.FriendId == callerId)) ||
                  ctx.FriendRequest.Any(x =>

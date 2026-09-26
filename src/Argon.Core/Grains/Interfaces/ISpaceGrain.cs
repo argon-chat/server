@@ -37,8 +37,13 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(UpdateChannelGroup))]
     Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// <paramref name="channelId"/> is the id the client chose (the <c>ChannelInteraction</c> service
+    /// key); null or empty lets the server mint one. A chosen id must be a UUIDv7 in the space's region
+    /// and not yet taken, or the call is refused with an <see cref="ArgumentException"/>.
+    /// </summary>
     [Alias(nameof(CreateChannel))]
-    Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null);
+    Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null);
 
     [Alias(nameof(MoveChannel))]
     Task MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId);

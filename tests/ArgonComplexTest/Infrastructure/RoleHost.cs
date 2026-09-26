@@ -110,6 +110,7 @@ public sealed class RoleHost(ArgonTestHostSettings settings, ArgonRoleId role, i
         builder.UseSetting("CallKit:Sfu:ClientId", "test-api-key");
         builder.UseSetting("CallKit:Sfu:Secret", "test-secret-key-that-is-long-enough-to-be-256-bits-minimum-for-livekit");
         builder.UseSetting("CallKit:Sfu:Capabilities:0", "Forward");
+        builder.UseSetting("CallKit:Sfu:Capabilities:1", "Move");
 
         // Nothing answers at that URL. Left at its default the SFU check holds the startup probe at
         // 503, and GrainMigrationTests reads that probe as "the silo joined the cluster".

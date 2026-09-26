@@ -197,6 +197,7 @@ $generalShards = @(
         'AccountDeletionQueueEdgeTests'
         'AegisOAuthTests'
         'AegisRoleTests'
+        'AnnouncementChannelTests'
         'ArchetypePermissionTests'
         'BotApiTests'
         'ChannelBadgeTests'

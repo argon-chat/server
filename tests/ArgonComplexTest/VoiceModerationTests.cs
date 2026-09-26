@@ -1,14 +1,20 @@
 namespace ArgonComplexTest.Tests;
 
+using System.Net;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Argon.Grains;
 using Argon.Core.Grains.Interfaces;
 using Argon.Grains.Interfaces;
 using Argon.Sfu;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
+using Google.Protobuf;
 using Livekit.Server.Sdk.Dotnet;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using LkParticipant = Livekit.Server.Sdk.Dotnet.ParticipantInfo;
 
 /// <summary>
 /// Voice moderation: kicking and moving a member between voice channels, server mute/deafen, the
@@ -22,19 +28,6 @@ using Livekit.Server.Sdk.Dotnet;
 public class VoiceModerationTests : TestBase
 {
     private static readonly TimeSpan Settle = TimeSpan.FromSeconds(15);
-
-    private TimeSpan originalMoveGrace;
-
-    [OneTimeSetUp]
-    public void ShortenMoveGrace()
-    {
-        originalMoveGrace       = ChannelGrain.MoveGrace;
-        ChannelGrain.MoveGrace = TimeSpan.FromSeconds(2);
-    }
-
-    [OneTimeTearDown]
-    public void RestoreMoveGrace()
-        => ChannelGrain.MoveGrace = originalMoveGrace;
 
     // ── join ────────────────────────────────────────────────────────────────────────────────────
 
@@ -190,75 +183,140 @@ public class VoiceModerationTests : TestBase
     // ── move ────────────────────────────────────────────────────────────────────────────────────
 
     [Test, CancelAfter(1000 * 60 * 3)]
-    public async Task Move_tells_the_member_to_reconnect_and_their_join_completes_it(CancellationToken ct = default)
+    public async Task Move_has_the_SFU_move_the_participant_and_the_rosters_follow(CancellationToken ct = default)
     {
         var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
         var from = await CreateChannelAsync(owner, spaceId, "lobby", ChannelType.Voice, ct);
         var to   = await CreateChannelAsync(owner, spaceId, "raid", ChannelType.Voice, ct);
         await JoinAsync(member, spaceId, from, ct);
 
-        await using var inbox = await RealtimeClient.ConnectAsync(member, ct);
-        var mark = inbox.Mark();
+        await using var watcher = await WatchSpaceAsync(owner, spaceId, ct);
+        var mark = watcher.Mark();
 
         var result = await owner.Channels.MoveVoiceMember(spaceId, from, member.UserId, to, ct);
 
-        var request = await inbox.WaitForRecordAsync<VoiceMoveRequested>(
-            e => e.toChannelId == to, Settle, mark, ct);
-        var moved = (VoiceMoveRequested)request.Event;
+        await watcher.WaitForAsync<LeavedFromChannelUser>(e => e.channelId == from && e.userId == member.UserId, Settle, mark, ct);
+        await watcher.WaitForAsync<JoinedToChannelUser>(e => e.channelId == to && e.userId == member.UserId, Settle, mark, ct);
 
-        await JoinAsync(member, spaceId, to, ct);
+        var sfu  = SfuCallsAbout(member.UserId);
+        var slot = await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).GetUserVoiceSlotAsync(member.UserId);
 
+        Assert.That(result, Is.InstanceOf<SuccessMoveVoiceMember>(), $"{(result as FailedMoveVoiceMember)?.error}");
+        Assert.That(sfu.Select(c => c.Method), Is.EqualTo(new[] { "MoveParticipant", "UpdateParticipant" }),
+            "moved on its own connection, then given the target's rights; never kicked");
+
+        var moved  = (MoveParticipantRequest)sfu[0].Request!;
+        var rights = (UpdateParticipantRequest)sfu[1].Request!;
         Assert.Multiple(async () =>
         {
-            Assert.That(result, Is.InstanceOf<SuccessMoveVoiceMember>());
-            Assert.That(request.Stream, Is.EqualTo(RealtimeStream.ForSelf), "a move is personal, not a space broadcast");
-            Assert.That(moved.spaceId, Is.EqualTo(spaceId));
-            Assert.That(moved.fromChannelId, Is.EqualTo(from));
-            Assert.That(moved.byUserId, Is.EqualTo(owner.UserId));
+            Assert.That(moved.Room, Is.EqualTo($"{spaceId}/{from}"));
+            Assert.That(moved.DestinationRoom, Is.EqualTo($"{spaceId}/{to}"));
+            Assert.That(rights.Room, Is.EqualTo($"{spaceId}/{to}"));
+            Assert.That(rights.Permission.CanSubscribe, Is.True);
+            Assert.That(rights.Permission.CanPublish, Is.True);
             Assert.That(await OccupantIdsAsync(owner, spaceId, from, ct), Does.Not.Contain(member.UserId));
             Assert.That(await OccupantIdsAsync(owner, spaceId, to, ct), Does.Contain(member.UserId));
+            Assert.That(slot?.ChannelId, Is.EqualTo(to));
         });
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
-    public async Task A_moved_member_who_does_not_reconnect_is_evicted_after_the_grace(CancellationToken ct = default)
+    public async Task The_webhooks_a_move_fires_find_nothing_left_to_do(CancellationToken ct = default)
+    {
+        var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
+        var from = await CreateChannelAsync(owner, spaceId, "here", ChannelType.Voice, ct);
+        var to   = await CreateChannelAsync(owner, spaceId, "there", ChannelType.Voice, ct);
+        await JoinAsync(member, spaceId, from, ct);
+
+        await using var watcher = await WatchSpaceAsync(owner, spaceId, ct);
+        var mark = watcher.Mark();
+        Assert.That(await owner.Channels.MoveVoiceMember(spaceId, from, member.UserId, to, ct), Is.InstanceOf<SuccessMoveVoiceMember>());
+        await watcher.WaitForAsync<JoinedToChannelUser>(e => e.channelId == to && e.userId == member.UserId, Settle, mark, ct);
+        mark = watcher.Mark();
+
+        // The SFU reports the move as a leave from the source and a join to the destination, in either order.
+        await WebhookAsync("participant_joined", spaceId, to, member.UserId, ct);
+        await WebhookAsync("participant_left", spaceId, from, member.UserId, ct);
+
+        await watcher.AssertNoneWithinAsync<LeavedFromChannelUser>(e => e.userId == member.UserId, TimeSpan.FromSeconds(2),
+            "the source had already let the member go when the move took them", mark, ct);
+        await watcher.AssertNoneWithinAsync<JoinedToChannelUser>(e => e.userId == member.UserId, TimeSpan.FromSeconds(1),
+            "the target admitted the member before the SFU moved them", mark, ct);
+        var slot = await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).GetUserVoiceSlotAsync(member.UserId);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await OccupantIdsAsync(owner, spaceId, from, ct), Does.Not.Contain(member.UserId));
+            Assert.That(await OccupantIdsAsync(owner, spaceId, to, ct), Does.Contain(member.UserId));
+            Assert.That(slot?.ChannelId, Is.EqualTo(to), "a late leave from the source must not clear a slot that points at the target");
+        });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_move_the_SFU_refuses_leaves_the_member_out_of_voice(CancellationToken ct = default)
     {
         var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
         var from = await CreateChannelAsync(owner, spaceId, "stay", ChannelType.Voice, ct);
         var to   = await CreateChannelAsync(owner, spaceId, "go", ChannelType.Voice, ct);
         await JoinAsync(member, spaceId, from, ct);
 
-        await owner.Channels.MoveVoiceMember(spaceId, from, member.UserId, to, ct);
-
-        var occupants = await Poll.ForValueAsync(
-            () => OccupantIdsAsync(owner, spaceId, from, ct),
-            users => !users.Contains(member.UserId), Settle, ct: ct);
-
-        Assert.Multiple(() =>
+        var live = GetFakeLiveKit();
+        live.FailingMethods["MoveParticipant"] = true;
+        IMoveVoiceMemberResult result;
+        try
         {
-            Assert.That(occupants, Does.Not.Contain(member.UserId));
-            Assert.That(GetFakeLiveKit().RemoveParticipantCalls,
-                Has.Some.Matches<RoomParticipantIdentity>(c =>
-                    c.Room == $"{spaceId}/{from}" && c.Identity == member.UserId.ToString()));
+            result = await owner.Channels.MoveVoiceMember(spaceId, from, member.UserId, to, ct);
+        }
+        finally
+        {
+            live.FailingMethods.TryRemove("MoveParticipant", out _);
+        }
+
+        // The target is told to let go one-way, so it may still be doing so.
+        var target = await Poll.ForValueAsync(() => OccupantIdsAsync(owner, spaceId, to, ct),
+            users => !users.Contains(member.UserId), Settle, ct: ct);
+        var slot   = await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).GetUserVoiceSlotAsync(member.UserId);
+        var kicked = live.RemoveParticipantCalls.Where(c => c.Identity == member.UserId.ToString()).Select(c => c.Room).ToList();
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That((result as FailedMoveVoiceMember)?.error, Is.EqualTo(MoveVoiceMemberError.SFU_UNAVAILABLE));
+            Assert.That(await OccupantIdsAsync(owner, spaceId, from, ct), Does.Not.Contain(member.UserId));
+            Assert.That(target, Does.Not.Contain(member.UserId));
+            Assert.That(slot, Is.Null);
+            Assert.That(kicked, Is.EquivalentTo(new[] { $"{spaceId}/{from}", $"{spaceId}/{to}" }),
+                "removed from both rooms rather than left in whichever one the SFU kept them in");
         });
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
-    public async Task Leaving_before_the_grace_cancels_the_eviction(CancellationToken ct = default)
+    public async Task Move_needs_an_SFU_that_moves(CancellationToken ct = default)
     {
         var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
-        var from = await CreateChannelAsync(owner, spaceId, "back", ChannelType.Voice, ct);
-        var to   = await CreateChannelAsync(owner, spaceId, "forth", ChannelType.Voice, ct);
+        var from = await CreateChannelAsync(owner, spaceId, "with", ChannelType.Voice, ct);
+        var to   = await CreateChannelAsync(owner, spaceId, "without", ChannelType.Voice, ct);
         await JoinAsync(member, spaceId, from, ct);
 
-        await owner.Channels.MoveVoiceMember(spaceId, from, member.UserId, to, ct);
-        await member.Channels.DisconnectFromVoiceChannel(spaceId, from, ct);
-        await JoinAsync(member, spaceId, from, ct);
+        // The bound options instance the grain reads on every call.
+        var sfu = FactoryAsp.Services.GetRequiredService<IOptions<CallKitOptions>>().Value.Sfu;
+        Assert.That(sfu.Capabilities.Remove(SfuInstanceCfg.MoveCapability), Is.True, "the test host declares the capability");
+        IMoveVoiceMemberResult withoutFork;
+        try
+        {
+            withoutFork = await owner.Channels.MoveVoiceMember(spaceId, from, member.UserId, to, ct);
+        }
+        finally
+        {
+            sfu.Capabilities.Add(SfuInstanceCfg.MoveCapability);
+        }
 
-        await Task.Delay(ChannelGrain.MoveGrace * 2, ct);
-
-        Assert.That(await OccupantIdsAsync(owner, spaceId, from, ct), Does.Contain(member.UserId),
-            "the member came back on their own after leaving; the old move must not throw them out");
+        Assert.Multiple(async () =>
+        {
+            Assert.That((withoutFork as FailedMoveVoiceMember)?.error, Is.EqualTo(MoveVoiceMemberError.SFU_UNAVAILABLE));
+            Assert.That(await OccupantIdsAsync(owner, spaceId, from, ct), Does.Contain(member.UserId), "nothing moved: there is no client-side fallback");
+            Assert.That(GetFakeLiveKit().MoveParticipantCalls,
+                Has.None.Matches<MoveParticipantRequest>(m => m.Identity == member.UserId.ToString()));
+        });
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
@@ -603,6 +661,42 @@ public class VoiceModerationTests : TestBase
     private static async Task<ChannelMemberState?> StateOfAsync(TestUserSession reader, Guid spaceId, Guid channelId, Guid userId,
         CancellationToken ct)
         => (await OccupantAsync(reader, spaceId, channelId, userId, ct))?.state;
+
+    /// <summary>The participant-scoped LiveKit calls made about one member, in the order they were made.</summary>
+    private List<(string Method, IMessage? Request)> SfuCallsAbout(Guid userId)
+        => GetFakeLiveKit().Timeline
+           .Where(c => c.Request switch
+            {
+                MoveParticipantRequest m   => m.Identity == userId.ToString(),
+                UpdateParticipantRequest u => u.Identity == userId.ToString(),
+                RoomParticipantIdentity r  => r.Identity == userId.ToString(),
+                _                          => false
+            })
+           .ToList();
+
+    /// <summary>What livekit-server posts to <c>/webhook-endpoint</c>, signed the way it signs it.</summary>
+    private async Task WebhookAsync(string kind, Guid spaceId, Guid channelId, Guid userId, CancellationToken ct)
+    {
+        var body = JsonFormatter.Default.Format(new WebhookEvent
+        {
+            Id          = $"EV_{Guid.NewGuid():N}",
+            Event       = kind,
+            Room        = new Room { Name = $"{spaceId}/{channelId}" },
+            Participant = new LkParticipant { Identity = userId.ToString() }
+        });
+        var signature = new AccessToken(ArgonServerTargetHost.SfuClientId, ArgonServerTargetHost.SfuSecret)
+           .WithSha256(Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(body))))
+           .ToJwt();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/webhook-endpoint")
+        {
+            Content = new StringContent(body, Encoding.UTF8, new MediaTypeHeaderValue("application/webhook+json"))
+        };
+        request.Headers.TryAddWithoutValidation("Authorization", signature);
+
+        using var response = await HttpClient.SendAsync(request, ct);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), $"{kind} was not accepted");
+    }
 
     private static Task<ParticipantPermission> RightsSentAsync(FakeLiveKit live, Guid spaceId, Guid channelId, Guid userId,
         Func<ParticipantPermission, bool> match, CancellationToken ct)

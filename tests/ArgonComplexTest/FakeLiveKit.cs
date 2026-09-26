@@ -37,6 +37,22 @@ public sealed class FakeLiveKit : HttpMessageHandler
     public IReadOnlyList<ForwardParticipantRequest> ForwardParticipantCalls
         => Calls("ForwardParticipant", ForwardParticipantRequest.Parser);
 
+    public IReadOnlyList<MoveParticipantRequest> MoveParticipantCalls
+        => Calls("MoveParticipant", MoveParticipantRequest.Parser);
+
+    /// <summary>Every call in the order it arrived, parsed where a test may want to look inside; for tests that care what came before what.</summary>
+    public IReadOnlyList<(string Method, IMessage? Request)> Timeline
+        => calls.Select(c => (c.Method, parsers.TryGetValue(c.Method, out var parser) ? parser.ParseFrom(c.Body) : null)).ToList();
+
+    private static readonly Dictionary<string, MessageParser> parsers = new()
+    {
+        ["UpdateParticipant"]  = UpdateParticipantRequest.Parser,
+        ["RemoveParticipant"]  = RoomParticipantIdentity.Parser,
+        ["MoveParticipant"]    = MoveParticipantRequest.Parser,
+        ["ForwardParticipant"] = ForwardParticipantRequest.Parser,
+        ["MutePublishedTrack"] = MuteRoomTrackRequest.Parser
+    };
+
     public IReadOnlyList<MuteRoomTrackRequest> MutePublishedTrackCalls
         => Calls("MutePublishedTrack", MuteRoomTrackRequest.Parser);
 

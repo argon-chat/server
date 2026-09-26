@@ -177,6 +177,25 @@ public class VoiceControlGrain(
         }
     }
 
+    public async Task<bool> MoveParticipantAsync(ArgonUserId userId, ArgonRoomId from, ArgonRoomId to, CancellationToken ct = default)
+    {
+        try
+        {
+            await roomClient.MoveParticipant(new MoveParticipantRequest
+            {
+                Room            = from.ToRawRoomId(),
+                Identity        = userId.ToRawIdentity(),
+                DestinationRoom = to.ToRawRoomId()
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to move '{UserId}' from '{From}' into '{To}'", userId.id, from.ToRawRoomId(), to.ToRawRoomId());
+            return false;
+        }
+    }
+
     public async Task<bool> RemoveParticipantAsync(string room, string identity)
     {
         try

@@ -1,6 +1,9 @@
 namespace ArgonComplexTest.Tests;
 
+using Argon.Grains.Interfaces;
+using ArgonComplexTest.Infrastructure.Account;
 using ArgonContracts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -34,6 +37,53 @@ public class ProfileLookupTests : TestBase
 
         Assert.That(result, Is.InstanceOf<SuccessLookupUser>());
         Assert.That(((SuccessLookupUser)result).user.userId, Is.EqualTo(me.userId));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task LookupUser_OnPlatformAccounts_AnswersForAFreshAccount(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        SetAuthToken(await RegisterAndGetTokenAsync(ct));
+
+        // A new account has sent nothing to Echo and shares nothing with System, yet both are on its
+        // screen from the first launch: the pinned echo chat and system messages.
+        var system = await Users(scope.ServiceProvider).LookupUser(Guid.Parse("11111111-2222-1111-2222-111111111111"), ct);
+        var echo   = await Users(scope.ServiceProvider).LookupUser(Guid.Parse("44444444-2222-1111-2222-444444444444"), ct);
+
+        Assert.That(system, Is.InstanceOf<SuccessLookupUser>());
+        Assert.That(((SuccessLookupUser)system).user.username, Is.EqualTo("system"));
+        Assert.That(echo, Is.InstanceOf<SuccessLookupUser>());
+        Assert.That(((SuccessLookupUser)echo).user.username, Is.EqualTo("echo"));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task LookupUser_OnABot_AnswersWithoutAnAnchorUntilBlocked(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var owner = await CreateSessionAsync(ct);
+        var teams = scope.ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IDevTeamsGrain>(Guid.Empty);
+        var tag   = Guid.NewGuid().ToString("N")[..12];
+        var team  = await teams.CreateTeamAsync(owner.UserId, $"lookup-{tag}", ct);
+        var app   = await teams.CreateBotAppAsync(team.teamId, "Lookup Bot", $"lookup{tag}bot", ct);
+
+        await using var db = await AccountSeed.NewDbAsync(ct);
+        var botUserId = await db.BotEntities.Where(b => b.AppId == app.appId).Select(b => b.BotAsUserId).FirstAsync(ct);
+
+        SetAuthToken(await RegisterAndGetTokenAsync(ct));
+
+        var found = await Users(scope.ServiceProvider).LookupUser(botUserId, ct);
+
+        Assert.That(found, Is.InstanceOf<SuccessLookupUser>());
+        Assert.That(((SuccessLookupUser)found).user.userId, Is.EqualTo(botUserId));
+        Assert.That(((SuccessLookupUser)found).user.flags.HasFlag(UserFlag.BOT), Is.True);
+
+        await GetFriendsService(scope.ServiceProvider).BlockUser(botUserId, ct);
+
+        var afterBlock = await Users(scope.ServiceProvider).LookupUser(botUserId, ct);
+
+        Assert.That(afterBlock, Is.InstanceOf<FailedLookupUser>());
+        Assert.That(((FailedLookupUser)afterBlock).error, Is.EqualTo(LookupError.NO_ANCHOR));
     }
 
     [Test, CancelAfter(120_000)]

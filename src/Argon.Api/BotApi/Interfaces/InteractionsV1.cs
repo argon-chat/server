@@ -50,7 +50,7 @@ public sealed class InteractionsV1(
         group.RequireRateLimiting("Bot_IInteractions");
 
         group.Post<ReplyRequest, ReplyResponse>("/Reply")
-           .Summary("Reply to an interaction by sending a message to the channel. Optionally reply to a specific message via replyTo.")
+           .Summary("Reply to an interaction by sending a message to the channel. Optionally reply to a specific message via replyTo. Not available in announcement channels.")
            .Permission(ArgonEntitlement.SendMessages)
            .Handle(async (_, request) =>
             {

@@ -50,6 +50,7 @@ public class ChannelGrain(
     // fresher than the flush interval below.
     [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections redisPool,
     IOptions<MessagesOptions> messageOptions,
+    IOptions<CallKitOptions> callKit,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -57,7 +58,6 @@ public class ChannelGrain(
     private ArgonRoomId   ChannelId => new(SpaceId, this.GetPrimaryKey());
 
     private readonly Dictionary<Guid, IGrainTimer> _botTypingTimers = new();
-    private readonly Dictionary<Guid, IGrainTimer> _moveEvictions   = new();
 
     // ── Reaction buffer ──────────────────────────────────────
     private readonly Dictionary<long, List<MessageReactionData>> _reactionCache = new();
@@ -430,33 +430,41 @@ public class ChannelGrain(
             return MoveVoiceMemberError.INSUFFICIENT_PERMISSIONS;
         if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, targetChannelId, memberId, ArgonEntitlement.Connect))
             return MoveVoiceMemberError.MEMBER_CANNOT_JOIN_TARGET;
+        if (!callKit.Value.Sfu.Has(SfuInstanceCfg.MoveCapability))
+            return MoveVoiceMemberError.SFU_UNAVAILABLE;
 
-        await appHubServer.ForUser(new VoiceMoveRequested(SpaceId, channelId, targetChannelId, callerId), memberId);
-        ArmMoveEviction(memberId);
+        var member     = new ArgonUserId(memberId);
+        var target     = this.GrainFactory.GetGrain<IChannelGrain>(targetChannelId);
+        var targetRoom = new ArgonRoomId(SpaceId, targetChannelId);
+
+        // Rosters and the slot first, so the webhooks the move fires find the member already where it went.
+        var admission = await target.AdmitMovedMemberAsync(memberId);
+        await LeaveAsync(memberId, "move");
+
+        if (!await VoiceControl.MoveParticipantAsync(member, ChannelId, targetRoom))
+        {
+            // Which room the SFU left them in is unknown, so they end up in neither: out of voice.
+            await VoiceControl.KickParticipantAsync(member, ChannelId);
+            await VoiceControl.KickParticipantAsync(member, targetRoom);
+            await target.ReleaseMember(memberId);
+            return MoveVoiceMemberError.SFU_UNAVAILABLE;
+        }
+
+        // The move keeps the source room's permissions; these are the target's.
+        await VoiceControl.UpdateParticipantRightsAsync(member, targetRoom, admission.Rights);
 
         return MoveVoiceMemberError.NONE;
     }
 
-    /// <summary>How long a moved member's client has to leave this room before it is removed.</summary>
-    public static TimeSpan MoveGrace { get; set; } = TimeSpan.FromSeconds(10);
-
-    // LIVEKIT-FORK: self-hosted LiveKit has no MoveParticipant, so the client reconnects on
-    // VoiceMoveRequested and this evicts one that did not. Goes away once the SFU moves participants.
-    private void ArmMoveEviction(Guid memberId)
+    public async Task<VoiceAdmission> AdmitMovedMemberAsync(Guid userId)
     {
-        if (_moveEvictions.Remove(memberId, out var previous))
-            previous.Dispose();
+        // A stale entry here (the rosters disagreed) is replaced, as Join replaces one.
+        await LeaveAsync(userId, "move");
 
-        _moveEvictions[memberId] = this.RegisterGrainTimer(async _ =>
-        {
-            if (_moveEvictions.Remove(memberId, out var timer))
-                timer.Dispose();
-            if (!state.State.Users.ContainsKey(memberId))
-                return;
+        var (muted, deafened) = await ReadVoiceRestrictionAsync(userId);
+        await AdmitAsync(userId, ServerFlagsFor(muted, deafened), "move");
 
-            await VoiceControl.KickParticipantAsync(new ArgonUserId(memberId), ChannelId);
-            await Leave(memberId);
-        }, new GrainTimerCreationOptions(MoveGrace, Timeout.InfiniteTimeSpan));
+        return new VoiceAdmission(await MediaRightsAsync(userId, muted, deafened));
     }
 
     public async Task UpdateVoiceState(ChannelMemberState requested)
@@ -622,18 +630,25 @@ public class ChannelGrain(
         else
             await LeavePreviousVoiceChannelAsync(userId);
 
-        // Settle XP for existing users before adding new one
-        await SettleXpForAllUsersAsync();
-
         var (muted, deafened) = await ReadVoiceRestrictionAsync(userId);
-        var flags             = ServerFlagsFor(muted, deafened);
+        await AdmitAsync(userId, ServerFlagsFor(muted, deafened), "direct");
+
+        // Track call joined for stats
+        _ = TrackCallJoinedAsync(userId);
+
+        return await VoiceControl.IssueAuthorizationTokenAsync(new ArgonUserId(userId), ChannelId, SfuPermissionKind.DefaultUser,
+            await MediaRightsAsync(userId, muted, deafened));
+    }
+
+    /// <summary>Puts a member on the roster: the events, the space's voice slot, the radio and the activation lease.</summary>
+    private async Task AdmitAsync(Guid userId, ChannelMemberState flags, string source)
+    {
+        // Settle XP for existing users before adding the new one
+        await SettleXpForAllUsersAsync();
 
         state.State.Users.Add(userId, new RealtimeChannelUser(userId, flags));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
         await state.WriteStateAsync();
-
-        // Track call joined for stats
-        _ = TrackCallJoinedAsync(userId);
 
         await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         if (flags != ChannelMemberState.NONE)
@@ -642,16 +657,12 @@ public class ChannelGrain(
         if (_self.Broadcast is not null)
             await Radio.OnMemberJoinedAsync(userId);
 
-        if (state.State.Users.Count > 0)
-            this.DelayDeactivation(TimeSpan.FromDays(1));
+        this.DelayDeactivation(TimeSpan.FromDays(1));
 
         ChannelGrainInstrument.VoiceJoins.Add(1,
-            new KeyValuePair<string, object?>("source", "direct"));
-        
-        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
+            new KeyValuePair<string, object?>("source", source));
 
-        return await VoiceControl.IssueAuthorizationTokenAsync(new ArgonUserId(userId), ChannelId, SfuPermissionKind.DefaultUser,
-            await MediaRightsAsync(userId, muted, deafened));
+        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
     }
 
     public async Task<Either<DrawingSessionDescriptor, DrawingDenyKind>> StartDrawingSession()
@@ -710,7 +721,10 @@ public class ChannelGrain(
         return true;
     }
 
-    public async Task Leave(Guid userId)
+    public Task Leave(Guid userId)
+        => LeaveAsync(userId, "direct");
+
+    private async Task LeaveAsync(Guid userId, string source)
     {
         if (!state.State.Users.ContainsKey(userId))
             return;
@@ -727,9 +741,8 @@ public class ChannelGrain(
         }
 
         state.State.Users.Remove(userId);
-        if (_moveEvictions.Remove(userId, out var eviction))
-            eviction.Dispose();
         await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        // A no-op when the slot already points elsewhere, as it does for a member a move took away.
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId, this.GetPrimaryKey());
         await state.WriteStateAsync();
 
@@ -748,8 +761,8 @@ public class ChannelGrain(
             this.DelayDeactivation(TimeSpan.MinValue);
 
         ChannelGrainInstrument.VoiceLeaves.Add(1,
-            new KeyValuePair<string, object?>("source", "direct"));
-        
+            new KeyValuePair<string, object?>("source", source));
+
         ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
     }
 
@@ -758,32 +771,12 @@ public class ChannelGrain(
         if (_self.ChannelType != ChannelType.Voice)
             return;
 
+        // Already here through Join or a move: the webhook only fills in what neither did.
         if (state.State.Users.ContainsKey(userId))
             return;
 
-        await SettleXpForAllUsersAsync();
-
         var (muted, deafened) = await ReadVoiceRestrictionAsync(userId);
-        var flags             = ServerFlagsFor(muted, deafened);
-
-        state.State.Users.Add(userId, new RealtimeChannelUser(userId, flags));
-        state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
-        await state.WriteStateAsync();
-
-        await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
-        if (flags != ChannelMemberState.NONE)
-            await Fire(new VoiceMemberStateChanged(SpaceId, this.GetPrimaryKey(), userId, flags));
-        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
-        if (_self.Broadcast is not null)
-            await Radio.OnMemberJoinedAsync(userId);
-
-        if (state.State.Users.Count > 0)
-            this.DelayDeactivation(TimeSpan.FromDays(1));
-
-        ChannelGrainInstrument.VoiceJoins.Add(1,
-            new KeyValuePair<string, object?>("source", "webhook"));
-
-        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
+        await AdmitAsync(userId, ServerFlagsFor(muted, deafened), "webhook");
     }
 
     public async Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
@@ -1279,7 +1272,14 @@ public class ChannelGrain(
 
     public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null)
     {
-        if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
+        if (_self.ChannelType is not (ChannelType.Text or ChannelType.Announcement))
+            throw new InvalidOperationException("Channel is not text");
+
+        if (_self.ChannelType == ChannelType.Announcement && this.IsBotCaller())
+            throw new UnauthorizedAccessException("Bots cannot post in announcement channels");
+
+        if (text?.Length > messageOptions.Value.MaxTextLength)
+            throw new InvalidOperationException($"Message text is longer than {messageOptions.Value.MaxTextLength} characters");
 
         if (controls is { Count: > 0 })
             ControlRowV1.ValidateRows(controls);
@@ -1747,6 +1747,30 @@ public class ChannelGrain(
         return entities;
     }
 
+    /// <summary>
+    /// Whether an announcement may still ping everyone or a role this hour. Counts deleted messages
+    /// too, so deleting a ping does not buy another one.
+    /// </summary>
+    private async Task<bool> WithinMassMentionBudgetAsync(long messageId)
+    {
+        var perHour = messageOptions.Value.AnnouncementMassMentionsPerHour;
+        if (perHour <= 0)
+            return true;
+
+        var channelId = this.GetPrimaryKey();
+        var since     = DateTimeOffset.UtcNow.AddHours(-1);
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var recent = await ctx.Messages
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.CreatedAt >= since && m.MessageId < messageId)
+           .Select(m => m.Entities)
+           .ToListAsync();
+
+        return recent.Count(e => e.Any(x => x is MessageEntityMentionEveryone or MessageEntityMentionRole)) < perHour;
+    }
+
     private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId, long? replyTo)
     {
         try
@@ -1782,6 +1806,14 @@ public class ChannelGrain(
             var hasEveryoneMention = entities.OfType<MessageEntityMentionEveryone>().Any()
                 && await entitlementChecker.HasChannelAccessAsync(_self.SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.MentionEveryone);
             var roleMentions = entities.OfType<MessageEntityMentionRole>().ToList();
+
+            if ((hasEveryoneMention || roleMentions.Count > 0)
+                && _self.ChannelType == ChannelType.Announcement
+                && !await WithinMassMentionBudgetAsync(messageId))
+            {
+                hasEveryoneMention = false;
+                roleMentions.Clear();
+            }
 
             if (hasEveryoneMention || roleMentions.Count > 0)
             {
@@ -1857,7 +1889,9 @@ public class ChannelGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        return await ctx.Channels.AsNoTracking().FirstAsync(c => c.Id == this.GetPrimaryKey());
+        // Activation fails either way; this names the id instead of "Sequence contains no elements".
+        return await ctx.Channels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == this.GetPrimaryKey())
+            ?? throw new KeyNotFoundException($"Channel {this.GetPrimaryKey()} does not exist");
     }
 
     public async ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default)
@@ -2169,16 +2203,72 @@ public class ChannelGrain(
             message.Controls = controls.Count == 0 ? null : controls;
 
         message.UpdatedAt = DateTimeOffset.UtcNow;
+        if (text is not null)
+            message.EditedAt = message.UpdatedAt;
         await ctx.SaveChangesAsync();
 
         await FireChannel(new MessageEdited(SpaceId, channelId, messageId, message.Text, message.UpdatedAt.UtcDateTime));
+
+        await ResolveAttachmentUrls(message);
+        await FireChannel(new MessageUpdated(SpaceId, channelId, message.ToDto()));
+    }
+
+    public async Task<IEditMessageResult> EditMessage(long messageId, string text, List<IMessageEntity> entities)
+    {
+        var userId    = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+        text ??= "";
+
+        if (text.Length > messageOptions.Value.MaxTextLength)
+            return new FailedEditMessage(EditMessageError.MESSAGE_TOO_LONG);
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var message = await ctx.Messages
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
+           .FirstOrDefaultAsync();
+
+        if (message is null)
+            return new FailedEditMessage(EditMessageError.MESSAGE_NOT_FOUND);
+
+        if (message.CreatorId != userId)
+            return new FailedEditMessage(EditMessageError.NOT_AUTHOR);
+
+        // Attachments and link cards are not the client's to rewrite: keep the stored ones, and a card
+        // only while its link is still in the text.
+        var kept = (message.Entities ?? [])
+           .Where(e => e is MessageEntityAttachment or MessageEntityGif
+                    || e is MessageEntityLinkPreview p && text.Contains(p.url, StringComparison.Ordinal))
+           .ToList();
+
+        if (string.IsNullOrWhiteSpace(text) && !kept.Any(e => e is MessageEntityAttachment or MessageEntityGif))
+            return new FailedEditMessage(EditMessageError.EMPTY_MESSAGE);
+
+        var edited = (entities ?? [])
+           .Where(e => e is not (MessageEntityAttachment or MessageEntityGif or MessageEntityLinkPreview
+                               or MessageEntitySystemCallStarted or MessageEntitySystemCallEnded
+                               or MessageEntitySystemCallTimeout or MessageEntitySystemUserJoined))
+           .Concat(kept)
+           .ToList();
+
+        message.Text      = text;
+        message.Entities  = edited;
+        message.UpdatedAt = DateTimeOffset.UtcNow;
+        message.EditedAt  = message.UpdatedAt;
+        await ctx.SaveChangesAsync();
+
+        await ResolveAttachmentUrls(message);
+        var dto = message.ToDto();
+        await FireChannel(new MessageUpdated(SpaceId, channelId, dto));
+
+        return new SuccessEditMessage(dto);
     }
 
     // ── Reactions (buffered writes) ──────────────────────────
 
     public async Task<IAddReactionResult> AddReaction(long messageId, string emoji)
     {
-        if (_self.ChannelType != ChannelType.Text)
+        if (_self.ChannelType is not (ChannelType.Text or ChannelType.Announcement))
         {
             ChannelGrainInstrument.ReactionsAdded.Add(1,
                 new KeyValuePair<string, object?>("result", "invalid_channel"));

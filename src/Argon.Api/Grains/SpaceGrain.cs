@@ -832,6 +832,23 @@ public class SpaceGrain(
             throw new ArgumentException("Channel group not found");
     }
 
+    /// <summary>The client's channel id when it chose one — a UUIDv7 that reads as the space's region, like <see cref="ArgonId.NewIn"/> mints, and free — else a minted one.</summary>
+    private static async Task<Guid> RequireChannelIdAsync(ApplicationDbContext ctx, Guid spaceId, Guid? channelId)
+    {
+        if (channelId is not { } id || id == Guid.Empty)
+            return ArgonId.NewIn(spaceId);
+
+        // Grain calls route by the key's region once there are peers; an id that reads as another region is unroutable.
+        if (ArgonId.RegionIndexOf(id, ArgonId.Epoch) != ArgonId.RegionIndexOrOriginal(spaceId, ArgonId.Epoch))
+            throw new ArgumentException("Channel id must be a UUIDv7 in the space's region");
+
+        // Soft-deleted rows keep their id: a second row under it is refused, not minted elsewhere.
+        if (await ctx.Channels.IgnoreQueryFilters().AnyAsync(c => c.Id == id))
+            throw new ArgumentException("A channel with this id already exists");
+
+        return id;
+    }
+
     public async Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -969,7 +986,7 @@ public class SpaceGrain(
         await UntargetChannelsAsync(ctx, spaceId, deleted);
     }
 
-    public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null)
+    public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -993,6 +1010,7 @@ public class SpaceGrain(
             throw new ArgumentException($"Unknown channel type {input.ChannelType}");
 
         await RequireGroupInSpace(ctx, spaceId, groupId);
+        var id = await RequireChannelIdAsync(ctx, spaceId, channelId);
 
         var lastChannel = await ctx.Set<ChannelEntity>()
            .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == groupId)
@@ -1005,12 +1023,12 @@ public class SpaceGrain(
 
         var channel = new ChannelEntity
         {
-            // The space's region, not this process's. Space metadata is replicated everywhere, so
-            // this activation can be anywhere — but the channel's messages live where the space
-            // lives, and the id is what says so. Explicit at all because it used to be left to EF's
-            // value generator, and because the hub's typing pair holds a channel id with no space
-            // beside it.
-            Id              = ArgonId.NewIn(spaceId),
+            // The client's id, or one in the space's region — not this process's. Space metadata is
+            // replicated everywhere, so this activation can be anywhere — but the channel's messages
+            // live where the space lives, and the id is what says so. Explicit at all because it used
+            // to be left to EF's value generator, and because the hub's typing pair holds a channel id
+            // with no space beside it.
+            Id              = id,
             Name            = name,
             CreatorId       = callerId,
             Description     = input.Description,
@@ -1021,10 +1039,34 @@ public class SpaceGrain(
         };
 
         await ctx.Set<ChannelEntity>().AddAsync(channel);
+
+        // Everyone reads an announcement channel; who may post is the owner's call, made per role
+        // with an overwrite of its own.
+        if (channel.ChannelType == ChannelType.Announcement)
+        {
+            var everyoneId = await ctx.Archetypes
+               .Where(a => a.SpaceId == spaceId && a.IsDefault)
+               .Select(a => a.Id)
+               .FirstOrDefaultAsync();
+
+            if (everyoneId != Guid.Empty)
+                ctx.ChannelEntitlementOverwrites.Add(new ChannelEntitlementOverwriteEntity
+                {
+                    ChannelId   = channel.Id,
+                    ArchetypeId = everyoneId,
+                    Scope       = IArchetypeScope.Archetype,
+                    Allow       = ArgonEntitlement.None,
+                    Deny        = ArgonEntitlement.SendMessages,
+                    CreatorId   = callerId
+                });
+        }
+
         await ctx.SaveChangesAsync();
         await Invalidate();
         await Fire(new ChannelCreated(spaceId, channel.ToDto()));
-        return channel;
+
+        // Without the overwrites: the entity crosses the grain boundary and they do not deserialize.
+        return channel with { EntitlementOverwrites = new List<ChannelEntitlementOverwriteEntity>() };
     }
 
     public async Task MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId)

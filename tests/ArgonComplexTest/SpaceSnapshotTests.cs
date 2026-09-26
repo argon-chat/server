@@ -93,7 +93,7 @@ public class SpaceSnapshotTests : TestBase
         var spaces = Spaces(scope.ServiceProvider);
         var first  = await spaces.GetSpaceSnapshot(spaceId, null, ct);
 
-        await Channels(scope.ServiceProvider).CreateChannel(spaceId, Guid.NewGuid(),
+        await Channels(scope.ServiceProvider).CreateChannel(spaceId, Guid.Empty,
             new CreateChannelRequest(spaceId, "snapshot-probe", ChannelType.Text, "", null), ct);
 
         var second = await spaces.GetSpaceSnapshot(spaceId, first.versions, ct);

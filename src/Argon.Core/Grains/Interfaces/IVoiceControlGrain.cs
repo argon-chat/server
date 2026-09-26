@@ -29,6 +29,13 @@ public interface IVoiceControlGrain : IGrainWithGuidKey
     /// <summary>Fork only (<c>Capabilities: Forward</c>): the participant appears in the destination room as a forwarded copy.</summary>
     Task<bool> ForwardParticipantAsync(string sourceRoom, string identity, string destinationRoom);
 
+    /// <summary>
+    /// Fork only (<c>Capabilities: Move</c>): the connected participant is moved from <paramref name="from"/> into
+    /// <paramref name="to"/> on the same connection, keeping its tracks and — until the caller replaces them with
+    /// <see cref="UpdateParticipantRightsAsync"/> — its permissions. False when LiveKit refused or the participant is not there.
+    /// </summary>
+    Task<bool> MoveParticipantAsync(ArgonUserId userId, ArgonRoomId from, ArgonRoomId to, CancellationToken ct = default);
+
     /// <summary><see cref="KickParticipantAsync"/> for raw names: radio rooms and <c>bc:</c> identities are not typed ids.</summary>
     Task<bool> RemoveParticipantAsync(string room, string identity);
 

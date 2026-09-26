@@ -241,6 +241,36 @@ public class VoiceBroadcastTests : TestBase
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_move_into_HQ_wakes_the_radio_and_a_move_out_of_it_revokes_the_link(CancellationToken ct = default)
+    {
+        var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
+        var party = await CreateChannelAsync(owner, spaceId, "party", ChannelType.Voice, ct);
+        var hq    = await BroadcastChannelAsync(owner, spaceId, Settings(party), ct);
+        var radio = Radio(spaceId, hq);
+        await JoinVoiceAsync(member, spaceId, party, ct);
+
+        // A fresh radio sweeps once and idles; only a hook wakes it again.
+        var sweepsBefore = await Poll.ForValueAsync(() => Task.FromResult(SweepsOf(radio)), n => n > 0, Settle, ct: ct);
+
+        var movedIn   = await owner.Channels.MoveVoiceMember(spaceId, party, member.UserId, hq, ct);
+        var sweeps    = await Poll.ForValueAsync(() => Task.FromResult(SweepsOf(radio)), n => n > sweepsBefore, Settle, ct: ct);
+        var links     = await member.Channels.GetBroadcastLinks(spaceId, hq, ct);
+        var confirmed = await member.Channels.ConfirmBroadcastLinks(spaceId, hq, ct);
+
+        var movedOut = await owner.Channels.MoveVoiceMember(spaceId, hq, member.UserId, party, ct);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(movedIn, Is.InstanceOf<SuccessMoveVoiceMember>(), $"{(movedIn as FailedMoveVoiceMember)?.error}");
+            Assert.That(sweeps, Is.GreaterThan(sweepsBefore), "the join hook woke the radio");
+            Assert.That(links, Is.InstanceOf<SuccessBroadcastLinks>(), $"the slot moved with the member: {Error(links)}");
+            Assert.That(confirmed, Is.InstanceOf<SuccessConfirmBroadcastLinks>(), $"{(confirmed as FailedConfirmBroadcastLinks)?.error}");
+            Assert.That(movedOut, Is.InstanceOf<SuccessMoveVoiceMember>(), $"{(movedOut as FailedMoveVoiceMember)?.error}");
+            Assert.That(await RemovedAsync(radio, $"bc:{member.UserId}", ct), Is.True, "moved out of HQ");
+        });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
     public async Task A_server_mute_removes_the_radio_participant(CancellationToken ct = default)
     {
         var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
@@ -522,6 +552,9 @@ public class VoiceBroadcastTests : TestBase
         => Poll.ForValueAsync(
             () => Task.FromResult(GetFakeLiveKit().RemoveParticipantCalls.Any(c => c.Room == room && c.Identity == identity)),
             removed => removed, Settle, ct: ct);
+
+    private int SweepsOf(string radio)
+        => GetFakeLiveKit().ListParticipantsCalls.Count(c => c.Room == radio);
 
     private Task<bool> ForwardedAsync(string radio, string identity, string destination, CancellationToken ct)
         => Poll.ForValueAsync(

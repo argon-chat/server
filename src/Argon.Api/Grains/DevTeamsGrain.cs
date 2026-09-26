@@ -358,7 +358,8 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             DisplayName = name,
             Email       = $"{botId}+{username}@noreply.argon.gl",
             AgreeTOS    = false,
-            CreatedAt   = now
+            CreatedAt   = now,
+            BotEntityId = botId
         };
 
         var clientId     = GenerateClientId(botId);

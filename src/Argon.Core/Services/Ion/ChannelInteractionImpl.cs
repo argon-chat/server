@@ -29,10 +29,11 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
            .GetGrain<ISpaceGrain>(spaceId)
            .DeleteChannelGroup(groupId, deleteChannels);
 
+    // The service key is the id the client chose for the new channel; Guid.Empty leaves it to the server.
     public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
         => await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId);
+           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId, channelId);
 
     public async Task MoveChannel(Guid spaceId, Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId, CancellationToken ct = default)
         => await this
@@ -134,6 +135,15 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
         return new SendMessageReadback(msgId, channelId, spaceId, randomId);
+    }
+
+    public async Task<IEditMessageResult> EditMessage(Guid spaceId, Guid channelId, long messageId, string text,
+        IonArray<IMessageEntity> entities, CancellationToken ct = default)
+    {
+        this.EnforceLockdown(LockdownSeverity.Critical);
+        return await this
+           .GetGrain<IChannelGrain>(channelId)
+           .EditMessage(messageId, text, entities.Values.ToList());
     }
 
     public async Task DisconnectFromVoiceChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)

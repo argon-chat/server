@@ -28,6 +28,10 @@ public static class IGrainExtensions
         return result;
     }
 
+    /// <summary>True when the call came through the Bot API, which sets the machine id to <c>bot:{appId}</c>.</summary>
+    public static bool IsBotCaller(this Grain grain)
+        => (RequestContext.Get("$caller_machine_id") as string)?.StartsWith("bot:", StringComparison.Ordinal) == true;
+
     /// <summary>The application id (<c>ner</c>) the calling request carried, or null when it carried none.</summary>
     public static string? GetUserAppId(this Grain grain)
         => RequestContext.Get(CallerContext.AppIdKey) as string;
