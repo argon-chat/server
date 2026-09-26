@@ -326,6 +326,124 @@ public class ChannelBadgeTests : TestBase
             "exactly one channel in the space has messages the member has not read");
     }
 
+    // What you wrote yourself is read: the sender's cursor follows their own message.
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task The_sender_has_nothing_unread_where_they_posted(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-own", ct);
+
+        var last = 0L;
+        for (var i = 1; i <= 3; i++)
+            last = await owner.Channels.SendMessage(
+                spaceId, channelId, $"mine {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
+
+        await PollStoredMarkAsync(channelId, mark => mark == last, ct);
+
+        var badges = await PollBadgesAsync(owner,
+            b => b.readStates.Values.Any(r => r.channelId == channelId && r.lastReadMessageId == last), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(badges.readStates.Values.FirstOrDefault(r => r.channelId == channelId)?.lastReadMessageId,
+                Is.EqualTo(last), "the sender's read state did not follow their own message");
+            Assert.That(badges.spaces.Values.FirstOrDefault(x => x.spaceId == spaceId), Is.Null,
+                "the sender's own messages count as unread");
+        });
+    }
+
+    // A deleted message leaves nothing unread behind, and the channel rises again with the next one.
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task Deleting_the_only_unread_message_clears_the_badge(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-deleted", ct);
+
+        await JoinAsync(owner, member, spaceId, ct);
+
+        var read = await owner.Channels.SendMessage(
+            spaceId, channelId, "read", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
+        await member.Users.AckChannel(channelId, read, ct);
+
+        var gone = await owner.Channels.SendMessage(
+            spaceId, channelId, "oops", new IonArray<IMessageEntity>([]), 2, null, ct).Ok();
+
+        Assert.That(await PollSpaceBadgeAsync(member, spaceId, x => x is not null, ct), Is.Not.Null,
+            "premise: the message is unread before it is deleted");
+
+        await owner.Channels.DeleteMessage(spaceId, channelId, gone, ct);
+
+        var after = await PollSpaceBadgeAsync(member, spaceId, x => x is null, ct);
+        var mark  = await PollStoredMarkAsync(channelId, m => m == read, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(after, Is.Null, "the deleted message still counts as unread");
+            Assert.That(mark, Is.EqualTo(read), "the stored mark still points at the deleted message");
+        });
+
+        await owner.Channels.SendMessage(
+            spaceId, channelId, "again", new IonArray<IMessageEntity>([]), 3, null, ct).Ok();
+
+        Assert.That((await PollSpaceBadgeAsync(member, spaceId, x => x is not null, ct))?.unreadChannelCount, Is.EqualTo(1),
+            "the channel did not rise again after the retraction");
+    }
+
+    // A ping whose message is gone leaves no count, or it resurfaces with the next unrelated message.
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task A_deleted_mention_leaves_no_count_behind(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-ping", ct);
+
+        await JoinAsync(owner, member, spaceId, ct);
+
+        var read = await owner.Channels.SendMessage(
+            spaceId, channelId, "read", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
+        await member.Users.AckChannel(channelId, read, ct);
+
+        var ping = await owner.Channels.SendMessage(spaceId, channelId, "hey @you",
+            new IonArray<IMessageEntity>([new MessageEntityMention(EntityType.Mention, 4, 4, 1, member.UserId)]), 2, null, ct).Ok();
+
+        await PollBadgesAsync(member, b => MentionsIn(b, channelId) == 1, ct);
+
+        await owner.Channels.DeleteMessage(spaceId, channelId, ping, ct);
+
+        var badges = await PollBadgesAsync(member, b => MentionsIn(b, channelId) == 0, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MentionsIn(badges, channelId), Is.Zero, "the deleted ping is still counted");
+            Assert.That(badges.spaces.Values.FirstOrDefault(x => x.spaceId == spaceId), Is.Null);
+        });
+    }
+
+    private static int? MentionsIn(GlobalBadges badges, Guid channelId)
+        => badges.readStates.Values.FirstOrDefault(r => r.channelId == channelId)?.mentionCount;
+
+    private static async Task<GlobalBadges> PollBadgesAsync(TestUserSession session, Func<GlobalBadges, bool> accept, CancellationToken ct)
+    {
+        var deadline = DateTimeOffset.UtcNow + FlushWindow;
+
+        while (true)
+        {
+            var badges = await session.Users.GetGlobalBadges(ct);
+
+            if (accept(badges) || DateTimeOffset.UtcNow >= deadline)
+                return badges;
+
+            await Task.Delay(250, ct);
+        }
+    }
+
     /// <summary>The durable mark for a channel, polled until <paramref name="accept"/> is happy.</summary>
     private async Task<long> PollStoredMarkAsync(Guid channelId, Func<long, bool> accept, CancellationToken ct)
     {

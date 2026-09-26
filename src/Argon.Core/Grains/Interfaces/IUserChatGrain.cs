@@ -32,7 +32,7 @@ public interface IUserChatGrain : IGrainWithGuidKey
     [Alias(nameof(BeginUploadAttachmentAsync))]
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachmentAsync(Guid peerId, CancellationToken ct = default);
 
-    [Alias(nameof(CompleteUploadAttachmentAsync))]
+    [Alias(nameof(CompleteUploadAttachmentAsync)), ResponseTimeout("00:01:00")]
     ValueTask<AttachmentInfo> CompleteUploadAttachmentAsync(Guid blobId, CancellationToken ct = default);
 
     [Alias(nameof(UpdateChatForAsync))]

@@ -11,15 +11,26 @@ public class NotificationGrain(
     IBadgeAggregationService badgeAggregation,
     IReadStateService readStateService,
     IMuteSettingsService muteSettingsService,
-    ISystemNotificationService systemNotificationService) : Grain, INotificationGrain
+    ISystemNotificationService systemNotificationService,
+    IUserSessionDiscoveryService sessionDiscovery,
+    IUserSessionNotifier notifier) : Grain, INotificationGrain
 {
     private Guid UserId => this.GetPrimaryKey();
 
     public Task<GlobalBadges> GetGlobalBadgesAsync(CancellationToken ct = default)
         => badgeAggregation.GetGlobalBadgesAsync(UserId, ct);
 
-    public Task AckChannelAsync(Guid channelId, Guid? spaceId, long lastReadMessageId, CancellationToken ct = default)
-        => readStateService.AckAsync(UserId, channelId, spaceId, lastReadMessageId, ct);
+    public async Task AckChannelAsync(Guid channelId, Guid? spaceId, long lastReadMessageId, CancellationToken ct = default)
+    {
+        if (await readStateService.AckAsync(UserId, channelId, spaceId, lastReadMessageId, ct) is not { } moved)
+            return;
+
+        // The user's other windows and devices clear the channel too.
+        var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
+        if (sessions.Count > 0)
+            await notifier.NotifySessionsAsync(sessions,
+                new ReadStateUpdated(UserId, channelId, moved.SpaceId, moved.LastReadMessageId, moved.MentionCount), ct);
+    }
 
     public Task MuteAsync(Guid targetId, MuteTargetKind targetType, MuteLevelType muteLevel, bool suppressEveryone, DateTime? expiresAt, CancellationToken ct = default)
         => muteSettingsService.MuteAsync(

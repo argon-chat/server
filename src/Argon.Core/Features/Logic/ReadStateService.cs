@@ -53,7 +53,7 @@ public class ReadStateService(
                 parts.Length > 2 && Guid.TryParse(parts[2], out var spaceId) ? spaceId : null);
     }
 
-    public async Task AckAsync(Guid userId, Guid channelId, Guid? spaceId, long messageId, CancellationToken ct = default)
+    public async Task<ReadStateEntry?> AckAsync(Guid userId, Guid channelId, Guid? spaceId, long messageId, CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
@@ -64,9 +64,11 @@ public class ReadStateService(
 
         // A stale ack moves nothing and leaves the cache alone.
         if (!await MoveMarkForwardAsync(ctx, userId, channelId, spaceId, messageId, ct))
-            return;
+            return null;
 
         await UpdateCacheEntryAsync(userId, channelId, messageId, 0, spaceId);
+
+        return new ReadStateEntry(channelId, spaceId, messageId, 0);
     }
 
     private static async Task<bool> MoveMarkForwardAsync(ApplicationDbContext ctx, Guid userId, Guid channelId, Guid? spaceId,
@@ -110,16 +112,18 @@ public class ReadStateService(
         }
     }
 
-    public async Task IncrementMentionsAsync(Guid userId, Guid channelId, Guid? spaceId, int delta = 1, CancellationToken ct = default)
+    public async Task IncrementMentionsAsync(Guid userId, Guid channelId, Guid? spaceId, long messageId, int delta = 1,
+        CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
-        await AddMentionsAsync(ctx, channelId, spaceId, [userId], delta, ct);
+        await AddMentionsAsync(ctx, channelId, spaceId, [userId], messageId, delta, ct);
 
         await InvalidateCacheAsync([userId]);
     }
 
-    public async Task BatchIncrementMentionsAsync(Guid spaceId, Guid channelId, IReadOnlyList<Guid> userIds, CancellationToken ct = default)
+    public async Task BatchIncrementMentionsAsync(Guid spaceId, Guid channelId, long messageId, IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default)
     {
         if (userIds.Count == 0) return;
 
@@ -128,7 +132,7 @@ public class ReadStateService(
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
         foreach (var chunk in distinct.Chunk(RowsPerStatement))
-            await AddMentionsAsync(ctx, channelId, spaceId, chunk, 1, ct);
+            await AddMentionsAsync(ctx, channelId, spaceId, chunk, messageId, 1, ct);
 
         await InvalidateCacheAsync(distinct);
 
@@ -137,10 +141,11 @@ public class ReadStateService(
 
     /// <summary>
     /// Adds <paramref name="delta"/> mentions for each user, creating the rows they lack. The increment is a
-    /// single UPDATE, so racing writers wait on the row lock instead of failing serialization.
+    /// single UPDATE, so racing writers wait on the row lock instead of failing serialization. A reader
+    /// already at or past <paramref name="messageId"/> is left alone: nothing would clear that count.
     /// </summary>
     private static async Task AddMentionsAsync(ApplicationDbContext ctx, Guid channelId, Guid? spaceId, IReadOnlyCollection<Guid> userIds,
-        int delta, CancellationToken ct)
+        long messageId, int delta, CancellationToken ct)
     {
         var pending = userIds;
 
@@ -155,7 +160,7 @@ public class ReadStateService(
 
             if (existing.Count > 0)
                 await ctx.ChannelReadStates
-                   .Where(r => r.ChannelId == channelId && existing.Contains(r.UserId))
+                   .Where(r => r.ChannelId == channelId && existing.Contains(r.UserId) && r.LastReadMessageId < messageId)
                    .ExecuteUpdateAsync(s => s
                        .SetProperty(r => r.MentionCount, r => r.MentionCount + delta)
                        .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), ct);
@@ -187,14 +192,15 @@ public class ReadStateService(
         }
     }
 
-    public Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, CancellationToken ct = default)
-        => BumpEveryoneMentionsAsync(spaceId, channelId, senderId, RowsPerStatement, ct);
+    public Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, long messageId, CancellationToken ct = default)
+        => BumpEveryoneMentionsAsync(spaceId, channelId, senderId, messageId, RowsPerStatement, ct);
 
     /// <summary>
     /// The members are walked in <c>UserId</c> order, one transaction per slice of
     /// <paramref name="rowsPerStatement"/>, so no single transaction writes every member row of a large space.
     /// </summary>
-    public async Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, int rowsPerStatement, CancellationToken ct = default)
+    public async Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, long messageId, int rowsPerStatement,
+        CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
@@ -222,7 +228,7 @@ public class ReadStateService(
             if (slice.Count == 0)
                 break;
 
-            await AddMentionsAsync(ctx, channelId, spaceId, slice, 1, ct);
+            await AddMentionsAsync(ctx, channelId, spaceId, slice, messageId, 1, ct);
 
             if (slice.Count < rowsPerStatement)
                 break;
@@ -233,6 +239,28 @@ public class ReadStateService(
         // No per-user cache invalidation here: this path only runs for very large spaces. Those
         // read_state caches refresh on their 2h TTL; smaller spaces go through BatchIncrementMentionsAsync.
         logger.LogDebug("BumpEveryoneMentions for channel {ChannelId} in space {SpaceId}", channelId, spaceId);
+    }
+
+    public async Task ClearCaughtUpMentionsAsync(Guid channelId, long lastMessageId, CancellationToken ct = default)
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync(ct);
+
+        var users = await ctx.ChannelReadStates
+           .Where(r => r.ChannelId == channelId && r.MentionCount > 0 && r.LastReadMessageId >= lastMessageId)
+           .Select(r => r.UserId)
+           .ToListAsync(ct);
+
+        if (users.Count == 0)
+            return;
+
+        foreach (var chunk in users.Chunk(RowsPerStatement))
+            await ctx.ChannelReadStates
+               .Where(r => r.ChannelId == channelId && chunk.Contains(r.UserId) && r.LastReadMessageId >= lastMessageId)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(r => r.MentionCount, 0)
+                   .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+        await InvalidateCacheAsync(users);
     }
 
     public async Task<List<ReadStateEntry>> GetReadStatesForSpaceAsync(Guid userId, Guid spaceId, CancellationToken ct = default)

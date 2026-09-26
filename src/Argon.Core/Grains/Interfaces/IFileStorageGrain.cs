@@ -41,7 +41,7 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     /// <summary>
     ///     Finalize upload after client has uploaded to S3. Validates via HEAD.
     /// </summary>
-    [Alias(nameof(FinalizeUploadAsync))]
+    [Alias(nameof(FinalizeUploadAsync)), ResponseTimeout("00:01:00")]
     Task<FileInfoResponse> FinalizeUploadAsync(Guid blobId, CancellationToken ct = default);
 
     /// <summary>

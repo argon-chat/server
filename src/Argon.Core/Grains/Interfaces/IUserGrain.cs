@@ -89,7 +89,7 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(BeginUploadUserFile))]
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default);
 
-    [Alias(nameof(CompleteUploadUserFile))]
+    [Alias(nameof(CompleteUploadUserFile)), ResponseTimeout("00:01:00")]
     ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default);
 
     [Alias(nameof(GetLimitationForUser))]

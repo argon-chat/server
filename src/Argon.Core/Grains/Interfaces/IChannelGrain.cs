@@ -165,7 +165,7 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(BeginUploadAttachment))]
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default);
 
-    [Alias(nameof(CompleteUploadAttachment))]
+    [Alias(nameof(CompleteUploadAttachment)), ResponseTimeout("00:01:00")]
     ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default);
 
     [Alias(nameof(InvokeSlashCommand))]

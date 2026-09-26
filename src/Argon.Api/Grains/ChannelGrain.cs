@@ -1207,6 +1207,7 @@ public partial class ChannelGrain(
         await DropPinAsync(ctx, messageId, callerId, ct);
 
         await FireChannel(new MessageDeleted(SpaceId, channelId, messageId, callerId), ct);
+        await RetractMarkAsync(ctx, messageId, ct);
 
         return DeleteMessageError.NONE;
     }
@@ -1240,6 +1241,7 @@ public partial class ChannelGrain(
         // Attributed to the system user: the operator's id is not a user id the clients know, and
         // the event only needs to say "gone".
         await FireChannel(new MessageDeleted(SpaceId, channelId, messageId, UserEntity.SystemUser), ct);
+        await RetractMarkAsync(ctx, messageId, ct);
 
         return true;
     }
@@ -1515,6 +1517,7 @@ public partial class ChannelGrain(
 
         // Process mentions asynchronously (don't block message delivery)
         _ = ProcessMentionsAsync(sanitized, msgId, senderId, replyTo);
+        _ = AckOwnMessageAsync(senderId, msgId);
         
         sw.Stop();
         
@@ -1610,9 +1613,9 @@ public partial class ChannelGrain(
     /// publish costs is a reader falling back to a value up to one flush interval old — the same
     /// answer they get for a channel that has not been written to since the key was evicted.
     /// </remarks>
-    private void PublishLastMessageId(long messageId)
+    private void PublishLastMessageId(long messageId, DateTimeOffset? at = null)
     {
-        var sentAt    = DateTimeOffset.UtcNow;
+        var sentAt    = at ?? DateTimeOffset.UtcNow;
         var channelId = this.GetPrimaryKey();
         var previous  = lastMessagePublishTail;
 
@@ -1738,6 +1741,79 @@ public partial class ChannelGrain(
         {
             logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", channelId);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// After a delete, takes the mark back to the newest message left if the deleted one was the
+    /// newest, so a deleted message leaves nobody with an unread channel they cannot clear.
+    /// </summary>
+    /// <remarks>
+    /// Sends commit before they return and this activation is the only writer, so every message
+    /// newer than the deleted one is visible to the query below. The row is lowered only while it
+    /// still points at or below the deleted id.
+    /// </remarks>
+    private async Task RetractMarkAsync(ApplicationDbContext ctx, long deletedId, CancellationToken ct)
+    {
+        var channelId = this.GetPrimaryKey();
+
+        try
+        {
+            var newest = await ctx.Messages
+               .AsNoTracking()
+               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && !m.IsDeleted)
+               .OrderByDescending(m => m.MessageId)
+               .Select(m => new { m.MessageId, m.CreatedAt })
+               .FirstOrDefaultAsync(ct);
+
+            if (newest is not null && newest.MessageId > deletedId)
+                return;
+
+            var mark = newest?.MessageId ?? 0;
+
+            await ctx.ChannelLastMessages
+               .Where(m => m.ChannelId == channelId && m.LastMessageId > mark && m.LastMessageId <= deletedId)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(m => m.LastMessageId, mark)
+                   .SetProperty(m => m.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+            lastMessage.Retract(mark);
+            PublishLastMessageId(mark, newest?.CreatedAt ?? DateTimeOffset.UnixEpoch);
+
+            await Fire(new ChannelMarkRetracted(SpaceId, channelId, deletedId, mark), ct);
+
+            _ = ClearCaughtUpMentionsAsync(mark);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to retract the mark of channel {ChannelId} past deleted message {MessageId}", channelId, deletedId);
+        }
+    }
+
+    private async Task ClearCaughtUpMentionsAsync(long mark)
+    {
+        try
+        {
+            if (ServiceProvider.GetService<IReadStateService>() is { } readStates)
+                await readStates.ClearCaughtUpMentionsAsync(this.GetPrimaryKey(), mark);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to clear mentions left by deleted messages in channel {ChannelId}", this.GetPrimaryKey());
+        }
+    }
+
+    /// <summary>A sender has read everything up to their own message.</summary>
+    private async Task AckOwnMessageAsync(Guid senderId, long messageId)
+    {
+        try
+        {
+            if (ServiceProvider.GetService<IReadStateService>() is { } readStates)
+                await readStates.AckAsync(senderId, this.GetPrimaryKey(), SpaceId, messageId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to move the read state of sender {UserId} in channel {ChannelId}", senderId, this.GetPrimaryKey());
         }
     }
 
@@ -2008,6 +2084,16 @@ public partial class ChannelGrain(
             var readStateService = ServiceProvider.GetService<IReadStateService>();
             if (readStateService is null) return;
 
+            // One ping per person per message, however many ways it reached them.
+            var pinged = new HashSet<Guid>();
+
+            async Task PingAsync(IEnumerable<Guid> users)
+            {
+                var fresh = users.Where(pinged.Add).ToList();
+                if (fresh.Count > 0)
+                    await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), messageId, fresh);
+            }
+
             if (replyTo.HasValue)
             {
                 await using var msgCtx = await context.CreateDbContextAsync();
@@ -2019,9 +2105,7 @@ public partial class ChannelGrain(
                     .FirstOrDefaultAsync();
 
                 if (originalAuthor != default && originalAuthor != senderId)
-                {
-                    await readStateService.IncrementMentionsAsync(originalAuthor, this.GetPrimaryKey(), _self.SpaceId, 1);
-                }
+                    await PingAsync([originalAuthor]);
             }
 
             if (entities.Count == 0) return;
@@ -2052,8 +2136,7 @@ public partial class ChannelGrain(
                     mentionedUsers.Clear();
             }
 
-            if (mentionedUsers.Count > 0)
-                await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), mentionedUsers);
+            await PingAsync(mentionedUsers);
 
             if (hasEveryoneMention || roleMentions.Count > 0)
             {
@@ -2086,17 +2169,13 @@ public partial class ChannelGrain(
                             .Distinct()
                             .ToListAsync();
 
-                        var targetUsers = members
-                            .Where(u => !mutedUsers.Contains(u) && !suppressUsers.Contains(u))
-                            .ToList();
-
-                        await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), targetUsers);
+                        await PingAsync(members.Where(u => !mutedUsers.Contains(u) && !suppressUsers.Contains(u)));
                     }
                     else
                     {
                         // Heap-free set-based upsert for very large spaces (enumeration + mute/suppress
                         // exclusion happen entirely in SQL).
-                        await readStateService.BumpEveryoneMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), senderId);
+                        await readStateService.BumpEveryoneMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), senderId, messageId);
                     }
 
                     await Fire(new BatchMentionOccurred(_self.SpaceId, this.GetPrimaryKey(), MentionTargetType.Everyone));
@@ -2111,9 +2190,8 @@ public partial class ChannelGrain(
                         .ToListAsync();
 
                     var mutedUsers = await muteService.FilterMutedUsersAsync(this.GetPrimaryKey(), _self.SpaceId, roleMembers);
-                    var targetUsers = roleMembers.Where(u => !mutedUsers.Contains(u)).ToList();
 
-                    await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), targetUsers);
+                    await PingAsync(roleMembers.Where(u => !mutedUsers.Contains(u)));
 
                     await Fire(new BatchMentionOccurred(_self.SpaceId, this.GetPrimaryKey(), MentionTargetType.Role));
                 }

@@ -71,4 +71,17 @@ public sealed class ChannelHighWaterMark
         if (messageId > flushed)
             flushed = messageId;
     }
+
+    /// <summary>
+    /// The one way down: the newest messages were deleted. A row already past
+    /// <paramref name="messageId"/> was lowered by the caller; one still behind it is owed it by the
+    /// next flush. Either way no flush puts a deleted id back.
+    /// </summary>
+    public void Retract(long messageId)
+    {
+        pending = messageId;
+
+        if (flushed > messageId)
+            flushed = messageId;
+    }
 }

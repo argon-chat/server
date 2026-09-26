@@ -139,6 +139,41 @@ public class ChannelHighWaterMarkTests
         Assert.That(Flush(mark), Is.EqualTo(new[] { 9L }), "the failed flush is still owed");
     }
 
+    // A deleted tail must not come back with the next flush, owed or not.
+    [Test]
+    public void A_retracted_mark_owes_nothing_and_rises_again_from_there()
+    {
+        var mark = new ChannelHighWaterMark();
+
+        mark.Raise(20);
+        Flush(mark);
+        mark.Raise(21);
+
+        mark.Retract(19);
+
+        Assert.That(Flush(mark), Is.Empty, "the caller wrote 19 itself; 21 was deleted");
+
+        mark.Raise(22);
+
+        Assert.That(Flush(mark), Is.EqualTo(new[] { 22L }));
+    }
+
+    // The row never saw the survivor: it is still owed, just not the deleted id above it.
+    [Test]
+    public void A_retraction_below_what_was_never_written_still_owes_the_survivor()
+    {
+        var mark = new ChannelHighWaterMark();
+
+        mark.Raise(5);
+        Flush(mark);
+        mark.Raise(6);
+        mark.Raise(7);
+
+        mark.Retract(6);
+
+        Assert.That(Flush(mark), Is.EqualTo(new[] { 6L }));
+    }
+
     /// <summary>
     /// The counter behind the coalescing ratio. Every send after the first one in an interval has to
     /// report itself as absorbed, or the metric that is supposed to prove the timer is firing will

@@ -175,7 +175,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(BeginUploadSpaceFile))]
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default);
 
-    [Alias(nameof(CompleteUploadSpaceFile))]
+    [Alias(nameof(CompleteUploadSpaceFile)), ResponseTimeout("00:01:00")]
     ValueTask<SpaceManageError> CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default);
 
     [Alias(nameof(GetInstalledBots))]
