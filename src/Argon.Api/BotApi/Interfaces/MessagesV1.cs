@@ -50,6 +50,9 @@ public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
         group.Post<SendMessageRequest, SendMessageResponse>("/Send")
            .Summary("Sends a text message to a channel. Include a unique randomId for deduplication. Optionally reply to another message via replyTo. Bots cannot post in announcement channels.")
            .Permission(ArgonEntitlement.SendMessages)
+           .Throws(BotSendErrors.CannotSend)
+           .Throws(BotSendErrors.InvalidMessage)
+           .Throws(BotSendErrors.SlowMode)
            .Handle(async (_, request) =>
             {
                 var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
@@ -61,7 +64,7 @@ public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
                     request.Controls);
 
                 if (error is not SendMessageError.NONE)
-                    throw new InvalidOperationException($"message refused: {error}");
+                    throw BotSendErrors.Raise(error);
 
                 return new SendMessageResponse(msgId);
             });

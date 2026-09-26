@@ -451,7 +451,7 @@ public class ChannelBotInteractionTests : TestBase
 
         await Assert.MultipleAsync(async () =>
         {
-            Assert.That(send.IsSuccessStatusCode, Is.False, "a message with a malformed control was stored");
+            Assert.That(send.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest), "a message with a malformed control was stored");
             Assert.That(edit.IsSuccessStatusCode, Is.False, "an edit put a malformed control on a message");
             Assert.That((await StoredMessageAsync(spaceId, channelId, messageId, ct))?.Controls?.Single().Controls.Single().Id,
                 Is.EqualTo("ok"));

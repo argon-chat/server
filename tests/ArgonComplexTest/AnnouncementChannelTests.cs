@@ -1,5 +1,6 @@
 namespace ArgonComplexTest.Tests;
 
+using System.Net;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime;
@@ -132,7 +133,7 @@ public class AnnouncementChannelTests : TestBase
             randomId = Random.Shared.NextInt64(1, long.MaxValue)
         }, ct);
 
-        Assert.That(refused.IsSuccessStatusCode, Is.False, "a bot posted in an announcement channel");
+        Assert.That(refused.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden), "a bot posted in an announcement channel");
 
         var read = await owner.Channels.QueryMessages(spaceId, channelId, null, 10, ct);
         Assert.That(read.Values, Is.Empty);

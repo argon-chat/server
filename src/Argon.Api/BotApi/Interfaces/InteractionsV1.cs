@@ -52,6 +52,9 @@ public sealed class InteractionsV1(
         group.Post<ReplyRequest, ReplyResponse>("/Reply")
            .Summary("Reply to an interaction by sending a message to the channel. Optionally reply to a specific message via replyTo. Not available in announcement channels.")
            .Permission(ArgonEntitlement.SendMessages)
+           .Throws(BotSendErrors.CannotSend)
+           .Throws(BotSendErrors.InvalidMessage)
+           .Throws(BotSendErrors.SlowMode)
            .Handle(async (_, request) =>
             {
                 var (error, msgId) = await grains.GetGrain<IChannelGrain>(request.ChannelId).SendMessage(
@@ -62,7 +65,7 @@ public sealed class InteractionsV1(
                     request.Controls);
 
                 if (error is not SendMessageError.NONE)
-                    throw new InvalidOperationException($"message refused: {error}");
+                    throw BotSendErrors.Raise(error);
 
                 return new ReplyResponse(msgId);
             });
