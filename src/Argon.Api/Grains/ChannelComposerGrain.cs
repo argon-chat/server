@@ -524,11 +524,8 @@ public class ChannelComposerGrain(
 
     private async Task<bool> MaySendAsync(Guid spaceId, Guid userId, List<IMessageEntity> entities)
     {
-        if (!await entitlementChecker.HasChannelAccessAsync(spaceId, ChannelId, userId, ArgonEntitlement.SendMessages))
-            return false;
-
-        return !HasFiles(entities)
-            || await entitlementChecker.HasChannelAccessAsync(spaceId, ChannelId, userId, ArgonEntitlement.AttachFiles);
+        var needed = HasFiles(entities) ? ArgonEntitlement.SendMessages | ArgonEntitlement.AttachFiles : ArgonEntitlement.SendMessages;
+        return await entitlementChecker.HasChannelAccessAsync(spaceId, ChannelId, userId, needed);
     }
 
     private SchedulePostError ValidateContent(string text, List<IMessageEntity> entities)

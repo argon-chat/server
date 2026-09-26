@@ -19,6 +19,7 @@ public class BadgeAggregationService(
     /// <summary>
     /// The freshest high-water mark per channel: the cell where there is one, the stored row
     /// otherwise.
+    /// With it, when the channel last moved: the cell's send time, or the row's flush time without one.
     /// </summary>
     /// <remarks>
     /// <para>The stored row lives in <c>ChannelLastMessages</c> — a table carrying nothing but the
@@ -36,10 +37,10 @@ public class BadgeAggregationService(
     /// what this query used before the cell existed — failing a user's whole badge fetch over a
     /// counter would be the worse trade.</para>
     /// </remarks>
-    private async Task<Dictionary<Guid, long>> HighWaterMarksAsync(
-        IReadOnlyList<(Guid Id, long LastMessageId)> channels)
+    private async Task<Dictionary<Guid, (long Mark, DateTimeOffset At)>> HighWaterMarksAsync(
+        IReadOnlyList<(Guid Id, long Mark, DateTimeOffset At)> channels)
     {
-        var marks = channels.ToDictionary(c => c.Id, c => c.LastMessageId);
+        var marks = channels.ToDictionary(c => c.Id, c => (c.Mark, c.At));
 
         if (marks.Count == 0)
             return marks;
@@ -49,13 +50,25 @@ public class BadgeAggregationService(
             await using var scope = redis.Rent();
 
             var ids   = channels.Select(c => c.Id).ToArray();
-            var cells = await scope.GetDatabase()
-               .StringGetAsync(ids.Select(id => (RedisKey)ChannelHighWaterCell.KeyFor(id)).ToArray());
+            var cells = await scope.GetDatabase().StringGetAsync(ids
+               .Select(id => (RedisKey)ChannelHighWaterCell.KeyFor(id))
+               .Concat(ids.Select(id => (RedisKey)ChannelHighWaterCell.AtKeyFor(id)))
+               .ToArray());
 
-            for (var i = 0; i < cells.Length; i++)
+            for (var i = 0; i < ids.Length; i++)
             {
-                if (cells[i].TryParse(out long cell) && cell > marks[ids[i]])
-                    marks[ids[i]] = cell;
+                var (mark, at) = marks[ids[i]];
+
+                if (!cells[i].TryParse(out long cell) || cell < mark)
+                    continue;
+
+                mark = cell;
+
+                // The cell carries the send time; the row only its flush time, which can land after a join.
+                if (cells[ids.Length + i].TryParse(out long ms))
+                    at = DateTimeOffset.FromUnixTimeMilliseconds(ms);
+
+                marks[ids[i]] = (mark, at);
             }
         }
         catch (Exception e)
@@ -76,7 +89,8 @@ public class BadgeAggregationService(
 
         int unreadDmCount;
         List<(Guid Id, Guid SpaceId)> channels;
-        Dictionary<Guid, long> stored;
+        Dictionary<Guid, (long Mark, DateTimeOffset At)> stored;
+        Dictionary<Guid, (DateTimeOffset Joined, Guid? MainAnnouncement)> horizons;
 
         await using (var ctx = await contextFactory.CreateDbContextAsync(ct))
         {
@@ -89,6 +103,20 @@ public class BadgeAggregationService(
             var memberOf = ctx.UsersToServerRelations
                 .Where(x => x.UserId == userId)
                 .Select(x => x.SpaceId);
+
+            var mains = await ctx.Spaces
+                .AsNoTracking()
+                .Where(s => memberOf.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.MainAnnouncementChannelId, ct);
+
+            // A membership row per stay: leaving soft-deletes it, so a return starts a new one.
+            horizons = (await ctx.UsersToServerRelations
+                    .AsNoTracking()
+                    .Where(x => x.UserId == userId)
+                    .Select(x => new { x.SpaceId, x.CreatedAt })
+                    .ToListAsync(ct))
+                .DistinctBy(x => x.SpaceId)
+                .ToDictionary(x => x.SpaceId, x => (x.CreatedAt, mains.GetValueOrDefault(x.SpaceId)));
 
             // Which channels exist, and which space each is in. Nothing about the counter is read
             // here any more: Channels.LastMessageId is the dead column, and the mark comes from the
@@ -117,8 +145,8 @@ public class BadgeAggregationService(
                 : await ctx.ChannelLastMessages
                     .AsNoTracking()
                     .Where(m => memberOf.Contains(m.SpaceId))
-                    .Select(m => new { m.ChannelId, m.LastMessageId })
-                    .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId, ct);
+                    .Select(m => new { m.ChannelId, m.LastMessageId, m.UpdatedAt })
+                    .ToDictionaryAsync(m => m.ChannelId, m => (m.LastMessageId, m.UpdatedAt), ct);
         }
 
         await Task.WhenAll(readStatesTask, muteTask, badgeCountsTask);
@@ -133,6 +161,8 @@ public class BadgeAggregationService(
             .ToHashSet();
 
         var spaceBadges = new List<SpaceBadge>();
+        var effective   = readStates.ToDictionary(r => r.ChannelId,
+            r => new ChannelReadState(r.ChannelId, r.SpaceId, r.LastReadMessageId, r.MentionCount));
 
         // A space with no channels can have nothing unread, so the spaces come from the channels.
         if (channels.Count > 0)
@@ -141,10 +171,21 @@ public class BadgeAggregationService(
             // reads as zero. It must not read as "not in the result" — every channel in the space has
             // to reach the loop below, or a channel whose first messages are still only in the Redis
             // cell would be dropped before the cell could correct it.
-            var marks = await HighWaterMarksAsync(
-                channels.Select(c => (c.Id, stored.GetValueOrDefault(c.Id))).ToList());
+            var marks = await HighWaterMarksAsync(channels
+               .Select(c => stored.TryGetValue(c.Id, out var s) ? (c.Id, s.Mark, s.At) : (c.Id, 0L, DateTimeOffset.MinValue))
+               .ToList());
 
-            var readStateMap = readStates.ToDictionary(r => r.ChannelId);
+            // What a channel held when the member (re)joined is history: read, whatever cursor an earlier
+            // stay left behind. The main announcement channel stays unread so a newcomer sees it.
+            foreach (var (id, spaceId) in channels)
+            {
+                var (mark, at) = marks[id];
+
+                if (mark > 0 && horizons.TryGetValue(spaceId, out var horizon)
+                 && id != horizon.MainAnnouncement && at <= horizon.Joined
+                 && (!effective.TryGetValue(id, out var cursor) || cursor.lastReadMessageId < mark))
+                    effective[id] = new ChannelReadState(id, spaceId, mark, 0);
+            }
 
             foreach (var spaceId in channels.Select(c => c.SpaceId).Distinct())
             {
@@ -160,13 +201,12 @@ public class BadgeAggregationService(
                     if (mutedTargets.Contains(ch.Id))
                         continue;
 
-                    readStateMap.TryGetValue(ch.Id, out var state);
-                    var lastRead = state?.LastReadMessageId ?? 0;
+                    effective.TryGetValue(ch.Id, out var state);
 
-                    if (marks[ch.Id] > lastRead)
+                    if (marks[ch.Id].Mark > (state?.lastReadMessageId ?? 0))
                     {
                         unreadCount++;
-                        totalMentions += state?.MentionCount ?? 0;
+                        totalMentions += state?.mentionCount ?? 0;
                     }
                 }
 
@@ -175,9 +215,7 @@ public class BadgeAggregationService(
             }
         }
 
-        var ionReadStates = readStates.Select(r =>
-            new ChannelReadState(r.ChannelId, r.SpaceId, r.LastReadMessageId, r.MentionCount)
-        ).ToArray();
+        var ionReadStates = effective.Values.ToArray();
 
         var ionMuteSettings = muteSettings.Select(m =>
             new MuteSettingsDto(

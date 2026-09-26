@@ -63,6 +63,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(QueryMessages))]
     Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit);
 
+    [Alias(nameof(QueryMessagesAround))]
+    Task<MessageWindowEntity> QueryMessagesAround(long messageId, int older, int newer);
+
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();
 
@@ -221,6 +224,17 @@ public interface IChannelGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(ReceiveCrosspostAsync))]
     Task<long?> ReceiveCrosspostAsync(CrosspostDraft draft);
+}
+
+/// <summary>A stretch of a channel's history, newest first, and whether more lies on either side.</summary>
+[GenerateSerializer, Immutable]
+public sealed record MessageWindowEntity(
+    [property: Id(0)] List<ArgonMessageEntity> Messages,
+    [property: Id(1)] bool HasOlder,
+    [property: Id(2)] bool HasNewer,
+    [property: Id(3)] bool ContainsAnchor)
+{
+    public static readonly MessageWindowEntity Empty = new([], false, false, false);
 }
 
 /// <summary>Realtime state for a channel.</summary>

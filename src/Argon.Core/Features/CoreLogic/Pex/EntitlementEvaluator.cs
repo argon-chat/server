@@ -103,6 +103,28 @@ public static class EntitlementEvaluator
     public static bool HasAccessTo(SpaceMemberEntity member, IArchetypeObject obj, ArgonEntitlement targetCheck)
         => HasAccessTo(GetBasePermissions(member), member, obj, targetCheck);
 
+    /// <summary>
+    /// Every right in <paramref name="required"/>, each judged on its own: the rules below are written
+    /// for one right at a time (an opt-in channel, the rights one presupposes), so a combined value
+    /// cannot be judged as one.
+    /// </summary>
+    public static bool HasAccessToAll(SpaceMemberEntity member, IArchetypeObject obj, ArgonEntitlement required)
+    {
+        var basePermissions = GetBasePermissions(member);
+        var bits            = (ulong)required;
+
+        if (System.Numerics.BitOperations.PopCount(bits) <= 1)
+            return HasAccessTo(basePermissions, member, obj, required);
+
+        for (; bits != 0; bits &= bits - 1)
+        {
+            if (!HasAccessTo(basePermissions, member, obj, (ArgonEntitlement)(bits & (~bits + 1))))
+                return false;
+        }
+
+        return true;
+    }
+
     public static bool HasAccessTo(ArgonEntitlement basePermissions, SpaceMemberEntity member, IArchetypeObject obj,
         ArgonEntitlement targetCheck)
     {

@@ -340,4 +340,63 @@ public class ChannelMessagingTests : TestBase
             await Task.Delay(250, ct);
         }
     }
+
+    // ── Jumping to a message ────────────────────────────────────────────────────────────────────
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_page_around_a_message_holds_it_with_its_neighbours_and_pages_down_from_there(CancellationToken ct = default)
+    {
+        var (owner, spaceId, channelId) = await RoomAsync("history", ct);
+        var reader = await CreateSessionAsync(ct);
+        await JoinAsync(owner, reader, spaceId, ct);
+
+        var sent = new List<long>();
+        for (var i = 1; i <= 9; i++)
+            sent.Add(await owner.Channels.SendMessage(spaceId, channelId, $"m{i}", Entities(), NextRandomId(), null, ct).Ok());
+
+        // Skipped the way QueryMessages skips it.
+        await owner.Channels.DeleteMessage(spaceId, channelId, sent[5], ct);
+
+        static long[] Ids(MessageWindow window) => window.messages.Values.Select(m => m.messageId).ToArray();
+
+        var around  = await reader.Channels.QueryMessagesAround(spaceId, channelId, sent[4], 2, 2, ct);
+        var atStart = await reader.Channels.QueryMessagesAround(spaceId, channelId, sent[0], 2, 2, ct);
+        var down    = await reader.Channels.QueryMessagesAround(spaceId, channelId, sent[3], 0, 3, ct);
+        var present = await reader.Channels.QueryMessagesAround(spaceId, channelId, sent[7], 0, 50, ct);
+        var gone    = await reader.Channels.QueryMessagesAround(spaceId, channelId, sent[5], 2, 2, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Ids(around), Is.EqualTo(new[] { sent[7], sent[6], sent[4], sent[3] }), "m5 with one older and two newer, newest first");
+            Assert.That((around.hasOlder, around.hasNewer, around.containsAnchor), Is.EqualTo((true, true, true)));
+
+            Assert.That(Ids(atStart), Is.EqualTo(new[] { sent[2], sent[1], sent[0] }));
+            Assert.That(atStart.hasOlder, Is.False, "the first message has nothing older");
+            Assert.That(atStart.containsAnchor, Is.True);
+
+            Assert.That(Ids(down), Is.EqualTo(new[] { sent[7], sent[6], sent[4] }), "the next page down, without the message it starts from");
+            Assert.That((down.hasNewer, down.containsAnchor), Is.EqualTo((true, false)));
+
+            Assert.That(Ids(present), Is.EqualTo(new[] { sent[8] }));
+            Assert.That(present.hasNewer, Is.False, "the last page down reaches the present");
+
+            Assert.That(gone.containsAnchor, Is.False, "a deleted message is not in the window around it");
+            Assert.That(Ids(gone), Is.EqualTo(new[] { sent[7], sent[6], sent[4], sent[3] }));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Someone_outside_the_space_gets_nothing_around_a_message(CancellationToken ct = default)
+    {
+        var (owner, spaceId, channelId) = await RoomAsync("members-only", ct);
+        var stranger = await CreateSessionAsync(ct);
+        var id = await owner.Channels.SendMessage(spaceId, channelId, "not for strangers", Entities(), NextRandomId(), null, ct).Ok();
+
+        Assert.That((await owner.Channels.QueryMessagesAround(spaceId, channelId, id, 5, 5, ct)).containsAnchor, Is.True, "premise");
+
+        var refused = await stranger.Channels.QueryMessagesAround(spaceId, channelId, id, 5, 5, ct);
+        Assert.That(refused.messages.Values, Is.Empty);
+        Assert.That((refused.hasOlder, refused.hasNewer, refused.containsAnchor), Is.EqualTo((false, false, false)),
+            "a refusal says nothing about what lies either side");
+    }
 }

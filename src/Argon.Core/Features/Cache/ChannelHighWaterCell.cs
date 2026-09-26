@@ -26,4 +26,7 @@ namespace Argon.Features.Cache;
 public static class ChannelHighWaterCell
 {
     public static string KeyFor(Guid channelId) => $"chan:last:{channelId}";
+
+    // When that id was sent, in unix milliseconds; written with it.
+    public static string AtKeyFor(Guid channelId) => $"chan:last:at:{channelId}";
 }

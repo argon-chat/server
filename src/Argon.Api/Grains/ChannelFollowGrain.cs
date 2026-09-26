@@ -210,8 +210,7 @@ public static class FollowAccess
     public static async Task<FollowChannelError> CheckSourceAsync(IEntitlementChecker entitlements, Guid spaceId, Guid channelId,
         Guid userId, bool isPublic)
     {
-        if (!await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ViewChannel)
-         || !await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ReadHistory))
+        if (!await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory))
             return FollowChannelError.NO_ACCESS_TO_SOURCE;
 
         if (!isPublic)

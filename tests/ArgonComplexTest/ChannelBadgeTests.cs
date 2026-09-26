@@ -1,6 +1,7 @@
 namespace ArgonComplexTest.Tests;
 
 using Argon.Entities;
+using Argon.Grains.Interfaces;
 using Argon.Features.Cache;
 using Argon.Services;
 using ArgonContracts;
@@ -108,8 +109,8 @@ public class ChannelBadgeTests : TestBase
     /// <summary>
     /// The badge is derived, not stored: it exists only because the channel's last-message id is
     /// ahead of the member's read state. Both halves have to be right for the count to be one — a
-    /// missing last-message write reads as "nothing new", and a read state seeded on join would read
-    /// the same way.
+    /// missing last-message write reads as "nothing new". History from before the join is
+    /// not unread, so the member joins first.
     /// </summary>
     [Test, CancelAfter(1000 * 60 * 5)]
     public async Task A_member_who_has_read_nothing_sees_one_unread_channel(CancellationToken ct = default)
@@ -120,13 +121,13 @@ public class ChannelBadgeTests : TestBase
         var spaceId   = await CreateSpaceAsync(owner, ct);
         var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-unread", ct);
 
+        await JoinAsync(owner, member, spaceId, ct);
+
         for (var i = 1; i <= 5; i++)
         {
             await owner.Channels.SendMessage(
                 spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
-
-        await JoinAsync(owner, member, spaceId, ct);
 
         var badge = await PollSpaceBadgeAsync(member, spaceId, x => x is not null, ct);
 
@@ -140,6 +141,84 @@ public class ChannelBadgeTests : TestBase
         // they have to reach the comparison and lose it, not be filtered out before it.
         Assert.That(badge!.unreadChannelCount, Is.EqualTo(1),
             "exactly one channel in the space has messages the member has not read");
+    }
+
+    // Messages from before the join are history: read, and handed to the client as read states.
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task A_new_member_starts_with_nothing_unread(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var spaceId = await CreateSpaceAsync(owner, ct);
+        var first   = await CreateTextChannelAsync(owner, spaceId, "badges-history-a", ct);
+        var second  = await CreateTextChannelAsync(owner, spaceId, "badges-history-b", ct);
+
+        var lastInFirst = 0L;
+        for (var i = 1; i <= 3; i++)
+        {
+            lastInFirst = await owner.Channels.SendMessage(
+                spaceId, first, $"a {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
+            await owner.Channels.SendMessage(
+                spaceId, second, $"b {i}", new IonArray<IMessageEntity>([]), 100 + i, null, ct).Ok();
+        }
+
+        await JoinAsync(owner, member, spaceId, ct);
+
+        var badges = await member.Users.GetGlobalBadges(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(badges.spaces.Values.FirstOrDefault(x => x.spaceId == spaceId), Is.Null,
+                "messages posted before the member joined count as unread");
+            Assert.That(badges.readStates.Values.FirstOrDefault(r => r.channelId == first)?.lastReadMessageId,
+                Is.EqualTo(lastInFirst), "the client needs the history as read, or its own indicator lights up");
+        });
+
+        await owner.Channels.SendMessage(
+            spaceId, second, "after", new IonArray<IMessageEntity>([]), 200, null, ct).Ok();
+
+        var badge = await PollSpaceBadgeAsync(member, spaceId, x => x is not null, ct);
+
+        Assert.That(badge?.unreadChannelCount, Is.EqualTo(1), "a message after the join is unread");
+    }
+
+    // A return is a new stay: what was posted while the member was away is history too, even in a
+    // channel they had read before leaving.
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task A_member_who_returns_starts_again_with_nothing_unread(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-return", ct);
+
+        await JoinAsync(owner, member, spaceId, ct);
+
+        var read = await owner.Channels.SendMessage(
+            spaceId, channelId, "before", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
+        await member.Users.AckChannel(channelId, read, ct);
+
+        await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).RemoveMemberAsync(member.UserId);
+
+        var away = 0L;
+        for (var i = 2; i <= 4; i++)
+        {
+            away = await owner.Channels.SendMessage(
+                spaceId, channelId, $"away {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
+        }
+
+        await JoinAsync(owner, member, spaceId, ct);
+
+        var badges = await member.Users.GetGlobalBadges(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(badges.spaces.Values.FirstOrDefault(x => x.spaceId == spaceId), Is.Null,
+                "what was posted while the member was away counts as unread");
+            Assert.That(badges.readStates.Values.Single(r => r.channelId == channelId).lastReadMessageId, Is.EqualTo(away));
+        });
     }
 
     /// <summary>
@@ -157,6 +236,8 @@ public class ChannelBadgeTests : TestBase
         var spaceId   = await CreateSpaceAsync(owner, ct);
         var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-ack", ct);
 
+        await JoinAsync(owner, member, spaceId, ct);
+
         var lastMessageId = 0L;
 
         for (var i = 1; i <= 3; i++)
@@ -164,8 +245,6 @@ public class ChannelBadgeTests : TestBase
             lastMessageId = await owner.Channels.SendMessage(
                 spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
-
-        await JoinAsync(owner, member, spaceId, ct);
 
         var before = await PollSpaceBadgeAsync(member, spaceId, x => x is not null, ct);
         Assert.That(before, Is.Not.Null, "the badge has to be there before there is anything to clear");
@@ -214,6 +293,8 @@ public class ChannelBadgeTests : TestBase
         var spaceId   = await CreateSpaceAsync(owner, ct);
         var channelId = await CreateTextChannelAsync(owner, spaceId, "badges-durable", ct);
 
+        await JoinAsync(owner, member, spaceId, ct);
+
         var lastMessageId = 0L;
 
         for (var i = 1; i <= 3; i++)
@@ -221,8 +302,6 @@ public class ChannelBadgeTests : TestBase
             lastMessageId = await owner.Channels.SendMessage(
                 spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
-
-        await JoinAsync(owner, member, spaceId, ct);
 
         // The flush is on a timer, so the row is not there the instant SendMessage returns. Waiting
         // for it is what makes the deletion below a test of the fallback rather than a race with it.

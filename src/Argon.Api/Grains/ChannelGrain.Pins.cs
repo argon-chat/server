@@ -95,8 +95,7 @@ public partial class ChannelGrain
         var channelId = this.GetPrimaryKey();
 
         // The refusal QueryMessages gives: pins are part of the history.
-        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel, ct)
-         || !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ReadHistory, ct))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory, ct))
             return [];
 
         var current = await PinsAsync(ct);

@@ -29,6 +29,9 @@ public interface IMessagesLayout
         long? fromMessageId = null,
         int limit = 50, CancellationToken ct = default);
 
+    /// <summary>Up to <paramref name="older"/> messages at or before the message and <paramref name="newer"/> after it.</summary>
+    Task<MessageWindowEntity> QueryMessagesAround(Guid spaceId, Guid channelId, long messageId, int older, int newer, CancellationToken ct = default);
+
     Task<long?> CheckDuplicationAsync(ArgonMessageEntity msg, long randomId, CancellationToken ct = default);
 
     Task<long> ExecuteInsertMessage(ArgonMessageEntity msg, long randomId, CancellationToken ct = default);
@@ -90,6 +93,37 @@ public class PgSqlMessagesLayout(
            .OrderByDescending(m => m.MessageId)
            .Take(limit)
            .ToListAsync(cancellationToken: ct);
+    }
+
+    public async Task<MessageWindowEntity> QueryMessagesAround(Guid spaceId, Guid channelId, long messageId, int older, int newer,
+        CancellationToken ct = default)
+    {
+        older = Math.Clamp(older, 0, MaxQueryLimit);
+        newer = Math.Clamp(newer, 0, MaxQueryLimit);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // One more on each side than asked: whether it comes back says if more lies beyond.
+        var before = await ctx.Messages
+           .AsNoTracking()
+           .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId <= messageId && !m.IsDeleted)
+           .OrderByDescending(m => m.MessageId)
+           .Take(older + 1)
+           .ToListAsync(ct);
+
+        var after = await ctx.Messages
+           .AsNoTracking()
+           .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId > messageId && !m.IsDeleted)
+           .OrderBy(m => m.MessageId)
+           .Take(newer + 1)
+           .ToListAsync(ct);
+
+        var containsAnchor = older > 0 && before.Count > 0 && before[0].MessageId == messageId;
+        var hasOlder       = before.Count > older;
+        var hasNewer       = after.Count > newer;
+
+        var newest = after.Take(newer).Reverse();
+        return new MessageWindowEntity([..newest, ..before.Take(older)], hasOlder, hasNewer, containsAnchor);
     }
 
     public async Task<long?> CheckDuplicationAsync(ArgonMessageEntity msg, long randomId, CancellationToken ct = default)

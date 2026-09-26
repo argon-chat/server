@@ -1377,13 +1377,26 @@ public partial class ChannelGrain(
 
         // ViewChannel as well: nothing implies it from ReadHistory, and a channel hidden by overwrites
         // must not be readable through its history. A refusal reads as an empty channel.
-        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel)
-         || !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ReadHistory))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory))
             return [];
 
         var messages = await messagesLayout.QueryMessages(_self.SpaceId, channelId, @from, limit);
         await ResolveAttachmentUrls(messages);
         return messages;
+    }
+
+    public async Task<MessageWindowEntity> QueryMessagesAround(long messageId, int older, int newer)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        // As QueryMessages: ViewChannel and ReadHistory, and a refusal reads as an empty channel.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory))
+            return MessageWindowEntity.Empty;
+
+        var window = await messagesLayout.QueryMessagesAround(_self.SpaceId, channelId, messageId, older, newer);
+        await ResolveAttachmentUrls(window.Messages);
+        return window;
     }
 
     public async Task<(SendMessageError error, long messageId)> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo,
@@ -1599,6 +1612,7 @@ public partial class ChannelGrain(
     /// </remarks>
     private void PublishLastMessageId(long messageId)
     {
+        var sentAt    = DateTimeOffset.UtcNow;
         var channelId = this.GetPrimaryKey();
         var previous  = lastMessagePublishTail;
 
@@ -1610,7 +1624,10 @@ public partial class ChannelGrain(
             try
             {
                 await using var scope = redisPool.Rent();
-                await scope.GetDatabase().StringSetAsync(LastMessageCacheKey(channelId), messageId);
+                await scope.GetDatabase().StringSetAsync([
+                    new(LastMessageCacheKey(channelId), messageId),
+                    new(ChannelHighWaterCell.AtKeyFor(channelId), sentAt.ToUnixTimeMilliseconds())
+                ]);
             }
             catch (Exception ex)
             {
@@ -2609,8 +2626,8 @@ public partial class ChannelGrain(
         var callerId = this.GetUserId();
 
         // The refusal QueryMessages gives: who reacted with what is part of the history.
-        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.ViewChannel)
-         || !await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.ReadHistory))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId,
+                ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory))
             return new();
 
         const int maxBatch = 50;

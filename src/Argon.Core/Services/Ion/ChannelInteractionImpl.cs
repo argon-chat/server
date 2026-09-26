@@ -135,6 +135,13 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
         return result.Select(x => x.ToDto()).ToList();
     }
 
+    public async Task<MessageWindow> QueryMessagesAround(Guid spaceId, Guid channelId, long messageId, int older, int newer,
+        CancellationToken ct = default)
+    {
+        var window = await this.GetGrain<IChannelGrain>(channelId).QueryMessagesAround(messageId, older, newer);
+        return new MessageWindow(window.Messages.Select(x => x.ToDto()).ToList(), window.HasOlder, window.HasNewer, window.ContainsAnchor);
+    }
+
     public async Task<ISendMessageResult> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities, long randomId,
         long? replyTo, CancellationToken ct = default)
     {

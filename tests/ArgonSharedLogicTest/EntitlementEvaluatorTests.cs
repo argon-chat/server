@@ -605,4 +605,49 @@ public class EntitlementEvaluatorTests
         Assert.That(EntitlementEvaluator.HasAccessTo(Member(everyone, quiet, speaker),
             allowFirst ? Channel(allow, deny) : Channel(deny, allow), ArgonEntitlement.SendMessages), Is.True);
     }
+
+    // ── Several rights at once ──────────────────────────────────────────────────────────────────
+
+    [Test]
+    public void Several_rights_asked_at_once_need_every_one_of_them()
+    {
+        var everyone = Everyone(ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory);
+        var blind    = Archetype(ArgonEntitlement.None, name: "blind");
+        var reader   = Member(everyone);
+        var hidden   = Member(everyone, blind);
+        var channel  = Channel(ArchetypeOverwrite(blind.Id, deny: ArgonEntitlement.ReadHistory));
+
+        const ArgonEntitlement both = ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory;
+        Assert.Multiple(() =>
+        {
+            Assert.That(EntitlementEvaluator.HasAccessToAll(reader, channel, both), Is.True);
+            Assert.That(EntitlementEvaluator.HasAccessToAll(hidden, channel, both), Is.False, "one right of the two was denied");
+        });
+    }
+
+    [Test]
+    public void Several_rights_at_once_answer_as_each_asked_on_its_own()
+    {
+        // An opt-in channel: a role allowed to post there, everyone else not. Asking for ViewChannel
+        // and SendMessages together must not trip over the opt-in rule the way one combined value would.
+        var everyone = Everyone(ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages | ArgonEntitlement.ReadHistory);
+        var poster   = Archetype(ArgonEntitlement.None, name: "poster");
+        var channel  = Channel(
+            ArchetypeOverwrite(everyone.Id, deny: ArgonEntitlement.SendMessages),
+            ArchetypeOverwrite(poster.Id, allow: ArgonEntitlement.SendMessages));
+
+        foreach (var member in new[] { Member(everyone), Member(everyone, poster) })
+        foreach (var asked in new[]
+                 {
+                     ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages,
+                     ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory,
+                     ArgonEntitlement.SendMessages | ArgonEntitlement.ReadHistory,
+                 })
+        {
+            var oneByOne = Enum.GetValues<ArgonEntitlement>()
+               .Where(e => System.Numerics.BitOperations.IsPow2((ulong)e) && asked.HasFlag(e))
+               .All(e => EntitlementEvaluator.HasAccessTo(member, channel, e));
+            Assert.That(EntitlementEvaluator.HasAccessToAll(member, channel, asked), Is.EqualTo(oneByOne), $"{asked}");
+        }
+    }
 }

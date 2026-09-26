@@ -19,6 +19,11 @@ public interface IEntitlementChecker
         ArgonEntitlement requiredEntitlement,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Whether the caller holds every right in <paramref name="requiredEntitlement"/> in the channel.
+    /// Ask for several at once (ViewChannel | ReadHistory) rather than in a row: the member and the
+    /// channel are read once for all of them.
+    /// </summary>
     Task<bool> HasChannelAccessAsync(
         Guid spaceId,
         Guid channelId,
@@ -65,6 +70,6 @@ public class EntitlementChecker(IPermissionCache permissionCache) : IEntitlement
         if (channel is null)
             return false;
 
-        return EntitlementEvaluator.HasAccessTo(member, channel, requiredEntitlement);
+        return EntitlementEvaluator.HasAccessToAll(member, channel, requiredEntitlement);
     }
 }
