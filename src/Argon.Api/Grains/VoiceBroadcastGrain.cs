@@ -15,7 +15,7 @@ public class VoiceBroadcastGrain(
     IDbContextFactory<ApplicationDbContext> context,
     ILogger<IVoiceBroadcastGrain> logger) : Grain, IVoiceBroadcastGrain
 {
-    /// <summary>How often the radio room is checked while anyone holds a link.</summary>
+    /// <summary>How often the radio room is checked while anyone holds a link or a radio participant is in it.</summary>
     public static TimeSpan SweepPeriod { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>How far past <c>MaxTransmitSeconds</c> a transmission runs before the server mutes it; the client releases first.</summary>
@@ -36,9 +36,9 @@ public class VoiceBroadcastGrain(
 
     public override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        // Timers do not travel; a migrated activation arrives with its links and arms the sweeper again.
-        if (Links.Count > 0)
-            KeepAlive();
+        // Timers do not travel: a migrated activation arrives with its links and arms the sweeper again.
+        // A fresh one may find radio participants a lost activation left behind, so it sweeps at once.
+        Arm(Links.Count > 0 ? SweepPeriod : TimeSpan.Zero);
         return Task.CompletedTask;
     }
 
@@ -65,7 +65,7 @@ public class VoiceBroadcastGrain(
             link.IssuedAt = now;
         }
 
-        KeepAlive();
+        Arm(SweepPeriod);
 
         return new SuccessBroadcastLinks(await VoiceControl.GetRtcEndpointAsync(), link.Token,
             new RadioIdentity(userId).ToRawIdentity(), RadioRoom, ChannelBroadcast.ToDto(channel.Broadcast)!);
@@ -82,18 +82,28 @@ public class VoiceBroadcastGrain(
 
         // The fork answers a forward that already exists with success, so a re-confirm after a
         // reconnect is one pass over the whole list.
-        var targets = await ValidTargetsAsync(channel);
-        link.ForwardedTargets.Clear();
+        var targets   = await ValidTargetsAsync(channel);
+        var forwarded = new HashSet<Guid>();
         foreach (var target in targets)
             if (await ForwardAsync(userId, target))
-                link.ForwardedTargets.Add(target);
+                forwarded.Add(target);
 
-        if (targets.Count > 0 && link.ForwardedTargets.Count == 0)
+        // A pass that forwarded nothing says nothing about what the SFU still has.
+        if (targets.Count > 0 && forwarded.Count == 0)
             return new FailedConfirmBroadcastLinks(BroadcastLinksError.SFU_UNAVAILABLE);
 
+        link.ForwardedTargets.UnionWith(forwarded);
         link.Confirmed     = true;
         link.MissingSweeps = 0;
         return new SuccessConfirmBroadcastLinks(link.ForwardedTargets.Count);
+    }
+
+    public Task OnMemberJoinedAsync(Guid userId)
+    {
+        // Activating was the point; an idle radio takes one look for participants nobody was issued.
+        logger.LogDebug("Radio of {Channel}: {User} joined", ChannelId, userId);
+        Arm(TimeSpan.Zero);
+        return Task.CompletedTask;
     }
 
     public async Task OnMemberLeftAsync(Guid userId)
@@ -101,10 +111,8 @@ public class VoiceBroadcastGrain(
         if (!Links.Remove(userId))
             return;
 
-        // The fork tears the forwards down with their source.
+        // The fork tears the forwards down with their source; the sweeper idles once the room is empty.
         await VoiceControl.RemoveParticipantAsync(RadioRoom, new RadioIdentity(userId).ToRawIdentity());
-        if (Links.Count == 0)
-            Idle();
     }
 
     public Task ApplyVoiceRestrictionAsync(Guid userId, bool muted, bool deafened)
@@ -122,20 +130,7 @@ public class VoiceBroadcastGrain(
             return;
         }
 
-        var targets = (await ValidTargetsAsync(channel)).ToHashSet();
-        foreach (var link in Links.Values.Where(l => l.Confirmed).ToList())
-        {
-            foreach (var added in targets.Except(link.ForwardedTargets).ToList())
-                if (await ForwardAsync(link.UserId, added))
-                    link.ForwardedTargets.Add(added);
-
-            foreach (var dropped in link.ForwardedTargets.Except(targets).ToList())
-            {
-                await VoiceControl.RemoveParticipantAsync(new ArgonRoomId(channel.SpaceId, dropped).ToRawRoomId(),
-                    new RadioIdentity(link.UserId).ToRawIdentity());
-                link.ForwardedTargets.Remove(dropped);
-            }
-        }
+        await ReconcileForwardsAsync(channel);
     }
 
     public async Task ShutdownAsync()
@@ -158,20 +153,29 @@ public class VoiceBroadcastGrain(
         if (!callKit.Value.Sfu.Has(SfuInstanceCfg.ForwardCapability))
             return (null, BroadcastLinksError.SFU_UNAVAILABLE);
 
+        // The slot before the mode: whether a channel broadcasts is not told to someone outside it.
         var channel = await LoadChannelAsync();
-        if (channel?.Broadcast is null)
+        if (channel is null || !await InChannelAsync(channel, userId))
+            return (null, BroadcastLinksError.NOT_IN_CHANNEL);
+        if (channel.Broadcast is null)
             return (null, BroadcastLinksError.NOT_A_BROADCAST_CHANNEL);
 
-        var error = await CheckMemberAsync(channel, userId);
+        var error = await CheckRightsAsync(channel, userId);
         return error == BroadcastLinksError.NONE ? (channel, error) : (null, error);
     }
 
     /// <summary>In this channel, allowed to Broadcast, neither server-muted nor deafened: what every link rests on.</summary>
     private async Task<BroadcastLinksError> CheckMemberAsync(ChannelEntity channel, Guid userId)
+        => await InChannelAsync(channel, userId) ? await CheckRightsAsync(channel, userId) : BroadcastLinksError.NOT_IN_CHANNEL;
+
+    private async Task<bool> InChannelAsync(ChannelEntity channel, Guid userId)
     {
         var slot = await grainFactory.GetGrain<ISpaceGrain>(channel.SpaceId).GetUserVoiceSlotAsync(userId);
-        if (slot?.ChannelId != ChannelId)
-            return BroadcastLinksError.NOT_IN_CHANNEL;
+        return slot?.ChannelId == ChannelId;
+    }
+
+    private async Task<BroadcastLinksError> CheckRightsAsync(ChannelEntity channel, Guid userId)
+    {
         if (!await entitlementChecker.HasChannelAccessAsync(channel.SpaceId, ChannelId, userId, ArgonEntitlement.Broadcast))
             return BroadcastLinksError.INSUFFICIENT_PERMISSIONS;
 
@@ -205,6 +209,29 @@ public class VoiceBroadcastGrain(
            .ToListAsync();
     }
 
+    /// <summary>Every confirmed link forwarded into the targets that qualify now, and out of those that no longer do.</summary>
+    private async Task ReconcileForwardsAsync(ChannelEntity channel)
+    {
+        var confirmed = Links.Values.Where(l => l.Confirmed).ToList();
+        if (confirmed.Count == 0)
+            return;
+
+        var targets = (await ValidTargetsAsync(channel)).ToHashSet();
+        foreach (var link in confirmed)
+        {
+            foreach (var added in targets.Except(link.ForwardedTargets).ToList())
+                if (await ForwardAsync(link.UserId, added))
+                    link.ForwardedTargets.Add(added);
+
+            foreach (var dropped in link.ForwardedTargets.Except(targets).ToList())
+            {
+                await VoiceControl.RemoveParticipantAsync(new ArgonRoomId(channel.SpaceId, dropped).ToRawRoomId(),
+                    new RadioIdentity(link.UserId).ToRawIdentity());
+                link.ForwardedTargets.Remove(dropped);
+            }
+        }
+    }
+
     private async Task<bool> ForwardAsync(Guid userId, Guid target)
     {
         var identity    = new RadioIdentity(userId).ToRawIdentity();
@@ -218,28 +245,21 @@ public class VoiceBroadcastGrain(
 
     // ── sweeper ─────────────────────────────────────────────────────────────────────────────────
 
-    private void KeepAlive()
-    {
-        this.DelayDeactivation(TimeSpan.FromDays(1));
-        _sweeper ??= this.RegisterGrainTimer(_ => SweepAsync(), new GrainTimerCreationOptions(SweepPeriod, SweepPeriod));
-    }
+    private void Arm(TimeSpan due)
+        => _sweeper ??= this.RegisterGrainTimer(_ => SweepAsync(), new GrainTimerCreationOptions(due, SweepPeriod) { KeepAlive = true });
 
     private void Idle()
     {
         _sweeper?.Dispose();
         _sweeper = null;
-        this.DelayDeactivation(TimeSpan.MinValue);
     }
 
-    /// <summary>Removes radio participants that no longer qualify and mutes a transmission past the cap.</summary>
+    /// <summary>
+    /// Removes radio participants that no longer qualify, keeps the forwards in step with the targets
+    /// and mutes a transmission past the cap. Idles once no link is out and the room answered empty.
+    /// </summary>
     private async Task SweepAsync()
     {
-        if (Links.Count == 0)
-        {
-            Idle();
-            return;
-        }
-
         var channel = await LoadChannelAsync();
         if (channel?.Broadcast is null)
         {
@@ -277,9 +297,11 @@ public class VoiceBroadcastGrain(
                 if (++link.MissingSweeps >= MissingSweepsToDrop)
                     Links.Remove(link.UserId);
 
+        await ReconcileForwardsAsync(channel);
+
         logger.LogDebug("Radio {Room}: {Participants} participant(s), {Links} link(s)", RadioRoom, participants.Count, Links.Count);
 
-        if (Links.Count == 0)
+        if (Links.Count == 0 && participants.Count == 0)
             Idle();
     }
 

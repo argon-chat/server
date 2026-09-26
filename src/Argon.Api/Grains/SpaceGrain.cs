@@ -966,7 +966,7 @@ public class SpaceGrain(
 
         await Invalidate();
         await Fire(new ChannelGroupRemoved(spaceId, groupId));
-        await UntargetDeletedChannelsAsync(ctx, spaceId, deleted);
+        await UntargetChannelsAsync(ctx, spaceId, deleted);
     }
 
     public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null)
@@ -1132,7 +1132,13 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync();
         await Invalidate();
         await Fire(new ChannelRemoved(spaceId, channelId));
-        await UntargetDeletedChannelsAsync(ctx, spaceId, [channelId]);
+        await UntargetChannelsAsync(ctx, spaceId, [channelId]);
+    }
+
+    public async Task UntargetChannelAsync(Guid channelId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        await UntargetChannelsAsync(ctx, this.GetPrimaryKey(), [channelId]);
     }
 
     /// <summary>Voice goes before the row does: the room is emptied and a broadcast channel's radio revoked.</summary>
@@ -1149,22 +1155,22 @@ public class SpaceGrain(
     }
 
     /// <summary>
-    /// Deleted channels drop out of every broadcast target list. The channel grain is the only writer
-    /// of that column, so each affected channel is told rather than edited here; one-way, so a delete
-    /// never waits on a grain that can call back into this one.
+    /// Deleted channels, and one that turned broadcast, drop out of every broadcast target list. The
+    /// channel grain is the only writer of that column, so each affected channel is told rather than
+    /// edited here; one-way, so a delete never waits on a grain that can call back into this one.
     /// </summary>
-    private async Task UntargetDeletedChannelsAsync(ApplicationDbContext ctx, Guid spaceId, List<Guid> deleted)
+    private async Task UntargetChannelsAsync(ApplicationDbContext ctx, Guid spaceId, List<Guid> channels)
     {
-        if (deleted.Count == 0)
+        if (channels.Count == 0)
             return;
 
         var broadcasting = await ctx.Channels.AsNoTracking()
-           .Where(c => c.SpaceId == spaceId && c.Broadcast != null && !deleted.Contains(c.Id))
+           .Where(c => c.SpaceId == spaceId && c.Broadcast != null && !channels.Contains(c.Id))
            .Select(c => new { c.Id, c.Broadcast })
            .ToListAsync();
 
         foreach (var hq in broadcasting)
-        foreach (var target in deleted.Where(hq.Broadcast!.Targets.Contains))
+        foreach (var target in channels.Where(hq.Broadcast!.Targets.Contains))
             await grainFactory.GetGrain<IChannelGrain>(hq.Id).RemoveBroadcastTarget(target);
     }
 

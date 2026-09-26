@@ -58,7 +58,8 @@ public class VoiceBroadcastTests : TestBase
         var party = await CreateChannelAsync(owner, spaceId, "party", ChannelType.Voice, ct);
         var hq    = await BroadcastChannelAsync(owner, spaceId, Settings(party), ct);
 
-        var outsideVoice = await member.Channels.GetBroadcastLinks(spaceId, hq, ct);
+        var outsideVoice    = await member.Channels.GetBroadcastLinks(spaceId, hq, ct);
+        var ordinaryOutside = await member.Channels.GetBroadcastLinks(spaceId, party, ct);
 
         await JoinVoiceAsync(member, spaceId, party, ct);
         var elsewhere    = await member.Channels.GetBroadcastLinks(spaceId, hq, ct);
@@ -67,6 +68,7 @@ public class VoiceBroadcastTests : TestBase
         Assert.Multiple(() =>
         {
             Assert.That(Error(outsideVoice), Is.EqualTo(BroadcastLinksError.NOT_IN_CHANNEL), "not in voice at all");
+            Assert.That(Error(ordinaryOutside), Is.EqualTo(BroadcastLinksError.NOT_IN_CHANNEL), "whether a channel broadcasts is not told to someone outside it");
             Assert.That(Error(elsewhere), Is.EqualTo(BroadcastLinksError.NOT_IN_CHANNEL), "in another channel of the space");
             Assert.That(Error(ordinaryRoom), Is.EqualTo(BroadcastLinksError.NOT_A_BROADCAST_CHANNEL));
         });
@@ -262,15 +264,37 @@ public class VoiceBroadcastTests : TestBase
 
         Assert.That(await owner.Channels.PatchBroadcastSettings(spaceId, hq, Targets(bravo), ct), Is.InstanceOf<SuccessSetBroadcastSettings>());
 
-        var live     = GetFakeLiveKit();
         var identity = $"bc:{member.UserId}";
+
+        // The radio is told one-way, so both land after the patch has returned.
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await ForwardedAsync(Radio(spaceId, hq), identity, $"{spaceId}/{bravo}", ct), Is.True, "the added target");
+            Assert.That(await RemovedAsync($"{spaceId}/{alpha}", identity, ct), Is.True, "the dropped target");
+            Assert.That(GetFakeLiveKit().RemoveParticipantCalls, Has.None.Matches<RoomParticipantIdentity>(c =>
+                c.Room == Radio(spaceId, hq) && c.Identity == identity), "the radio itself stays");
+        });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_target_that_turns_broadcast_stops_hearing_HQ(CancellationToken ct = default)
+    {
+        var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
+        var alpha = await CreateChannelAsync(owner, spaceId, "alpha", ChannelType.Voice, ct);
+        var hq    = await BroadcastChannelAsync(owner, spaceId, Settings(alpha), ct);
+        await OnAirAsync(member, spaceId, hq, ct);
+
+        // Decision 8: the new broadcast channel is nobody's target, so HQ drops it and its forward goes.
+        Assert.That(await owner.Channels.SetBroadcastMode(spaceId, alpha, true, ct), Is.InstanceOf<SuccessSetBroadcastSettings>());
+
+        var identity = $"bc:{member.UserId}";
+        var targets  = await Poll.ForValueAsync(() => TargetsAsync(owner, spaceId, hq, ct), t => t.Count == 0, Settle, ct: ct);
 
         Assert.Multiple(async () =>
         {
-            Assert.That(live.ForwardParticipantCalls, Has.Some.Matches<ForwardParticipantRequest>(f =>
-                f.Room == Radio(spaceId, hq) && f.Identity == identity && f.DestinationRoom == $"{spaceId}/{bravo}"), "the added target");
-            Assert.That(await RemovedAsync($"{spaceId}/{alpha}", identity, ct), Is.True, "the dropped target");
-            Assert.That(live.RemoveParticipantCalls, Has.None.Matches<RoomParticipantIdentity>(c =>
+            Assert.That(await RemovedAsync($"{spaceId}/{alpha}", identity, ct), Is.True, "the forward into the new broadcast channel");
+            Assert.That(targets, Is.Empty, "HQ's targets");
+            Assert.That(GetFakeLiveKit().RemoveParticipantCalls, Has.None.Matches<RoomParticipantIdentity>(c =>
                 c.Room == Radio(spaceId, hq) && c.Identity == identity), "the radio itself stays");
         });
     }
@@ -359,6 +383,23 @@ public class VoiceBroadcastTests : TestBase
             Assert.That(GetFakeLiveKit().RemoveParticipantCalls, Has.None.Matches<RoomParticipantIdentity>(c =>
                 c.Room == radio && c.Identity == $"bc:{member.UserId}"), "the legitimate broadcaster stays");
         });
+    }
+
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_radio_participant_no_link_accounts_for_is_removed_once_HQ_is_joined(CancellationToken ct = default)
+    {
+        var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
+        var party = await CreateChannelAsync(owner, spaceId, "party", ChannelType.Voice, ct);
+        var hq    = await BroadcastChannelAsync(owner, spaceId, Settings(party), ct);
+        var radio = Radio(spaceId, hq);
+
+        // Left behind by an activation that is gone: connected and forwarded, known to no link.
+        var stranded = Guid.NewGuid();
+        GetFakeLiveKit().Participants[radio] = Room(RadioParticipant(stranded, muted: true));
+
+        await JoinVoiceAsync(member, spaceId, hq, ct);
+
+        Assert.That(await RemovedAsync(radio, $"bc:{stranded}", ct), Is.True, "nobody asked for links, the join alone woke the radio");
     }
 
     [Test, CancelAfter(1000 * 60 * 3)]
@@ -481,6 +522,17 @@ public class VoiceBroadcastTests : TestBase
         => Poll.ForValueAsync(
             () => Task.FromResult(GetFakeLiveKit().RemoveParticipantCalls.Any(c => c.Room == room && c.Identity == identity)),
             removed => removed, Settle, ct: ct);
+
+    private Task<bool> ForwardedAsync(string radio, string identity, string destination, CancellationToken ct)
+        => Poll.ForValueAsync(
+            () => Task.FromResult(GetFakeLiveKit().ForwardParticipantCalls.Any(f => f.Room == radio && f.Identity == identity && f.DestinationRoom == destination)),
+            forwarded => forwarded, Settle, ct: ct);
+
+    private static async Task<List<Guid>> TargetsAsync(TestUserSession reader, Guid spaceId, Guid channelId, CancellationToken ct)
+    {
+        var channels = await reader.Servers.GetChannels(spaceId, ct);
+        return channels.Values.First(c => c.channel.channelId == channelId).channel.broadcast?.targets.Values.ToList() ?? [];
+    }
 
     private static async Task<List<Guid>> OccupantIdsAsync(TestUserSession reader, Guid spaceId, Guid channelId, CancellationToken ct)
     {

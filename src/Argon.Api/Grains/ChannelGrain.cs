@@ -639,6 +639,8 @@ public class ChannelGrain(
         if (flags != ChannelMemberState.NONE)
             await Fire(new VoiceMemberStateChanged(SpaceId, this.GetPrimaryKey(), userId, flags));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
+        if (_self.Broadcast is not null)
+            await Radio.OnMemberJoinedAsync(userId);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -772,6 +774,8 @@ public class ChannelGrain(
         if (flags != ChannelMemberState.NONE)
             await Fire(new VoiceMemberStateChanged(SpaceId, this.GetPrimaryKey(), userId, flags));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
+        if (_self.Broadcast is not null)
+            await Radio.OnMemberJoinedAsync(userId);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -930,8 +934,9 @@ public class ChannelGrain(
             return new FailedSetBroadcastSettings(SetBroadcastSettingsError.INSUFFICIENT_PERMISSIONS);
 
         await using var ctx = await context.CreateDbContextAsync();
-        var channel = await ctx.Channels.FirstAsync(c => c.Id == channelId);
-        if (channel.ChannelType != ChannelType.Voice)
+        var channel = await ctx.Channels.FirstOrDefaultAsync(c => c.Id == channelId);
+        // A deleted channel is nobody's voice channel either.
+        if (channel is null || channel.ChannelType != ChannelType.Voice)
             return new FailedSetBroadcastSettings(SetBroadcastSettingsError.CHANNEL_IS_NOT_VOICE);
 
         var on = channel.Broadcast is not null;
@@ -941,9 +946,13 @@ public class ChannelGrain(
         channel.Broadcast = enabled ? ChannelBroadcast.Default() : null;
         await ctx.SaveChangesAsync();
 
-        // Decision 3: everyone who can join HQ transmits by default, as a visible overwrite an admin can narrow.
         if (enabled)
+        {
+            // Decision 3: everyone who can join HQ transmits by default, as a visible overwrite an admin can narrow.
             await GrantBroadcastToEveryoneAsync(ctx, channelId, callerId);
+            // Decision 8: a broadcast channel is nobody's target. One-way, like the delete path.
+            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).UntargetChannelAsync(channelId);
+        }
 
         await AnnounceBroadcastChangedAsync(channel);
         return await BroadcastResultAsync(ctx, channel);
@@ -958,8 +967,9 @@ public class ChannelGrain(
             return new FailedSetBroadcastSettings(SetBroadcastSettingsError.INSUFFICIENT_PERMISSIONS);
 
         await using var ctx = await context.CreateDbContextAsync();
-        var channel = await ctx.Channels.FirstAsync(c => c.Id == channelId);
-        if (channel.ChannelType != ChannelType.Voice)
+        var channel = await ctx.Channels.FirstOrDefaultAsync(c => c.Id == channelId);
+        // A deleted channel is nobody's voice channel either.
+        if (channel is null || channel.ChannelType != ChannelType.Voice)
             return new FailedSetBroadcastSettings(SetBroadcastSettingsError.CHANNEL_IS_NOT_VOICE);
         if (channel.Broadcast is not { } current)
             return new FailedSetBroadcastSettings(SetBroadcastSettingsError.NOT_A_BROADCAST_CHANNEL);

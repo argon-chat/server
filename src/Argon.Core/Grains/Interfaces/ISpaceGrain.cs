@@ -46,6 +46,10 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(DeleteChannel))]
     Task DeleteChannel(Guid channelId);
 
+    /// <summary>The channel turned broadcast: it drops out of every other broadcast channel's targets (decision 8).</summary>
+    [OneWay, Alias(nameof(UntargetChannelAsync))]
+    Task UntargetChannelAsync(Guid channelId);
+
     /// <summary>
     /// A copy of <paramref name="channelId"/> placed right after it in the same group: same type,
     /// name, topic, cooldown, bitrate and permission overwrites, none of the messages.

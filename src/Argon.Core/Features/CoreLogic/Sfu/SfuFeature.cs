@@ -11,7 +11,9 @@ public static class SfuFeature
         builder.Services.TryAddScoped<RoomServiceClient>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
-            return new RoomServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
+            // Bounded: a grain turn that talks to the SFU must not hang on an unreachable one.
+            var http = new HttpClient { Timeout = options.Value.Sfu.CommandTimeout };
+            return new RoomServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret, http);
         });
         builder.Services.TryAddScoped<EgressServiceClient>(x =>
         {
@@ -102,6 +104,9 @@ public class SfuInstanceCfg
     public          string      AudioIngressUrl { get; set; } = "";
 
     public SfuS3Settings? S3 { get; set; }
+
+    /// <summary>How long one room-service call may take before it counts as failed.</summary>
+    public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>What the LiveKit build behind <see cref="CommandUrl"/> supports beyond upstream: <see cref="ForwardCapability"/>, <see cref="MoveCapability"/>.</summary>
     public List<string> Capabilities { get; set; } = [];
