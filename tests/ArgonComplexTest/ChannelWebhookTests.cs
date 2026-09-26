@@ -3,13 +3,19 @@ namespace ArgonComplexTest.Tests;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Argon.Core.Features.WebHooks;
 using Argon.Entities;
 using Argon.Grains.Interfaces;
+using Argon.Services.Ion;
 using ArgonComplexTest.Infrastructure;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json.Linq;
 using static ChannelTestKit;
 
 /// <summary>
@@ -172,15 +178,18 @@ public class ChannelWebhookTests : TestBase
         var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
         var created = await CreateAsync(owner, spaceId, channelId, "hook", ct);
 
-        using var wrongToken = await PostAsync($"/api/webhooks/{created.webhook.webhookId}/not-the-token", new { content = "hi" }, ct);
+        using var wrongToken = await PostAsync($"/api/webhooks/{created.webhook.webhookId}/{ChannelWebhookEntity.NewToken()}", new { content = "hi" }, ct);
+        using var malformed  = await PostAsync($"/api/webhooks/{created.webhook.webhookId}/not-the-token", new { content = "hi" }, ct);
         using var unknown    = await PostAsync($"/api/webhooks/{Guid.NewGuid()}/{created.token}", new { content = "hi" }, ct);
 
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(wrongToken.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(malformed.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
             Assert.That(unknown.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
             Assert.That(await wrongToken.Content.ReadAsStringAsync(ct), Is.EqualTo(await unknown.Content.ReadAsStringAsync(ct)),
                 "the two answers differ, so a token can be told from an id");
+            Assert.That(await malformed.Content.ReadAsStringAsync(ct), Is.EqualTo(await unknown.Content.ReadAsStringAsync(ct)));
             Assert.That(await ReadAsync(guest, spaceId, channelId, ct), Is.Empty);
         });
     }
@@ -365,6 +374,266 @@ public class ChannelWebhookTests : TestBase
         {
             Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
             Assert.That(await db.ChannelWebhooks.AsNoTracking().AnyAsync(w => w.SpaceId == spaceId, ct), Is.False);
+        });
+    }
+
+    /// <summary>Whether the cluster holds an activation of the webhook's grain.</summary>
+    private static async Task<bool> IsActiveAsync(Guid webhookId)
+    {
+        var id         = Grains.GetGrain<IIncomingWebhookGrain>(webhookId).GetGrainId();
+        var statistics = await Grains.GetGrain<IManagementGrain>(0).GetDetailedGrainStatistics();
+
+        return statistics.Any(s => s.GrainId.Equals(id));
+    }
+
+    /// <summary>A post from <paramref name="address"/>, sent through the test server so the peer address is set.</summary>
+    private async Task<HttpContext> PostFromAsync(IPAddress address, string path, CancellationToken ct)
+        => await FactoryAsp.Server.SendAsync(c =>
+        {
+            c.Request.Method             = HttpMethods.Post;
+            c.Request.Scheme             = "https";
+            c.Request.Host               = new HostString("api.test.local");
+            c.Request.Path               = path;
+            c.Request.ContentType        = "application/json";
+            c.Request.Body               = new MemoryStream("{\"content\":\"hi\"}"u8.ToArray());
+            c.Connection.RemoteIpAddress = address;
+        }, ct);
+
+    private static async Task SetLockdownAsync(Guid userId, LockdownReason reason, CancellationToken ct)
+    {
+        await using (var db = await DbAsync(ct))
+            await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s
+               .SetProperty(u => u.LockdownReason, reason)
+               .SetProperty(u => u.LockDownExpiration, (DateTimeOffset?)null), ct);
+
+        await Services.GetRequiredService<HybridCache>().RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_malformed_token_is_refused_without_activating_the_webhook(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
+        var created = await CreateAsync(owner, spaceId, channelId, "hook", ct);
+        var id      = created.webhook.webhookId;
+
+        string[] malformed = ["not-the-token", created.token[..42], created.token + "A", created.token[..42] + "+", created.token[..42] + "="];
+        foreach (var token in malformed)
+        {
+            using var response = await PostAsync($"/api/webhooks/{id}/{Uri.EscapeDataString(token)}", new { content = "hi" }, ct);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), token);
+        }
+
+        Assert.That(await IsActiveAsync(id), Is.False, "a malformed token activated the webhook's grain");
+
+        // The observation works: a token of the issued shape does reach the grain.
+        using (var wrong = await PostAsync($"/api/webhooks/{id}/{ChannelWebhookEntity.NewToken()}", new { content = "hi" }, ct))
+            Assert.That(wrong.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+
+        Assert.That(await IsActiveAsync(id), Is.True, "premise: a well-formed token reaches the grain");
+        Assert.That(await ReadAsync(guest, spaceId, channelId, ct), Is.Empty);
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task An_unknown_webhook_leaves_no_activation_behind(CancellationToken ct = default)
+    {
+        var id = Guid.NewGuid();
+
+        using (var response = await PostAsync($"/api/webhooks/{id}/{ChannelWebhookEntity.NewToken()}", new { content = "hi" }, ct))
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+
+        Assert.That(await PollAsync(() => IsActiveAsync(id), active => !active, TimeSpan.FromSeconds(10), ct), Is.False,
+            "the grain of an id with no webhook stayed active");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task One_address_is_limited_across_webhooks_and_another_is_not(CancellationToken ct = default)
+    {
+        var host    = Random.Shared.Next(1, 250);
+        var crowded = IPAddress.Parse($"203.0.113.{host}");
+        var quiet   = IPAddress.Parse($"203.0.113.{host + 1}");
+
+        for (var i = 1; i <= IncomingWebhookEndpoint.PerAddressPerMinute; i++)
+        {
+            var sent = await PostFromAsync(crowded, $"/api/webhooks/{Guid.NewGuid()}/malformed", ct);
+            if (sent.Response.StatusCode != StatusCodes.Status404NotFound)
+                Assert.Fail($"post {i} of {IncomingWebhookEndpoint.PerAddressPerMinute} answered {sent.Response.StatusCode}");
+        }
+
+        var limited   = await PostFromAsync(crowded, $"/api/webhooks/{Guid.NewGuid()}/malformed", ct);
+        var elsewhere = await PostFromAsync(quiet, $"/api/webhooks/{Guid.NewGuid()}/malformed", ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(limited.Response.StatusCode, Is.EqualTo(StatusCodes.Status429TooManyRequests));
+            Assert.That(int.Parse(limited.Response.Headers.RetryAfter.ToString()), Is.InRange(1, 60));
+            Assert.That(elsewhere.Response.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound), "the limit is not per address");
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_creator_under_a_critical_lockdown_can_neither_post_through_nor_manage_webhooks(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
+        var created = await CreateAsync(owner, spaceId, channelId, "hook", ct);
+        var id      = created.webhook.webhookId;
+
+        try
+        {
+            await SetLockdownAsync(owner.UserId, LockdownReason.TOS_VIOLATION, ct);
+
+            using (var locked = await PostAsync(PathOf(created), new { content = "while locked" }, ct))
+            {
+                Assert.That(locked.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+                Assert.That(await locked.Content.ReadAsStringAsync(ct), Does.Contain("forbidden"));
+            }
+
+            Assert.That(async () => await Hooks(owner).CreateWebhook(spaceId, channelId, "another", ct), Throws.Exception);
+            Assert.That(async () => await Hooks(owner).RenameWebhook(spaceId, channelId, id, "renamed", ct), Throws.Exception);
+            Assert.That(async () => await Hooks(owner).RegenerateWebhookToken(spaceId, channelId, id, ct), Throws.Exception);
+
+            // A middle-severity lockdown leaves the webhook working.
+            await SetLockdownAsync(owner.UserId, LockdownReason.UNDER_INVESTIGATION, ct);
+
+            using (var middle = await PostAsync(PathOf(created), new { content = "under investigation" }, ct))
+                Assert.That(middle.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+        }
+        finally
+        {
+            await SetLockdownAsync(owner.UserId, LockdownReason.NONE, ct);
+        }
+
+        using (var after = await PostAsync(PathOf(created), new { content = "lifted" }, ct))
+            Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+
+        var hooks = await Hooks(owner).GetWebhooks(spaceId, channelId, ct);
+        var texts = (await ReadAsync(guest, spaceId, channelId, ct)).Select(m => m.text).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(texts, Is.EquivalentTo(new[] { "under investigation", "lifted" }));
+            Assert.That(hooks.Values.Select(w => (w.webhookId, w.name)), Is.EqualTo(new[] { (id, "hook") }),
+                "a locked-down account created or renamed a webhook");
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Reserved_and_invisible_names_are_refused_and_hidden_characters_are_stripped(CancellationToken ct = default)
+    {
+        // Code points rather than the characters, so nothing invisible sits in this file.
+        const char zwsp = (char)0x200B, rlo = (char)0x202E, lri = (char)0x2066, bel = (char)0x0007;
+        var fullwidthArgon = new string("ARGON".Select(c => (char)(c + 0xFEE0)).ToArray());
+
+        var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
+
+        string[] refusedNames =
+        [
+            "Admin", "  SYSTEM ", "moderator", "Argon", "Official", "support", "Staff", "administrator",
+            $"{zwsp}{zwsp}", $"{rlo}{lri}", fullwidthArgon, $"Ad{zwsp}min"
+        ];
+
+        foreach (var name in refusedNames)
+        {
+            var refused = await Hooks(owner).CreateWebhook(spaceId, channelId, name, ct);
+            Assert.That((refused as FailedCreateWebhook)?.error, Is.EqualTo(ChannelWebhookError.NAME_NOT_ALLOWED),
+                $"'{name}' was not refused as a reserved or invisible name");
+        }
+
+        var created = await CreateAsync(owner, spaceId, channelId, $"{rlo}Release{zwsp} bot{bel}", ct);
+        Assert.That(created.webhook.name, Is.EqualTo("Release bot"), "hidden characters survived");
+
+        var renamed = await Hooks(owner).RenameWebhook(spaceId, channelId, created.webhook.webhookId, "staff", ct);
+        Assert.That((renamed as FailedUpdateWebhook)?.error, Is.EqualTo(ChannelWebhookError.NAME_NOT_ALLOWED));
+
+        using var reserved  = await PostAsync(PathOf(created), new { content = "as admin", username = "ADMIN" }, ct);
+        using var invisible = await PostAsync(PathOf(created), new { content = "as nobody", username = $"{zwsp}{lri}" }, ct);
+        using var hidden    = await PostAsync(PathOf(created), new { content = "as deploy", username = $"Deploy{zwsp}{rlo} bot" }, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(reserved.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(invisible.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(hidden.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+        });
+
+        var posted = (await ReadAsync(guest, spaceId, channelId, ct)).Single();
+        Assert.That(posted.webhook?.name, Is.EqualTo("Deploy bot"));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_token_changed_or_removed_behind_the_grains_back_stops_working_at_once(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
+        var created = await CreateAsync(owner, spaceId, channelId, "hook", ct);
+        var id      = created.webhook.webhookId;
+
+        using (var warm = await PostAsync(PathOf(created), new { content = "warm" }, ct))
+            Assert.That(warm.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+
+        // What a lost cache drop would leave: the row changed and the warm activation was never told.
+        var fresh = ChannelWebhookEntity.NewToken();
+        await using (var db = await DbAsync(ct))
+            await db.ChannelWebhooks.Where(w => w.Id == id)
+               .ExecuteUpdateAsync(s => s.SetProperty(w => w.TokenHash, ChannelWebhookEntity.HashToken(fresh)), ct);
+
+        using var old  = await PostAsync(PathOf(created), new { content = "old token" }, ct);
+        using var @new = await PostAsync($"/api/webhooks/{id}/{fresh}", new { content = "new token" }, ct);
+
+        await using (var db = await DbAsync(ct))
+            await db.ChannelWebhooks.Where(w => w.Id == id).ExecuteDeleteAsync(ct);
+
+        using var gone = await PostAsync($"/api/webhooks/{id}/{fresh}", new { content = "after delete" }, ct);
+
+        var texts = (await ReadAsync(guest, spaceId, channelId, ct)).Select(m => m.text).ToList();
+        Assert.Multiple(() =>
+        {
+            Assert.That(old.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), "the old token still posts");
+            Assert.That(@new.StatusCode, Is.EqualTo(HttpStatusCode.NoContent), "the new token does not post");
+            Assert.That(gone.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), "a deleted webhook still posts");
+            Assert.That(texts, Is.EquivalentTo(new[] { "warm", "new token" }));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Deleting_a_space_does_not_wake_its_webhooks(CancellationToken ct = default)
+    {
+        var (owner, _, spaceId, channelId) = await NewsAsync(ct);
+        var first  = await CreateAsync(owner, spaceId, channelId, "first", ct);
+        var second = await CreateAsync(owner, spaceId, channelId, "second", ct);
+
+        await Grains.GetGrain<ISpaceDeletionGrain>(spaceId).DeleteNowAsync(owner.UserId);
+        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(await IsActiveAsync(first.webhook.webhookId), Is.False, "space deletion activated a webhook grain");
+            Assert.That(await IsActiveAsync(second.webhook.webhookId), Is.False, "space deletion activated a webhook grain");
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_bot_sees_which_webhook_posted_a_message(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "builds", ChannelType.Text, ct);
+        var created   = await CreateAsync(owner, spaceId, channelId, "CI", ct);
+
+        var bot = await ChannelTestBot.SeedAsync(owner.UserId, ct);
+        await bot.JoinAsync(spaceId);
+
+        await using var events = await bot.OpenEventsAsync(ct);
+
+        using (var posted = await PostAsync(PathOf(created), new { content = "build 7 is green", username = "CI #7" }, ct))
+            Assert.That(posted.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+
+        var frame   = await events.WaitForAsync("messageCreate", d => d["message"]?["webhook"] is JObject, Window, ct);
+        var webhook = (JObject)frame["message"]!["webhook"]!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((string?)frame["message"]!["text"], Is.EqualTo("build 7 is green"));
+            Assert.That((string?)webhook["webhookId"], Is.EqualTo(created.webhook.webhookId.ToString()));
+            Assert.That((string?)webhook["name"], Is.EqualTo("CI #7"));
         });
     }
 }

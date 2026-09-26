@@ -17,7 +17,11 @@ public class ReadStateService(
     // Rows one transaction may write, which keeps it well inside CockroachDB's intent limits.
     public const int RowsPerStatement = 5000;
 
-    private static string GetCacheKey(Guid userId) => $"read_state:{userId}";
+    // One hash tag for both keys, so a fill can be conditioned on the generation in a single slot.
+    public static string GetCacheKey(Guid userId) => $"read_state:{{{userId}}}";
+
+    // Bumped by every write; a fill from the database is only stored if it has not moved meanwhile.
+    private static string GetGenerationKey(Guid userId) => $"read_state_gen:{{{userId}}}";
     /// <summary>
     /// One read state, as it sits in the hash: <c>messageId:mentions[:spaceId]</c>.
     /// </summary>
@@ -112,7 +116,7 @@ public class ReadStateService(
 
         await AddMentionsAsync(ctx, channelId, spaceId, [userId], delta, ct);
 
-        await InvalidateCacheAsync(userId);
+        await InvalidateCacheAsync([userId]);
     }
 
     public async Task BatchIncrementMentionsAsync(Guid spaceId, Guid channelId, IReadOnlyList<Guid> userIds, CancellationToken ct = default)
@@ -126,10 +130,7 @@ public class ReadStateService(
         foreach (var chunk in distinct.Chunk(RowsPerStatement))
             await AddMentionsAsync(ctx, channelId, spaceId, chunk, 1, ct);
 
-        await using var conn = redis.Rent();
-        var cache = conn.GetDatabase(CacheDbId);
-        var keys = distinct.Select(uid => (RedisKey)GetCacheKey(uid)).ToArray();
-        await cache.KeyDeleteAsync(keys);
+        await InvalidateCacheAsync(distinct);
 
         logger.LogDebug("BatchIncrementMentions: {Count} users for channel {ChannelId}", distinct.Length, channelId);
     }
@@ -262,6 +263,9 @@ public class ReadStateService(
             }).ToList();
         }
 
+        var generationKey = GetGenerationKey(userId);
+        var generation    = await cache.StringGetAsync(generationKey);
+
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
         var states = await ctx.ChannelReadStates
@@ -276,8 +280,13 @@ public class ReadStateService(
                 new HashEntry(s.ChannelId.ToString(), EncodeCacheValue(s.LastReadMessageId, s.MentionCount, s.SpaceId))
             ).ToArray();
 
-            await cache.HashSetAsync(cacheKey, entries);
-            await cache.KeyExpireAsync(cacheKey, CacheExpiration);
+            var tran = cache.CreateTransaction();
+            tran.AddCondition(generation.IsNull
+                ? Condition.KeyNotExists(generationKey)
+                : Condition.StringEqual(generationKey, generation));
+            _ = tran.HashSetAsync(cacheKey, entries);
+            _ = tran.KeyExpireAsync(cacheKey, CacheExpiration);
+            await tran.ExecuteAsync();
         }
 
         return states;
@@ -290,8 +299,14 @@ public class ReadStateService(
             await using var conn = redis.Rent();
             var cache = conn.GetDatabase(CacheDbId);
             var cacheKey = GetCacheKey(userId);
-            await cache.HashSetAsync(cacheKey, channelId.ToString(), EncodeCacheValue(messageId, mentionCount, spaceId));
-            await cache.KeyExpireAsync(cacheKey, CacheExpiration);
+
+            await BumpGenerationAsync(cache, userId);
+
+            // Only into a hash that is already whole: a lone field would read back as the full list.
+            var tran = cache.CreateTransaction();
+            tran.AddCondition(Condition.KeyExists(cacheKey));
+            _ = tran.HashSetAsync(cacheKey, channelId.ToString(), EncodeCacheValue(messageId, mentionCount, spaceId));
+            await tran.ExecuteAsync();
         }
         catch (Exception ex)
         {
@@ -299,17 +314,33 @@ public class ReadStateService(
         }
     }
 
-    private async Task InvalidateCacheAsync(Guid userId)
+    private async Task InvalidateCacheAsync(IReadOnlyCollection<Guid> userIds)
     {
         try
         {
             await using var conn = redis.Rent();
             var cache = conn.GetDatabase(CacheDbId);
-            await cache.KeyDeleteAsync(GetCacheKey(userId));
+
+            var batch = cache.CreateBatch();
+            var sent  = new List<Task>(userIds.Count * 3);
+            foreach (var userId in userIds)
+            {
+                sent.Add(batch.StringIncrementAsync(GetGenerationKey(userId)));
+                sent.Add(batch.KeyExpireAsync(GetGenerationKey(userId), CacheExpiration));
+                sent.Add(batch.KeyDeleteAsync(GetCacheKey(userId)));
+            }
+            batch.Execute();
+            await Task.WhenAll(sent);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to invalidate read state cache for user {UserId}", userId);
+            logger.LogWarning(ex, "Failed to invalidate read state cache for {Count} user(s)", userIds.Count);
         }
+    }
+
+    private static async Task BumpGenerationAsync(IDatabase cache, Guid userId)
+    {
+        await cache.StringIncrementAsync(GetGenerationKey(userId));
+        await cache.KeyExpireAsync(GetGenerationKey(userId), CacheExpiration);
     }
 }

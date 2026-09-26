@@ -9,12 +9,5 @@ public class ChannelInsightsInteractionImpl : IChannelInsightsInteraction
 
     public async Task<IonArray<ReadCountEntry>> GetReadCounts(Guid spaceId, Guid channelId, IonArray<long> messageIds,
         CancellationToken ct = default)
-    {
-        var grain   = this.GetGrain<IChannelInsightsGrain>(channelId);
-        var entries = new List<ReadCountEntry>();
-        foreach (var id in messageIds.Values.Distinct().Take(50))
-            if (await grain.GetReadCount(id, ct) is SuccessReadCount ok)
-                entries.Add(new ReadCountEntry(id, ok.readers, ok.members));
-        return new IonArray<ReadCountEntry>(entries);
-    }
+        => new(await this.GetGrain<IChannelInsightsGrain>(channelId).GetReadCounts(messageIds.Values.ToList(), ct));
 }

@@ -1,18 +1,34 @@
 namespace ArgonComplexTest.Tests;
 
+using System.Globalization;
+using System.Security.Cryptography;
+using Argon.Api.Features.Utils;
+using Argon.Core.Entities.Data;
+using Argon.Entities;
+using Argon.Features.Clustering.Regions;
+using Argon.Grains;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json.Linq;
+using Argon.Grains.Persistence.States;
+using Orleans.Providers;
+using Orleans.Runtime;
+using Orleans.Storage;
 using static ChannelTestKit;
 
 /// <summary>
-/// Following announcement channels: who may link a source to a target, the per-target limit,
-/// publishing a post into every follower without pinging anyone there, and the links going away with
-/// either channel.
+/// Following announcement channels: who may link a source to a target, the limits, publishing a post
+/// into every follower without pinging anyone there, and the links going away with either channel or
+/// with their creator's access.
 /// </summary>
+/// <remarks>
+/// A publish only hands the post to its delivery job, so copies are awaited: by polling the target,
+/// or by <see cref="DeliveredAsync"/>, which waits for the job to drop its reminder.
+/// </remarks>
 [TestFixture]
 public class ChannelFollowTests : TestBase
 {
@@ -95,6 +111,96 @@ public class ChannelFollowTests : TestBase
     private static MessageEntityAttachment Attachment(Guid fileId)
         => new(EntityType.Attachment, 0, 0, 1, fileId, "photo.png", 1024, "image/png", 64, 64, null, null);
 
+    private static GrainId DeliveryGrain(Guid channelId, long messageId)
+        => Grains.GetGrain<ICrosspostDeliveryGrain>(channelId, messageId.ToString(CultureInfo.InvariantCulture)).GetGrainId();
+
+    private static Task<ReminderEntry?> DeliveryReminderAsync(Guid channelId, long messageId)
+        => Services.GetRequiredService<IReminderTable>().ReadRow(DeliveryGrain(channelId, messageId), CrosspostDeliveryGrain.ReminderName)!;
+
+    /// <summary>Waits for the delivery of a published post to finish; its job drops its reminder when it does.</summary>
+    private static async Task DeliveredAsync(Guid channelId, long messageId, CancellationToken ct)
+        => Assert.That(await PollAsync(() => DeliveryReminderAsync(channelId, messageId), r => r is null, TimeSpan.FromSeconds(90), ct),
+            Is.Null, "the delivery did not finish");
+
+    /// <summary>The reminder tick, delivered as the reminder service would; it runs every page left.</summary>
+    private static Task TickDeliveryAsync(Guid channelId, long messageId)
+    {
+        var now = DateTime.UtcNow;
+        return Grains.GetGrain<IRemindable>(DeliveryGrain(channelId, messageId))
+           .ReceiveReminder(CrosspostDeliveryGrain.ReminderName, new TickStatus(now, TimeSpan.FromMinutes(1), now));
+    }
+
+    private static async Task<int> StoredCopiesAsync(IEnumerable<Guid> channels, CancellationToken ct)
+    {
+        var ids = channels.ToList();
+        await using var db = await DbAsync(ct);
+        return await db.Messages.CountAsync(m => ids.Contains(m.ChannelId) && m.Crosspost != null && !m.IsDeleted, ct);
+    }
+
+    private const string DeliveryStateName = "crosspost-delivery";
+
+    private static IGrainStorage DeliveryStore()
+        => Services.GetRequiredKeyedService<IGrainStorage>(ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME);
+
+    private static async Task<Dictionary<Guid, int>> CopiesPerChannelAsync(Guid spaceId, List<Guid> channels, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+        return await db.Messages
+           .Where(m => m.SpaceId == spaceId && channels.Contains(m.ChannelId) && m.Crosspost != null)
+           .GroupBy(m => m.ChannelId)
+           .Select(g => new { g.Key, Count = g.Count() })
+           .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+    }
+
+    private static async Task<bool> FollowExistsAsync(Guid followId, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+        return await db.ChannelFollows.AnyAsync(f => f.Id == followId, ct);
+    }
+
+    /// <summary>Channels written straight into the table, for counts no test should create one call at a time.</summary>
+    private static async Task<List<Guid>> SeedChannelsAsync(Guid spaceId, Guid creatorId, ChannelType type, int count, CancellationToken ct)
+    {
+        var ids = Enumerable.Range(0, count).Select(_ => ArgonId.New()).ToList();
+        var now = DateTimeOffset.UtcNow;
+
+        await using var db = await DbAsync(ct);
+        db.Channels.AddRange(ids.Select((id, i) => new ChannelEntity
+        {
+            Id              = id,
+            SpaceId         = spaceId,
+            CreatorId       = creatorId,
+            ChannelType     = type,
+            Name            = $"seeded-{i}",
+            FractionalIndex = FractionalIndex.Min().Value,
+            CreatedAt       = now,
+            UpdatedAt       = now
+        }));
+        await db.SaveChangesAsync(ct);
+
+        return ids;
+    }
+
+    private static ChannelFollowEntity Link(Guid sourceSpaceId, Guid sourceChannelId, Guid targetSpaceId, Guid targetChannelId, Guid creatorId,
+        DateTimeOffset createdAt)
+        => new()
+        {
+            Id              = ArgonId.New(),
+            SourceSpaceId   = sourceSpaceId,
+            SourceChannelId = sourceChannelId,
+            TargetSpaceId   = targetSpaceId,
+            TargetChannelId = targetChannelId,
+            CreatorId       = creatorId,
+            CreatedAt       = createdAt
+        };
+
+    private static async Task SeedFollowsAsync(IEnumerable<ChannelFollowEntity> links, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+        db.ChannelFollows.AddRange(links);
+        await db.SaveChangesAsync(ct);
+    }
+
     [Test, CancelAfter(180_000)]
     public async Task Following_takes_read_access_to_the_source_and_ManageChannels_in_the_target(CancellationToken ct = default)
     {
@@ -134,7 +240,8 @@ public class ChannelFollowTests : TestBase
             Assert.That(ErrorOf(ofText), Is.EqualTo(FollowChannelError.NOT_AN_ANNOUNCEMENT_CHANNEL));
             Assert.That(ErrorOf(intoVoice), Is.EqualTo(FollowChannelError.TARGET_NOT_TEXT));
             Assert.That(ErrorOf(wrongSpace), Is.EqualTo(FollowChannelError.TARGET_NOT_FOUND));
-            Assert.That(ErrorOf(unknown), Is.EqualTo(FollowChannelError.SOURCE_NOT_FOUND));
+            Assert.That(ErrorOf(unknown), Is.EqualTo(FollowChannelError.NO_ACCESS_TO_SOURCE),
+                "a missing source answered differently from one the caller cannot read");
             Assert.That(ErrorOf(itself), Is.EqualTo(FollowChannelError.SAME_CHANNEL));
         });
 
@@ -223,7 +330,7 @@ public class ChannelFollowTests : TestBase
         Assert.Multiple(() =>
         {
             Assert.That(published.targetCount, Is.EqualTo(3));
-            Assert.That(published.deliveredCount, Is.EqualTo(3), "a follower did not receive the post");
+            Assert.That(published.deliveredCount, Is.Zero, "delivery ran inside the publish call");
         });
 
         var sent = await observer.WaitForAsync<MessageSent>(e => e.message.channelId == p.TargetChannelId && e.message.crosspost is not null,
@@ -307,8 +414,8 @@ public class ChannelFollowTests : TestBase
         {
             Assert.That(ErrorOf(twice), Is.EqualTo(PublishMessageError.ALREADY_PUBLISHED));
             Assert.That(ErrorOf(unknown), Is.EqualTo(PublishMessageError.MESSAGE_NOT_FOUND));
-            Assert.That(own.deliveredCount, Is.EqualTo(1));
-            Assert.That(moderated.deliveredCount, Is.EqualTo(1));
+            Assert.That(own.targetCount, Is.EqualTo(1));
+            Assert.That(moderated.targetCount, Is.EqualTo(1));
             Assert.That(announced.channelId, Is.EqualTo(p.SourceChannelId));
             Assert.That(announced.publishedAt, Is.EqualTo(own.publishedAt).Within(TimeSpan.FromSeconds(1)));
             Assert.That(history.Single(m => m.messageId == first).publishedAt, Is.Not.Null, "history lost the published mark");
@@ -492,6 +599,7 @@ public class ChannelFollowTests : TestBase
             Assert.That(copy.text, Is.EqualTo("Raid at 20:00"));
             Assert.That(copy.crosspost!.sourceMessageId, Is.EqualTo(post));
             Assert.That(copy.crosspost.sourceChannelName, Is.EqualTo("news"));
+            Assert.That(copy.crosspost.hideAuthor, Is.False);
             Assert.That(copy.publishedAt, Is.Null, "the copy claims to be published itself");
         });
 
@@ -532,7 +640,8 @@ public class ChannelFollowTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That((editCopy as FailedEditMessage)?.error, Is.EqualTo(EditMessageError.NOT_AUTHOR), "the author rewrote a copy");
+            Assert.That((editCopy as FailedEditMessage)?.error, Is.EqualTo(EditMessageError.INSUFFICIENT_PERMISSIONS),
+                "the author rewrote a copy in a space they are not in");
             Assert.That((deleteCopy as FailedDeleteMessage)?.error, Is.EqualTo(DeleteMessageError.INSUFFICIENT_PERMISSIONS),
                 "the author took a copy down in a space they are not in");
             Assert.That(history.Single(m => m.messageId == copy.messageId).text, Is.EqualTo("Raid at 20:00"), "an edit of the source reached the copy");
@@ -574,5 +683,376 @@ public class ChannelFollowTests : TestBase
             Assert.That(normalFrame["message"]?["crosspost"] is null or { Type: JTokenType.Null }, Is.True,
                 "an ordinary message carried a crosspost source");
         });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task An_author_who_may_no_longer_post_there_does_not_publish(CancellationToken ct = default)
+    {
+        var owner   = await CreateSessionAsync(ct);
+        var member  = await CreateSessionAsync(ct);
+        var spaceId = await CreateSpaceAsync(owner, ct);
+        var general = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
+        await JoinAsync(owner, member, spaceId, ct);
+
+        var old = await member.Channels.SendMessage(spaceId, general, "from before", Entities(), NextRandomId(), null, ct).Ok();
+
+        // Converting the channel takes posting away from everyone, past authors included.
+        Assert.That(await owner.Channels.SetChannelType(spaceId, general, ChannelType.Announcement, ct), Is.InstanceOf<SuccessUpdateChannel>());
+
+        var refused = await FollowsOf(member).PublishMessage(spaceId, general, old, ct);
+
+        Assert.That(ErrorOf(refused), Is.EqualTo(PublishMessageError.INSUFFICIENT_PERMISSIONS), "an author without SendMessages published");
+        Assert.That((await StoredMessageAsync(spaceId, general, old, ct))!.PublishedAt, Is.Null, "a refused publish marked the post");
+
+        // A moderator still may.
+        await PublishAsync(owner, spaceId, general, old, ct);
+    }
+
+    [Test, CancelAfter(240_000)]
+    public async Task A_private_source_is_followed_and_kept_only_by_whoever_manages_it(CancellationToken ct = default)
+    {
+        var p        = await PairAsync(ct);
+        var stranger = await CreateSessionAsync(ct);
+        await JoinAsync(p.Publisher, stranger, p.SourceSpaceId, ct);
+
+        var vault = await CreateChannelAsync(p.Publisher, p.SourceSpaceId, "vault", ChannelType.Announcement, ct);
+        var desk  = await CreateChannelAsync(p.Admin, p.TargetSpaceId, "desk", ChannelType.Text, ct);
+
+        // Opt-in: allowing ViewChannel to one role is what hides the channel from "everyone".
+        var roles    = ArchetypesOf(p.Publisher);
+        var insiders = await roles.CreateArchetype(p.SourceSpaceId, "insiders", ct).Ok();
+        await roles.UpsertArchetypeEntitlementForChannel(p.SourceSpaceId, vault, insiders.id,
+            deny: ArgonEntitlement.None, allow: ArgonEntitlement.ViewChannel, ct);
+        Assert.That(await roles.SetArchetypeToMember(p.SourceSpaceId, await MemberIdOfAsync(p.Publisher, p.SourceSpaceId, p.Admin.UserId, ct),
+            insiders.id, true, ct), Is.True);
+
+        var reader  = await FollowsOf(p.Admin).FollowChannel(p.SourceSpaceId, vault, p.TargetSpaceId, desk, ct);
+        var outside = await FollowsOf(stranger).FollowChannel(p.SourceSpaceId, vault, p.TargetSpaceId, desk, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ErrorOf(reader), Is.EqualTo(FollowChannelError.SOURCE_PRIVATE),
+                "a reader of a private channel who does not manage it followed it");
+            Assert.That(ErrorOf(outside), Is.EqualTo(FollowChannelError.NO_ACCESS_TO_SOURCE));
+        });
+
+        await roles.UpsertArchetypeEntitlementForChannel(p.SourceSpaceId, vault, insiders.id,
+            deny: ArgonEntitlement.None, allow: ArgonEntitlement.ViewChannel | ArgonEntitlement.ManageChannels, ct);
+        await FollowAsync(p.Admin, p.SourceSpaceId, vault, p.TargetSpaceId, desk, ct);
+
+        // A public source takes reading it and nothing more, until it turns private under the follow.
+        var link = await FollowAsync(p, ct);
+        await roles.UpsertArchetypeEntitlementForChannel(p.SourceSpaceId, p.SourceChannelId, insiders.id,
+            deny: ArgonEntitlement.None, allow: ArgonEntitlement.ViewChannel, ct);
+
+        var post      = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "members only now", Entities(), NextRandomId(), null, ct).Ok();
+        var published = await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+        await DeliveredAsync(p.SourceChannelId, post, ct);
+
+        Assert.That(published.targetCount, Is.EqualTo(1));
+        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.Zero, "a private post was copied out by a follower who does not manage it");
+        Assert.That(await FollowExistsAsync(link.followId, ct), Is.False, "the follow survived its creator failing the rule");
+    }
+
+    [Test, CancelAfter(240_000)]
+    public async Task A_follow_whose_creator_lost_access_at_either_end_is_dropped_at_the_next_publish(CancellationToken ct = default)
+    {
+        var p       = await PairAsync(ct);
+        var manager = await CreateSessionAsync(ct);
+        await JoinAsync(p.Publisher, manager, p.SourceSpaceId, ct);
+        await JoinAsync(p.Admin, manager, p.TargetSpaceId, ct);
+
+        var bulletin = await CreateChannelAsync(p.Admin, p.TargetSpaceId, "bulletin", ChannelType.Text, ct);
+        var lounge   = await CreateChannelAsync(p.Publisher, p.SourceSpaceId, "lounge", ChannelType.Text, ct);
+
+        var targetRoles = ArchetypesOf(p.Admin);
+        var managers    = await targetRoles.CreateArchetype(p.TargetSpaceId, "managers", ct).Ok();
+        managers = await targetRoles.UpdateArchetype(p.TargetSpaceId, managers with { entitlement = ArgonEntitlement.ManageChannels }, ct).Ok();
+        var managerId = await MemberIdOfAsync(p.Admin, p.TargetSpaceId, manager.UserId, ct);
+        Assert.That(await targetRoles.SetArchetypeToMember(p.TargetSpaceId, managerId, managers.id, true, ct), Is.True);
+
+        var byAdmin   = await FollowAsync(p, ct);
+        var byManager = await FollowAsync(manager, p.SourceSpaceId, p.SourceChannelId, p.TargetSpaceId, bulletin, ct);
+        var byOwner   = await FollowAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, p.SourceSpaceId, lounge, ct);
+
+        // The admin can no longer read the source; the manager can no longer manage the target.
+        var sourceRoles = ArchetypesOf(p.Publisher);
+        var outcasts    = await sourceRoles.CreateArchetype(p.SourceSpaceId, "outcasts", ct).Ok();
+        await sourceRoles.UpsertArchetypeEntitlementForChannel(p.SourceSpaceId, p.SourceChannelId, outcasts.id,
+            deny: ArgonEntitlement.ViewChannel, allow: ArgonEntitlement.None, ct);
+        Assert.That(await sourceRoles.SetArchetypeToMember(p.SourceSpaceId, await MemberIdOfAsync(p.Publisher, p.SourceSpaceId, p.Admin.UserId, ct),
+            outcasts.id, true, ct), Is.True);
+        Assert.That(await targetRoles.SetArchetypeToMember(p.TargetSpaceId, managerId, managers.id, false, ct), Is.True);
+
+        var post      = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "after the reshuffle", Entities(), NextRandomId(), null, ct).Ok();
+        var published = await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+        await DeliveredAsync(p.SourceChannelId, post, ct);
+
+        Assert.That(published.targetCount, Is.EqualTo(3));
+        Assert.That(await CopiesAsync(p.Publisher, p.SourceSpaceId, lounge, 1, ct), Has.Count.EqualTo(1), "a follow in good standing lost its copy");
+        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.Zero, "a follower who cannot read the source still got the post");
+        Assert.That(await StoredCopiesAsync([bulletin], ct), Is.Zero, "a follow made by someone who no longer manages the target still delivered");
+        Assert.That(await FollowExistsAsync(byAdmin.followId, ct), Is.False);
+        Assert.That(await FollowExistsAsync(byManager.followId, ct), Is.False);
+        Assert.That(await FollowExistsAsync(byOwner.followId, ct), Is.True);
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_follow_whose_creator_is_no_longer_a_member_of_the_source_space_delivers_nothing(CancellationToken ct = default)
+    {
+        var p      = await PairAsync(ct);
+        var lounge = await CreateChannelAsync(p.Publisher, p.SourceSpaceId, "lounge", ChannelType.Text, ct);
+
+        var link = await FollowAsync(p, ct);
+        await FollowAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, p.SourceSpaceId, lounge, ct);
+
+        // Removed by a path that does not tidy up after itself, so only the check at delivery stands.
+        await using (var db = await DbAsync(ct))
+        {
+            await db.UsersToServerRelations
+               .Where(m => m.SpaceId == p.SourceSpaceId && m.UserId == p.Admin.UserId)
+               .ExecuteUpdateAsync(s => s.SetProperty(m => m.IsDeleted, true), ct);
+        }
+        await Services.GetRequiredService<Argon.Services.L1L2.IPermissionCache>().InvalidateMemberAsync(p.SourceSpaceId, p.Admin.UserId);
+
+        var post = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "members only", Entities(), NextRandomId(), null, ct).Ok();
+        await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+        await DeliveredAsync(p.SourceChannelId, post, ct);
+
+        Assert.That(await CopiesAsync(p.Publisher, p.SourceSpaceId, lounge, 1, ct), Has.Count.EqualTo(1));
+        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.Zero, "a removed member's follow still delivered");
+        Assert.That(await FollowExistsAsync(link.followId, ct), Is.False);
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task Leaving_a_space_ends_the_follows_its_member_made_of_that_space(CancellationToken ct = default)
+    {
+        var p      = await PairAsync(ct);
+        var lounge = await CreateChannelAsync(p.Publisher, p.SourceSpaceId, "lounge", ChannelType.Text, ct);
+        var own    = await CreateChannelAsync(p.Admin, p.TargetSpaceId, "own-news", ChannelType.Announcement, ct);
+        var desk   = await CreateChannelAsync(p.Admin, p.TargetSpaceId, "desk", ChannelType.Text, ct);
+
+        var leaving   = await FollowAsync(p, ct);
+        var someone   = await FollowAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, p.SourceSpaceId, lounge, ct);
+        var elsewhere = await FollowAsync(p.Admin, p.TargetSpaceId, own, p.TargetSpaceId, desk, ct);
+
+        await Grains.GetGrain<ISpaceGrain>(p.SourceSpaceId).RemoveMemberAsync(p.Admin.UserId);
+
+        Assert.That(await FollowExistsAsync(leaving.followId, ct), Is.False, "a follow outlived its creator leaving the source space");
+        Assert.That(await FollowExistsAsync(someone.followId, ct), Is.True, "another member's follow went too");
+        Assert.That(await FollowExistsAsync(elsewhere.followId, ct), Is.True, "a follow of another space's channel went too");
+
+        var post      = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "after they left", Entities(), NextRandomId(), null, ct).Ok();
+        var published = await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+        await DeliveredAsync(p.SourceChannelId, post, ct);
+
+        Assert.That(published.targetCount, Is.EqualTo(1));
+        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.Zero);
+    }
+
+    [Test, CancelAfter(300_000)]
+    public async Task Delivery_to_more_targets_than_a_page_lands_once_in_each(CancellationToken ct = default)
+    {
+        var p       = await PairAsync(ct);
+        var targets = await SeedChannelsAsync(p.TargetSpaceId, p.Admin.UserId, ChannelType.Text, CrosspostDeliveryGrain.PageSize + 20, ct);
+
+        var since = DateTimeOffset.UtcNow;
+        await SeedFollowsAsync(targets.Select(t => Link(p.SourceSpaceId, p.SourceChannelId, p.TargetSpaceId, t, p.Admin.UserId, since)), ct);
+
+        var post      = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "to everyone", Entities(), NextRandomId(), null, ct).Ok();
+        var published = await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+        await DeliveredAsync(p.SourceChannelId, post, ct);
+
+        var perTarget = await CopiesPerChannelAsync(p.TargetSpaceId, targets, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(published.targetCount, Is.EqualTo(targets.Count));
+            Assert.That(published.deliveredCount, Is.Zero);
+            Assert.That(targets.Select(t => perTarget.GetValueOrDefault(t)), Has.All.EqualTo(1), "a target missed the post or got it twice");
+        });
+    }
+
+    [Test, CancelAfter(300_000)]
+    public async Task A_delivery_resumes_from_its_last_persisted_page_on_a_fresh_activation(CancellationToken ct = default)
+    {
+        var p       = await PairAsync(ct);
+        var targets = await SeedChannelsAsync(p.TargetSpaceId, p.Admin.UserId, ChannelType.Text, CrosspostDeliveryGrain.PageSize + 220, ct);
+
+        var since = DateTimeOffset.UtcNow;
+        await SeedFollowsAsync(targets.Select(t => Link(p.SourceSpaceId, p.SourceChannelId, p.TargetSpaceId, t, p.Admin.UserId, since)), ct);
+
+        var post = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "after the crash", Entities(), NextRandomId(), null, ct).Ok();
+
+        List<(Guid Id, Guid Target)> follows;
+        await using (var db = await DbAsync(ct))
+        {
+            await db.Messages
+               .Where(m => m.SpaceId == p.SourceSpaceId && m.ChannelId == p.SourceChannelId && m.MessageId == post)
+               .ExecuteUpdateAsync(s => s.SetProperty(m => m.PublishedAt, DateTimeOffset.UtcNow), ct);
+
+            follows = (await db.ChannelFollows
+                   .Where(f => f.SourceChannelId == p.SourceChannelId)
+                   .OrderBy(f => f.Id)
+                   .Select(f => new { f.Id, f.TargetChannelId })
+                   .ToListAsync(ct))
+               .Select(f => (f.Id, f.TargetChannelId))
+               .ToList();
+        }
+
+        var order  = follows.Select(f => f.Target).ToList();
+        var cursor = follows[199].Id;
+
+        // What a silo that died mid-page leaves: 200 follows behind the persisted cursor, and 100 past it
+        // already delivered before the cursor could move.
+        var draft = new CrosspostDraft(p.Publisher.UserId, "after the crash", [], new MessageCrosspost
+        {
+            SourceSpaceId   = p.SourceSpaceId,
+            SourceChannelId = p.SourceChannelId,
+            SourceMessageId = post
+        });
+        foreach (var target in order.Skip(200).Take(100))
+            await Grains.GetGrain<IChannelGrain>(target).ReceiveCrosspostAsync(draft);
+
+        var grainId = DeliveryGrain(p.SourceChannelId, post);
+        var stored  = new GrainState<CrosspostDeliveryState>(new CrosspostDeliveryState
+        {
+            SourceSpaceId = p.SourceSpaceId,
+            StartedAt     = DateTimeOffset.UtcNow,
+            Cursor        = cursor,
+            Delivered     = 200
+        });
+        await DeliveryStore().WriteStateAsync(DeliveryStateName, grainId, stored);
+
+        await TickDeliveryAsync(p.SourceChannelId, post);
+
+        var perTarget = await CopiesPerChannelAsync(p.TargetSpaceId, targets, ct);
+        var left      = new GrainState<CrosspostDeliveryState>(new CrosspostDeliveryState());
+        await DeliveryStore().ReadStateAsync(DeliveryStateName, grainId, left);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(order.Take(200).Select(t => perTarget.GetValueOrDefault(t)), Has.All.Zero, "the job started over instead of resuming");
+            Assert.That(order.Skip(200).Select(t => perTarget.GetValueOrDefault(t)), Has.All.EqualTo(1),
+                "a target past the cursor missed the post or got it twice");
+            Assert.That(left.State.StartedAt, Is.Null, "the finished job left its state behind");
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_member_of_the_target_cannot_stand_in_for_the_copy(CancellationToken ct = default)
+    {
+        var p      = await PairAsync(ct);
+        var reader = await CreateSessionAsync(ct);
+        await JoinAsync(p.Admin, reader, p.TargetSpaceId, ct);
+        await FollowAsync(p, ct);
+
+        var post = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "the real one", Entities(), NextRandomId(), null, ct).Ok();
+
+        // The randomId a copy used to be deduplicated by: a hash of public ids that anyone could work out.
+        var key = new byte[24];
+        p.SourceChannelId.TryWriteBytes(key);
+        BitConverter.TryWriteBytes(key.AsSpan(16), post);
+        var predictable = BitConverter.ToInt64(SHA256.HashData(key)) & long.MaxValue;
+
+        var decoy = await reader.Channels.SendMessage(p.TargetSpaceId, p.TargetChannelId, "a decoy", Entities(), predictable, null, ct).Ok();
+
+        await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+        await DeliveredAsync(p.SourceChannelId, post, ct);
+
+        var copy = (await CopiesAsync(p.Admin, p.TargetSpaceId, p.TargetChannelId, 1, ct)).SingleOrDefault();
+
+        Assert.That(copy, Is.Not.Null, "a message sent ahead with the copy's id took its place");
+        Assert.Multiple(() =>
+        {
+            Assert.That(copy!.messageId, Is.Not.EqualTo(decoy));
+            Assert.That(copy.text, Is.EqualTo("the real one"));
+            Assert.That(copy.crosspost!.sourceMessageId, Is.EqualTo(post));
+        });
+
+        // A redelivery, as after a crash mid-page, finds the copy instead of making another.
+        var draft = new CrosspostDraft(p.Publisher.UserId, "the real one", [], new MessageCrosspost
+        {
+            SourceSpaceId   = p.SourceSpaceId,
+            SourceChannelId = p.SourceChannelId,
+            SourceMessageId = post
+        });
+        var again = await Grains.GetGrain<IChannelGrain>(p.TargetChannelId).ReceiveCrosspostAsync(draft);
+
+        Assert.That(again, Is.EqualTo(copy!.messageId));
+        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.EqualTo(1));
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_copy_of_a_post_that_hides_its_author_names_nobody(CancellationToken ct = default)
+    {
+        var p = await PairAsync(ct);
+        Assert.That(await p.Publisher.Channels.SetAnnouncementSettings(p.SourceSpaceId, p.SourceChannelId, true, true, false, ct),
+            Is.InstanceOf<SuccessUpdateChannel>());
+        await FollowAsync(p, ct);
+
+        var bot = await ChannelTestBot.SeedAsync(p.Admin.UserId, ct);
+        await bot.JoinAsync(p.TargetSpaceId);
+        await using var events = await bot.OpenEventsAsync(ct);
+
+        var post = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "from the team", Entities(), NextRandomId(), null, ct).Ok();
+        await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
+
+        var copy  = (await CopiesAsync(p.Admin, p.TargetSpaceId, p.TargetChannelId, 1, ct)).Single();
+        var frame = await events.WaitForAsync("messageCreate", d => d["message"]?["crosspost"] is JObject, Window, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(copy.crosspost!.hideAuthor, Is.True);
+            Assert.That(copy.sender, Is.EqualTo(UserEntity.SystemUser), "the copy named the author the source hides");
+            Assert.That((string?)frame["message"]?["sender"]?["userId"], Is.Not.EqualTo(p.Publisher.UserId.ToString()),
+                "a bot in the target learned the hidden author");
+        });
+    }
+
+    [Test, CancelAfter(240_000)]
+    public async Task The_follow_lists_show_the_newest_two_hundred(CancellationToken ct = default)
+    {
+        var p     = await PairAsync(ct);
+        var count = ChannelFollowGrain.MaxListed + 5;
+        var start = DateTimeOffset.UtcNow.AddHours(-1);
+
+        var targets = await SeedChannelsAsync(p.TargetSpaceId, p.Admin.UserId, ChannelType.Text, count, ct);
+        var sources = await SeedChannelsAsync(p.SourceSpaceId, p.Publisher.UserId, ChannelType.Announcement, count, ct);
+
+        await SeedFollowsAsync(targets.Select((t, i) =>
+            Link(p.SourceSpaceId, p.SourceChannelId, p.TargetSpaceId, t, p.Admin.UserId, start.AddSeconds(i))), ct);
+        await SeedFollowsAsync(sources.Select((s, i) =>
+            Link(p.SourceSpaceId, s, p.TargetSpaceId, p.TargetChannelId, p.Admin.UserId, start.AddSeconds(i))), ct);
+
+        var followers = (await FollowsOf(p.Publisher).GetFollowers(p.SourceSpaceId, p.SourceChannelId, ct)).Values;
+        var followed  = (await FollowsOf(p.Admin).GetFollowedSources(p.TargetSpaceId, p.TargetChannelId, ct)).Values;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(followers.Select(l => l.targetChannelId), Is.EqualTo(Enumerable.Reverse(targets).Take(ChannelFollowGrain.MaxListed)));
+            Assert.That(followed.Select(l => l.sourceChannelId), Is.EqualTo(Enumerable.Reverse(sources).Take(ChannelFollowGrain.MaxListed)));
+        });
+    }
+
+    [Test, CancelAfter(240_000)]
+    public async Task A_source_takes_at_most_five_thousand_followers(CancellationToken ct = default)
+    {
+        var p     = await PairAsync(ct);
+        var start = DateTimeOffset.UtcNow.AddHours(-1);
+
+        // Rows alone: the cap counts links, whatever they point at.
+        var seeded = Enumerable.Range(0, ChannelFollowEntity.MaxFollowersPerSource)
+           .Select(_ => Link(p.SourceSpaceId, p.SourceChannelId, Guid.NewGuid(), ArgonId.New(), p.Publisher.UserId, start))
+           .ToList();
+        await SeedFollowsAsync(seeded, ct);
+
+        var over = await FollowsOf(p.Admin).FollowChannel(p.SourceSpaceId, p.SourceChannelId, p.TargetSpaceId, p.TargetChannelId, ct);
+        Assert.That(ErrorOf(over), Is.EqualTo(FollowChannelError.SOURCE_FOLLOWER_LIMIT), "a source took a follower past the cap");
+
+        await using (var db = await DbAsync(ct))
+            await db.ChannelFollows.Where(f => f.Id == seeded[0].Id).ExecuteDeleteAsync(ct);
+
+        await FollowAsync(p, ct);
     }
 }

@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 /// </summary>
 public record ChannelFollowEntity : IEntityTypeConfiguration<ChannelFollowEntity>
 {
-    public const int MaxSourcesPerTarget = 20;
+    public const int MaxSourcesPerTarget   = 20;
+    public const int MaxFollowersPerSource = 5000;
 
     public required Guid           Id              { get; set; }
     public required Guid           SourceSpaceId   { get; set; }
@@ -33,5 +34,9 @@ public record ChannelFollowEntity : IEntityTypeConfiguration<ChannelFollowEntity
            .IsUnique();
 
         builder.HasIndex(x => x.TargetChannelId);
+
+        // Space deletion and member removal find the links of a whole space.
+        builder.HasIndex(x => x.SourceSpaceId);
+        builder.HasIndex(x => x.TargetSpaceId);
     }
 }

@@ -17,6 +17,7 @@ using ArgonContracts;
 using ion.runtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Core.Internal;
 using Orleans.Providers;
 using Orleans.Runtime;
 using Orleans.Storage;
@@ -603,6 +604,63 @@ public class AccountDeletionTests : TestBase
                 "the erased account's unsent composer drafts survive it");
             Assert.That(census.ScheduledPosts, Is.Zero,
                 "the erased account's scheduled posts survive it, and a pending one would still go out");
+        });
+    }
+
+    /// <summary>
+    /// A composer draft the drafts grain has not written yet, and a post a channel's composer holds,
+    /// do not outlive the erasure.
+    /// </summary>
+    /// <remarks>
+    /// Drafts are written behind, every ten seconds and on deactivation, and a channel's composer
+    /// caches its pending posts. A delete in the table alone would let the flush write the draft back
+    /// and leave the post listed to the channel's moderators. The draft is saved half-way through
+    /// the grace, which activates the grain, so its first flush comes after the erasure.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_draft_and_a_post_held_in_memory_do_not_outlive_the_erasure(CancellationToken ct = default)
+    {
+        var owner   = await CreateSessionAsync(ct);
+        var session = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, "Deletion composer", ct);
+        var channelId = await CreateTextChannelAsync(owner, spaceId, "composer", ct);
+        await JoinSpaceAsync(owner, session, spaceId, ct);
+
+        var composer = session.Client.ForService<IChannelComposerInteraction>(ChannelTestKit.Services);
+        var posted = await composer.SchedulePost(spaceId, channelId, "later", new IonArray<IMessageEntity>([]),
+            DateTimeOffset.UtcNow.AddHours(1), ct);
+        Assert.That(posted, Is.InstanceOf<SuccessSchedulePost>(), $"premise: {(posted as FailedSchedulePost)?.error}");
+
+        var grain     = GetGrainFactory().GetGrain<IAccountDeletionGrain>(session.UserId);
+        var requested = await grain.RequestDeletionAsync(session.Credentials.password);
+        Assert.That(requested.Success, Is.True, $"the account could not be scheduled for deletion: {requested.Error}");
+
+        await Task.Delay(AccountTimings.Grace / 2, ct);
+        await composer.SaveDraft(spaceId, channelId, "unsent", new IonArray<IMessageEntity>([]), ct);
+
+        await Task.Delay(AccountTimings.GraceAndABit - AccountTimings.Grace / 2, ct);
+        var reached = await AccountConsoleHarness.DriveDeletionUntilAsync(session.UserId, AccountDeletionStatusKind.Completed, ct: ct);
+        Assert.That(reached, Is.EqualTo(AccountDeletionStatusKind.Completed), $"the deletion did not finish; status was {reached}");
+
+        // What the next flush would write: the one on deactivation.
+        var drafts = GetGrainFactory().GetGrain<IMessageDraftsGrain>(session.UserId).GetGrainId();
+        await GetGrainFactory().GetGrain<IGrainManagementExtension>(drafts).DeactivateOnIdle();
+        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+
+        int stored;
+        await using (var db = await AccountSeed.NewDbAsync(ct))
+            stored = await db.MessageDrafts.CountAsync(d => d.UserId == session.UserId, ct);
+
+        var listed = await Poll.ForValueAsync(
+            async () => (await owner.Client.ForService<IChannelComposerInteraction>(ChannelTestKit.Services)
+               .GetScheduledPosts(spaceId, channelId, ct)).Values.Count,
+            count => count == 0, Reaction, ct: ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored, Is.Zero, "a draft held in memory at the erasure was written back after it");
+            Assert.That(listed, Is.Zero, "the channel still lists the erased account's scheduled post to its moderators");
         });
     }
 

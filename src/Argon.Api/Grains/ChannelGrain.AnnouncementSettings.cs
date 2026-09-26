@@ -23,7 +23,7 @@ public partial class ChannelGrain
         if (channel.ChannelType != ChannelType.Announcement)
             return UpdateChannelError.NOT_AN_ANNOUNCEMENT_CHANNEL;
 
-        var next = new ChannelAnnouncement { Reactions = reactions, PostAsSpace = postAsSpace, ShowAuthor = showAuthor };
+        var next = ChannelAnnouncement.Of(channel) with { Reactions = reactions, PostAsSpace = postAsSpace, ShowAuthor = showAuthor };
         if (next == ChannelAnnouncement.Of(channel))
             return await WithStoredMarkAsync(ctx, channel, ct);
 

@@ -71,7 +71,11 @@ public class TtlSweepTests
         {
             "Invites",
             "TeamInvites",
-            "user_friend_requests"
+            "user_friend_requests",
+            "ScheduledPosts",
+            "MessageDrafts",
+            // Appended: crosspost delivery claims, kept a week (CrosspostDeliveryEntity.Retention).
+            "CrosspostDeliveries"
         }));
 
     /// <summary>An invite dies when its own expiry column is in the past, and not a moment before.</summary>
@@ -88,6 +92,10 @@ public class TtlSweepTests
     [Test]
     public void A_team_invite_expires_on_the_same_rule()
         => Assert.That(Target(TeamInvites).Predicate, Is.EqualTo("\"ExpireAt\" < now()"));
+
+    [Test]
+    public void A_crosspost_delivery_claim_expires_on_the_same_rule()
+        => Assert.That(Target(new TableRef("public", "CrosspostDeliveries")).Predicate, Is.EqualTo("\"ExpireAt\" < now()"));
 
     /// <summary>
     /// A friend request expires on the deadline stored in the row, not on the moment it was made.

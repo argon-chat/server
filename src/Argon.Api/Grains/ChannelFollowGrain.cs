@@ -6,12 +6,17 @@ using Argon.Features.Clustering.Regions;
 using Argon.Features.EF;
 using Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Services.L1L2;
 
 public class ChannelFollowGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IEntitlementChecker entitlementChecker,
+    IPermissionCache permissionCache,
     ILogger<ChannelFollowGrain> logger) : Grain, IChannelFollowGrain
 {
+    /// <summary>What either side lists at most, newest first.</summary>
+    public const int MaxListed = 200;
+
     public async Task<IFollowChannelResult> FollowAsync(Guid callerId, Guid sourceSpaceId, Guid sourceChannelId, Guid targetSpaceId)
     {
         var targetChannelId = this.GetPrimaryKey();
@@ -27,12 +32,14 @@ public class ChannelFollowGrain(
            .Select(c => new { c.ChannelType })
            .FirstOrDefaultAsync();
 
+        // Missing and unreadable answer alike, so a caller cannot probe for private channels.
         if (source is null)
-            return new FailedFollowChannel(FollowChannelError.SOURCE_NOT_FOUND);
-
-        if (!await entitlementChecker.HasChannelAccessAsync(sourceSpaceId, sourceChannelId, callerId, ArgonEntitlement.ViewChannel)
-         || !await entitlementChecker.HasChannelAccessAsync(sourceSpaceId, sourceChannelId, callerId, ArgonEntitlement.ReadHistory))
             return new FailedFollowChannel(FollowChannelError.NO_ACCESS_TO_SOURCE);
+
+        var isPublic = await FollowAccess.IsPublicAsync(ctx, permissionCache, sourceSpaceId, sourceChannelId);
+        var refused  = await FollowAccess.CheckSourceAsync(entitlementChecker, sourceSpaceId, sourceChannelId, callerId, isPublic);
+        if (refused != FollowChannelError.NONE)
+            return new FailedFollowChannel(refused);
 
         if (source.ChannelType != ChannelType.Announcement)
             return new FailedFollowChannel(FollowChannelError.NOT_AN_ANNOUNCEMENT_CHANNEL);
@@ -66,6 +73,10 @@ public class ChannelFollowGrain(
 
         if (sources >= ChannelFollowEntity.MaxSourcesPerTarget)
             return new FailedFollowChannel(FollowChannelError.TOO_MANY_FOLLOWS);
+
+        // Not serialised with other targets following the same source, so it may overshoot by a few.
+        if (await ctx.ChannelFollows.CountAsync(f => f.SourceChannelId == sourceChannelId) >= ChannelFollowEntity.MaxFollowersPerSource)
+            return new FailedFollowChannel(FollowChannelError.SOURCE_FOLLOWER_LIMIT);
 
         var follow = new ChannelFollowEntity
         {
@@ -144,7 +155,7 @@ public class ChannelFollowGrain(
         return new SuccessRemoveFollow();
     }
 
-    /// <summary>The links matching <paramref name="which"/> whose channels and spaces both still exist.</summary>
+    /// <summary>The newest <see cref="MaxListed"/> links matching <paramref name="which"/> whose channels and spaces both still exist.</summary>
     private static async Task<List<ChannelFollowLink>> LinksAsync(ApplicationDbContext ctx, Expression<Func<ChannelFollowEntity, bool>> which)
     {
         var rows = await (
@@ -153,7 +164,7 @@ public class ChannelFollowGrain(
                 join tc in ctx.Channels on f.TargetChannelId equals tc.Id
                 join ss in ctx.Spaces on sc.SpaceId equals ss.Id
                 join ts in ctx.Spaces on tc.SpaceId equals ts.Id
-                orderby f.CreatedAt
+                orderby f.CreatedAt descending, f.Id descending
                 select new
                 {
                     f.Id,
@@ -170,6 +181,7 @@ public class ChannelFollowGrain(
                     f.CreatedAt,
                     f.CreatorId
                 })
+           .Take(MaxListed)
            .AsNoTracking()
            .ToListAsync();
 
@@ -181,5 +193,62 @@ public class ChannelFollowGrain(
                 string.IsNullOrEmpty(r.SourceAvatar) ? null : r.SourceAvatar,
                 string.IsNullOrEmpty(r.TargetAvatar) ? null : r.TargetAvatar))
            .ToList();
+    }
+}
+
+/// <summary>Who may make, and keep, a follow of a source announcement channel.</summary>
+public static class FollowAccess
+{
+    /// <summary>
+    /// The one rule for a follow's creator on the source side, applied when following and again at
+    /// every delivery. NONE when allowed.
+    /// </summary>
+    /// <remarks>
+    /// Reading it (ViewChannel and ReadHistory) always. A private source, one "everyone" cannot read,
+    /// also takes ManageChannels there: whether such a source may be followed at all is still open.
+    /// </remarks>
+    public static async Task<FollowChannelError> CheckSourceAsync(IEntitlementChecker entitlements, Guid spaceId, Guid channelId,
+        Guid userId, bool isPublic)
+    {
+        if (!await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ViewChannel)
+         || !await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ReadHistory))
+            return FollowChannelError.NO_ACCESS_TO_SOURCE;
+
+        if (!isPublic && !await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ManageChannels))
+            return FollowChannelError.SOURCE_PRIVATE;
+
+        return FollowChannelError.NONE;
+    }
+
+    /// <summary>Whether a member holding nothing but "everyone" can read the channel.</summary>
+    public static async Task<bool> IsPublicAsync(ApplicationDbContext ctx, IPermissionCache permissions, Guid spaceId, Guid channelId)
+    {
+        var everyone = await ctx.Archetypes
+           .AsNoTracking()
+           .Where(a => a.SpaceId == spaceId && a.IsDefault)
+           .Select(a => new { a.Id, a.Entitlement })
+           .FirstOrDefaultAsync();
+
+        var channel = await permissions.GetChannelWithOverwritesAsync(spaceId, channelId);
+        if (everyone is null || channel is null)
+            return false;
+
+        // No member id, so no member overwrite applies.
+        var nobody = new SpaceMemberEntity
+        {
+            Id      = Guid.Empty,
+            SpaceId = spaceId,
+            SpaceMemberArchetypes =
+            [
+                new SpaceMemberArchetypeEntity
+                {
+                    ArchetypeId = everyone.Id,
+                    Archetype   = new ArchetypeEntity { Id = everyone.Id, SpaceId = spaceId, Entitlement = everyone.Entitlement }
+                }
+            ]
+        };
+
+        return EntitlementEvaluator.HasAccessTo(nobody, channel, ArgonEntitlement.ViewChannel)
+            && EntitlementEvaluator.HasAccessTo(nobody, channel, ArgonEntitlement.ReadHistory);
     }
 }

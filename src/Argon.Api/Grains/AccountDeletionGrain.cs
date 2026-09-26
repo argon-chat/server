@@ -1711,10 +1711,11 @@ public class AccountDeletionGrain(
             .Where(g => g.UserId == userId)
             .ExecuteDeleteAsync();
 
-        // Composer drafts and scheduled posts; a pending post must not go out after the erasure.
-        await ctx.MessageDrafts
-            .Where(d => d.UserId == userId)
-            .ExecuteDeleteAsync();
+        // Composer drafts through their grain, which holds unwritten ones in memory; pending posts
+        // leave their channels' composers first. A pending post must not go out after the erasure.
+        await grainFactory.GetGrain<IMessageDraftsGrain>(userId).EraseAsync();
+
+        await ScheduledPostsOfAuthor.CancelPendingAsync(ctx, grainFactory, userId);
 
         await ctx.ScheduledPosts
             .IgnoreQueryFilters()

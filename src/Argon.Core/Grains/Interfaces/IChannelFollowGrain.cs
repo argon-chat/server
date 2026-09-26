@@ -11,11 +11,11 @@ public interface IChannelFollowGrain : IGrainWithGuidKey
     [Alias(nameof(FollowAsync))]
     Task<IFollowChannelResult> FollowAsync(Guid callerId, Guid sourceSpaceId, Guid sourceChannelId, Guid targetSpaceId);
 
-    /// <summary>Keyed by the SOURCE: the channels following it. Empty without ManageChannels.</summary>
+    /// <summary>Keyed by the SOURCE: the newest 200 channels following it. Empty without ManageChannels.</summary>
     [Alias(nameof(GetFollowersAsync))]
     Task<List<ChannelFollowLink>> GetFollowersAsync(Guid callerId, Guid spaceId);
 
-    /// <summary>Keyed by the TARGET: the channels it follows. Empty without ViewChannel.</summary>
+    /// <summary>Keyed by the TARGET: the newest 200 channels it follows. Empty without ViewChannel.</summary>
     [Alias(nameof(GetFollowedSourcesAsync))]
     Task<List<ChannelFollowLink>> GetFollowedSourcesAsync(Guid callerId, Guid spaceId);
 
@@ -24,14 +24,16 @@ public interface IChannelFollowGrain : IGrainWithGuidKey
     Task<IRemoveFollowResult> RemoveAsync(Guid callerId, Guid spaceId, Guid followId);
 }
 
-/// <summary>What a publish hands the fan-out: the copy and the channels it goes to.</summary>
+/// <summary>A post marked published, and how many live followers its delivery job was handed.</summary>
 [GenerateSerializer, Immutable]
-public sealed record CrosspostBatch(
-    [property: Id(0)] CrosspostDraft Draft,
-    [property: Id(1)] List<Guid> Targets,
-    [property: Id(2)] DateTimeOffset PublishedAt);
+public sealed record PublishedCrosspost(
+    [property: Id(0)] DateTimeOffset PublishedAt,
+    [property: Id(1)] int TargetCount);
 
-/// <summary>A crosspost copy before a target inserts it. Entities are already stripped of mentions.</summary>
+/// <summary>
+/// A crosspost copy before a target inserts it. Entities are already stripped of mentions; the author
+/// is <c>UserEntity.SystemUser</c> when the source hides it.
+/// </summary>
 [GenerateSerializer, Immutable]
 public sealed record CrosspostDraft(
     [property: Id(0)] Guid AuthorId,

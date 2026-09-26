@@ -1,5 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
+using Orleans.Concurrency;
+
 /// <summary>
 /// A channel's scheduled posts, keyed by the channel id. Publishing runs on a reminder that is armed
 /// for the earliest pending post, so it survives deactivation and silo restarts.
@@ -18,6 +20,10 @@ public interface IChannelComposerGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetScheduledPostsAsync))]
     Task<List<ScheduledPost>> GetScheduledPostsAsync(Guid spaceId);
+
+    /// <summary>Cancels the author's pending posts here, after a Critical lockdown or before an erasure.</summary>
+    [Alias(nameof(CancelPendingOfAuthorAsync)), OneWay]
+    Task CancelPendingOfAuthorAsync(Guid authorId);
 }
 
 /// <summary>The caller's composer drafts, keyed by the caller's user id.</summary>
@@ -29,4 +35,8 @@ public interface IMessageDraftsGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetDraftAsync))]
     Task<MessageDraft?> GetDraftAsync(Guid spaceId, Guid channelId);
+
+    /// <summary>Account erasure: drops the drafts in memory, unwritten ones included, and deletes the stored ones.</summary>
+    [Alias(nameof(EraseAsync))]
+    Task EraseAsync();
 }

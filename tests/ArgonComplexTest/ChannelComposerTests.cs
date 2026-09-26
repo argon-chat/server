@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Orleans.Core.Internal;
 using Orleans.Runtime;
 using static ChannelTestKit;
+using ReportActionKind = ConsoleContracts.ReportActionKind;
 
 /// <summary>
 /// Author tools: posts scheduled for later and the server-side draft.
@@ -17,10 +18,10 @@ using static ChannelTestKit;
 /// <remarks>
 /// A post cannot be scheduled less than a minute ahead, so "due" is reached by backdating its
 /// <c>PublishAt</c> in the table and delivering the reminder tick straight to the grain, as the
-/// reminder service would.
+/// reminder service would. The report base is for the operator console a ban is decided in.
 /// </remarks>
 [TestFixture]
-public class ChannelComposerTests : TestBase
+public class ChannelComposerTests : ReportTestBase
 {
     private const string ReminderName = "scheduled-posts";
 
@@ -67,6 +68,26 @@ public class ChannelComposerTests : TestBase
     {
         await using var db = await DbAsync(ct);
         return await db.ScheduledPosts.AsNoTracking().SingleAsync(p => p.Id == postId, ct);
+    }
+
+    private static async Task<MessageDraftEntity?> StoredDraftAsync(Guid userId, Guid channelId, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+        return await db.MessageDrafts.AsNoTracking().FirstOrDefaultAsync(d => d.UserId == userId && d.ChannelId == channelId, ct);
+    }
+
+    private static async Task DeactivateAsync(GrainId grain)
+        => await Grains.GetGrain<IGrainManagementExtension>(grain).DeactivateOnIdle();
+
+    private static GrainId DraftsGrain(Guid userId) => Grains.GetGrain<IMessageDraftsGrain>(userId).GetGrainId();
+
+    /// <summary>Written straight into the row, as ReportRulesTests does.</summary>
+    private static async Task LockDownAsync(Guid userId, LockdownReason reason, DateTimeOffset until, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+        await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s
+           .SetProperty(u => u.LockdownReason, reason)
+           .SetProperty(u => u.LockDownExpiration, (DateTimeOffset?)until), ct);
     }
 
     private static ScheduledPost Scheduled(ISchedulePostResult result)
@@ -159,12 +180,12 @@ public class ChannelComposerTests : TestBase
     }
 
     [Test, CancelAfter(180_000)]
-    public async Task A_channel_holds_at_most_25_pending_posts(CancellationToken ct = default)
+    public async Task An_author_holds_at_most_10_pending_posts_in_a_channel(CancellationToken ct = default)
     {
         var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
 
         var posts = new List<ScheduledPost>();
-        for (var i = 0; i < 25; i++)
+        for (var i = 0; i < 10; i++)
             posts.Add(Scheduled(await ComposerOf(owner).SchedulePost(spaceId, channelId, $"post {i}", Entities(), In(TimeSpan.FromHours(1 + i)), ct)));
 
         var byOwner = await ComposerOf(owner).SchedulePost(spaceId, channelId, "one more", Entities(), In(TimeSpan.FromDays(2)), ct);
@@ -173,11 +194,40 @@ public class ChannelComposerTests : TestBase
         Assert.Multiple(() =>
         {
             Assert.That(ErrorOf(byOwner), Is.EqualTo(SchedulePostError.TOO_MANY_SCHEDULED));
-            Assert.That(ErrorOf(byGuest), Is.EqualTo(SchedulePostError.TOO_MANY_SCHEDULED), "the limit is per channel, not per author");
+            Assert.That(byGuest, Is.InstanceOf<SuccessSchedulePost>(), "one member's queue blocked everybody else's");
         });
 
         Assert.That(await ComposerOf(owner).CancelScheduledPost(spaceId, channelId, posts[0].postId, ct), Is.True);
-        Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "mine", Entities(), In(TimeSpan.FromDays(2)), ct));
+        Scheduled(await ComposerOf(owner).SchedulePost(spaceId, channelId, "one more", Entities(), In(TimeSpan.FromDays(2)), ct));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_channel_holds_at_most_100_pending_posts(CancellationToken ct = default)
+    {
+        var (_, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+
+        // 99 posts by ten other authors, seeded before the channel's composer first activates.
+        await using (var db = await DbAsync(ct))
+        {
+            var now = DateTimeOffset.UtcNow;
+            for (var i = 0; i < 99; i++)
+                db.ScheduledPosts.Add(new ScheduledPostEntity
+                {
+                    Id = Guid.CreateVersion7(), SpaceId = spaceId, ChannelId = channelId, AuthorId = new Guid(i / 10 + 1, 0, 0, new byte[8]),
+                    Text = $"seeded {i}", PublishAt = now.AddHours(1 + i), Status = ScheduledPostStatus.PENDING,
+                    RandomId = i + 1, CreatedAt = now, UpdatedAt = now
+                });
+            await db.SaveChangesAsync(ct);
+        }
+
+        var last = await ComposerOf(guest).SchedulePost(spaceId, channelId, "the 100th", Entities(), In(TimeSpan.FromHours(1)), ct);
+        var full = await ComposerOf(guest).SchedulePost(spaceId, channelId, "no room", Entities(), In(TimeSpan.FromHours(1)), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(last, Is.InstanceOf<SuccessSchedulePost>(), $"refused below the channel limit: {ErrorOf(last)}");
+            Assert.That(ErrorOf(full), Is.EqualTo(SchedulePostError.TOO_MANY_SCHEDULED));
+        });
     }
 
     // ── Publishing ──────────────────────────────────────────────────────────────────────────────
@@ -339,6 +389,215 @@ public class ChannelComposerTests : TestBase
         Assert.That(texts, Is.EquivalentTo(new[] { "live", "held" }));
     }
 
+    [Test, CancelAfter(120_000)]
+    public async Task A_held_post_does_not_rewrite_the_reminder_on_every_tick(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+        Assert.That(await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 60, null, ct), Is.InstanceOf<SuccessUpdateChannel>());
+
+        await guest.Channels.SendMessage(spaceId, channelId, "live", Entities(), NextRandomId(), null, ct).Ok();
+
+        var held = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "held", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        await BackdateAsync(held.postId, TimeSpan.FromSeconds(1), ct);
+
+        await TickAsync(channelId);
+        var first = await ReminderAsync(channelId);
+        await TickAsync(channelId);
+        var second = await ReminderAsync(channelId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first, Is.Not.Null, "a held post was left without a reminder");
+            Assert.That((second?.StartAt, second?.ETag), Is.EqualTo((first?.StartAt, first?.ETag)),
+                "the reminder was written again for a post the periodic tick already retries");
+        });
+        Assert.That((await StoredPostAsync(held.postId, ct)).Status, Is.EqualTo(ScheduledPostStatus.PENDING), "premise: the post is held");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_new_activation_does_not_rewrite_a_reminder_already_armed_for_its_target(CancellationToken ct = default)
+    {
+        var (_, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+
+        Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "first", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        var armed = await ReminderAsync(channelId);
+
+        await DeactivateAsync(ComposerGrain(channelId));
+        await Task.Delay(TimeSpan.FromMilliseconds(250), ct);
+
+        // Later than the first, so the earliest post and the reminder's target are unchanged.
+        Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "later", Entities(), In(TimeSpan.FromMinutes(20)), ct));
+        var after = await ReminderAsync(channelId);
+
+        Assert.That(armed, Is.Not.Null);
+        Assert.That((after?.StartAt, after?.ETag), Is.EqualTo((armed?.StartAt, armed?.ETag)),
+            "a fresh activation wrote the reminder again for the target it already had");
+    }
+
+    // ── Platform lockdown ───────────────────────────────────────────────────────────────────────
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_post_whose_author_is_under_a_critical_lockdown_fails_as_account_restricted(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+
+        await using var author = await RealtimeClient.ConnectAsync(guest, ct);
+
+        var banned = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "from a banned account", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        var lapsed = Scheduled(await ComposerOf(owner).SchedulePost(spaceId, channelId, "from a lapsed ban", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+
+        // Straight into the rows, past the hook that cancels on a lockdown: this is the check at publish time.
+        await LockDownAsync(guest.UserId, LockdownReason.TOS_VIOLATION, DateTimeOffset.UtcNow.AddDays(1), ct);
+        await LockDownAsync(owner.UserId, LockdownReason.TOS_VIOLATION, DateTimeOffset.UtcNow.AddMinutes(-1), ct);
+
+        await BackdateAsync(banned.postId, TimeSpan.FromSeconds(1), ct);
+        await BackdateAsync(lapsed.postId, TimeSpan.FromSeconds(1), ct);
+        await TickAsync(channelId);
+
+        var stored = await StoredPostAsync(banned.postId, ct);
+        var texts  = (await owner.Channels.QueryMessages(spaceId, channelId, null, 10, ct)).Values.Select(m => m.text);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored.Status, Is.EqualTo(ScheduledPostStatus.FAILED));
+            Assert.That(stored.Failure, Is.EqualTo(ScheduledPostFailure.ACCOUNT_RESTRICTED));
+            Assert.That(stored.MessageId, Is.Null);
+            Assert.That(texts, Is.EqualTo(new[] { "from a lapsed ban" }), "a banned author's post went out, or a lapsed ban held one back");
+        });
+
+        await author.WaitForAsync<ScheduledPostUpdated>(
+            e => e.post.postId == banned.postId && e.post.failure == ScheduledPostFailure.ACCOUNT_RESTRICTED, Window, ct: ct);
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_critical_lockdown_cancels_the_authors_pending_posts_in_every_channel(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+        var otherId = await CreateChannelAsync(owner, spaceId, "elsewhere", ChannelType.Text, ct);
+
+        var here  = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "here", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        var there = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, otherId, "there", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        var kept  = Scheduled(await ComposerOf(owner).SchedulePost(spaceId, channelId, "the owner's", Entities(), In(TimeSpan.FromMinutes(20)), ct));
+
+        Assert.That((await ComposerOf(owner).GetScheduledPosts(spaceId, channelId, ct)).Values, Has.Count.EqualTo(2), "premise");
+
+        var admin = Grains.GetGrain<IAdminUsersGrain>(Guid.Empty);
+
+        // A mute is not a ban.
+        Assert.That((await admin.SetLockdownAsync(guest.UserId, LockdownReason.INCITING_MOMENT, In(TimeSpan.FromDays(1)), true, ct)).success, Is.True);
+        Assert.That((await StoredPostAsync(here.postId, ct)).Status, Is.EqualTo(ScheduledPostStatus.PENDING), "a mute cancelled a post");
+
+        Assert.That((await admin.SetLockdownAsync(guest.UserId, LockdownReason.TOS_VIOLATION, In(TimeSpan.FromDays(1)), false, ct)).success, Is.True);
+
+        var gone = await PollAsync(
+            async () => (await StoredPostAsync(here.postId, ct), await StoredPostAsync(there.postId, ct)),
+            p => p.Item1.Status == ScheduledPostStatus.CANCELLED && p.Item2.Status == ScheduledPostStatus.CANCELLED, Window, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((gone.Item1.Status, gone.Item2.Status), Is.EqualTo((ScheduledPostStatus.CANCELLED, ScheduledPostStatus.CANCELLED)),
+                "the ban left the author's posts queued");
+            Assert.That(gone.Item1.ExpireAt, Is.Not.Null);
+            Assert.That(gone.Item2.ExpireAt, Is.Not.Null);
+        });
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That((await StoredPostAsync(kept.postId, ct)).Status, Is.EqualTo(ScheduledPostStatus.PENDING), "somebody else's post went with it");
+            Assert.That((await ComposerOf(owner).GetScheduledPosts(spaceId, channelId, ct)).Values.Select(p => p.postId),
+                Is.EqualTo(new[] { kept.postId }), "the channel still lists the cancelled post");
+            Assert.That(await PollAsync(() => ReminderAsync(otherId), r => r is null, Window, ct), Is.Null,
+                "the reminder of a channel with nothing left pending stayed armed");
+        });
+    }
+
+    [Test, CancelAfter(240_000)]
+    public async Task A_ban_decided_on_a_report_cancels_the_authors_pending_posts(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+
+        var post = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "before the ban", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+
+        await FileAsync(owner, Report(UserTarget(guest.UserId)), ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var @case  = await FindCaseAsync(admin, guest.UserId, ct);
+        var banned = await ResolveAsync(admin, @case.caseId, ReportStatus.RESOLVED_ACTION_TAKEN, ReportActionKind.BAN_USER, null, ct);
+        Assert.That(banned.success, Is.True, banned.error);
+
+        var status = await PollAsync(async () => (await StoredPostAsync(post.postId, ct)).Status,
+            s => s == ScheduledPostStatus.CANCELLED, Window, ct);
+        Assert.That(status, Is.EqualTo(ScheduledPostStatus.CANCELLED), "a ban decided on a report left the author's post queued");
+    }
+
+    // ── Retention ───────────────────────────────────────────────────────────────────────────────
+
+    [Test, CancelAfter(120_000)]
+    public async Task Finished_posts_carry_an_expiry_and_live_ones_do_not(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Announcement, ct);
+        var roleId = await RoleWithPostingAsync(owner, spaceId, channelId, guest.UserId, ct);
+
+        var composer  = ComposerOf(guest);
+        var published = Scheduled(await composer.SchedulePost(spaceId, channelId, "goes out", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        var cancelled = Scheduled(await composer.SchedulePost(spaceId, channelId, "called off", Entities(), In(TimeSpan.FromMinutes(10)), ct));
+        var failed    = Scheduled(await composer.SchedulePost(spaceId, channelId, "refused", Entities(), In(TimeSpan.FromMinutes(20)), ct));
+        var pending   = Scheduled(await composer.SchedulePost(spaceId, channelId, "later", Entities(), In(TimeSpan.FromMinutes(30)), ct));
+
+        Assert.That(await composer.CancelScheduledPost(spaceId, channelId, cancelled.postId, ct), Is.True);
+
+        await BackdateAsync(published.postId, TimeSpan.FromSeconds(1), ct);
+        await TickAsync(channelId);
+
+        var memberId = await MemberIdOfAsync(owner, spaceId, guest.UserId, ct);
+        Assert.That(await ArchetypesOf(owner).SetArchetypeToMember(spaceId, memberId, roleId, false, ct), Is.True);
+        await BackdateAsync(failed.postId, TimeSpan.FromSeconds(1), ct);
+        await TickAsync(channelId);
+
+        var rows = new Dictionary<string, ScheduledPostEntity>
+        {
+            ["published"] = await StoredPostAsync(published.postId, ct),
+            ["cancelled"] = await StoredPostAsync(cancelled.postId, ct),
+            ["failed"]    = await StoredPostAsync(failed.postId, ct),
+            ["pending"]   = await StoredPostAsync(pending.postId, ct)
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(rows.ToDictionary(r => r.Key, r => r.Value.Status), Is.EqualTo(new Dictionary<string, ScheduledPostStatus>
+            {
+                ["published"] = ScheduledPostStatus.PUBLISHED,
+                ["cancelled"] = ScheduledPostStatus.CANCELLED,
+                ["failed"]    = ScheduledPostStatus.FAILED,
+                ["pending"]   = ScheduledPostStatus.PENDING
+            }), "premise");
+
+            // The context stamps UpdatedAt itself on save, a moment after the grain's clock.
+            var second = TimeSpan.FromSeconds(1);
+            Assert.That(rows["published"].ExpireAt, Is.EqualTo(rows["published"].UpdatedAt).Within(second), "a published post is kept");
+            Assert.That(rows["cancelled"].ExpireAt, Is.EqualTo(rows["cancelled"].UpdatedAt).Within(second), "a cancelled post is kept");
+            Assert.That(rows["failed"].ExpireAt, Is.EqualTo(rows["failed"].UpdatedAt + TimeSpan.FromDays(7)).Within(second),
+                "a failed post does not stay listed for its author for a week");
+            Assert.That(rows["pending"].ExpireAt, Is.Null, "a pending post would expire before it is published");
+        });
+
+        // A week on, the failed post drops out of its author's list.
+        await using (var db = await DbAsync(ct))
+            await db.ScheduledPosts.Where(p => p.Id == failed.postId)
+               .ExecuteUpdateAsync(s => s.SetProperty(p => p.ExpireAt, (DateTimeOffset?)DateTimeOffset.UtcNow.AddMinutes(-1)), ct);
+        await DeactivateAsync(ComposerGrain(channelId));
+        await Task.Delay(TimeSpan.FromMilliseconds(250), ct);
+
+        Assert.That((await composer.GetScheduledPosts(spaceId, channelId, ct)).Values.Select(p => p.postId), Is.EqualTo(new[] { pending.postId }));
+
+        // Rescheduling a failed post makes it live again, without an expiry.
+        Assert.That(await ArchetypesOf(owner).SetArchetypeToMember(spaceId, memberId, roleId, true, ct), Is.True);
+        Scheduled(await composer.ReschedulePost(spaceId, channelId, failed.postId, In(TimeSpan.FromMinutes(40)), ct));
+        Assert.That((await StoredPostAsync(failed.postId, ct)).ExpireAt, Is.Null);
+    }
+
     // ── Cancel and reschedule ───────────────────────────────────────────────────────────────────
 
     [Test, CancelAfter(120_000)]
@@ -435,5 +694,53 @@ public class ChannelComposerTests : TestBase
 
         await composer.SaveDraft(spaceId, channelId, "", Entities(), ct);
         Assert.That(await composer.GetDraft(spaceId, channelId, ct), Is.Null, "empty text did not delete the draft");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_draft_is_served_from_memory_and_written_behind(CancellationToken ct = default)
+    {
+        var (_, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
+        var composer = ComposerOf(guest);
+
+        // The first save activates the grain, so its first flush is a whole period (10 s) away.
+        for (var i = 0; i < 20; i++)
+            await composer.SaveDraft(spaceId, channelId, $"typing {i}", Entities(), ct);
+
+        Assert.That(await StoredDraftAsync(guest.UserId, channelId, ct), Is.Null, "a keystroke save went straight to the table");
+        Assert.That((await composer.GetDraft(spaceId, channelId, ct))?.text, Is.EqualTo("typing 19"));
+
+        var flushed = await PollAsync(() => StoredDraftAsync(guest.UserId, channelId, ct), d => d is not null, TimeSpan.FromSeconds(10) + Window, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(flushed?.Text, Is.EqualTo("typing 19"), "the timer did not write the draft");
+            Assert.That(flushed?.ExpireAt - flushed?.UpdatedAt, Is.EqualTo(TimeSpan.FromDays(30)), "the draft does not expire a month after its last save");
+        });
+
+        // Changed underneath the activation, which keeps serving what it holds.
+        await using (var db = await DbAsync(ct))
+            await db.MessageDrafts.Where(d => d.UserId == guest.UserId && d.ChannelId == channelId)
+               .ExecuteUpdateAsync(s => s.SetProperty(d => d.Text, "changed underneath"), ct);
+        Assert.That((await composer.GetDraft(spaceId, channelId, ct))?.text, Is.EqualTo("typing 19"), "the draft was read from the table again");
+
+        // Just after a flush, so only the deactivation can write this one within the window below.
+        await composer.SaveDraft(spaceId, channelId, "last words", Entities(Bold(5, 5)), ct);
+        await DeactivateAsync(DraftsGrain(guest.UserId));
+
+        var written = await PollAsync(() => StoredDraftAsync(guest.UserId, channelId, ct), d => d?.Text == "last words", TimeSpan.FromSeconds(3), ct);
+        Assert.That(written?.Text, Is.EqualTo("last words"), "the deactivation did not write the unsaved draft");
+
+        var reloaded = await composer.GetDraft(spaceId, channelId, ct);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reloaded?.text, Is.EqualTo("last words"), "the draft did not survive a new activation");
+            Assert.That(reloaded?.entities.Values.OfType<MessageEntityBold>().Select(b => (b.offset, b.length)), Is.EqualTo(new[] { (5, 5) }));
+        });
+
+        // Clearing is written behind as well.
+        await composer.SaveDraft(spaceId, channelId, "", Entities(), ct);
+        await DeactivateAsync(DraftsGrain(guest.UserId));
+        Assert.That(await PollAsync(() => StoredDraftAsync(guest.UserId, channelId, ct), d => d is null, TimeSpan.FromSeconds(3), ct), Is.Null,
+            "a cleared draft stayed in the table");
     }
 }

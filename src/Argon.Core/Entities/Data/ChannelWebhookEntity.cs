@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using System.Globalization;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Orleans.Concurrency;
 
@@ -30,15 +31,51 @@ public record ChannelWebhookEntity : IEntityTypeConfiguration<ChannelWebhookEnti
         builder.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
 
         builder.HasIndex(x => x.ChannelId);
+        builder.HasIndex(x => x.SpaceId);
     }
 
     public static ChannelWebhook Map(scoped in ChannelWebhookEntity self)
         => new(self.Id, self.SpaceId, self.ChannelId, self.Name, self.AvatarFileId, self.CreatorId,
             self.CreatedAt.UtcDateTime, self.LastUsedAt?.UtcDateTime);
 
+    public const int TokenLength = 43;
+
+    private static readonly string[] ReservedNames =
+        ["argon", "system", "moderator", "admin", "administrator", "official", "support", "staff"];
+
     /// <summary>A new token: 32 random bytes, base64url, safe in a URL path.</summary>
     public static string NewToken()
         => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+
+    /// <summary>Whether a string has the shape <see cref="NewToken"/> gives: 43 characters of base64url.</summary>
+    public static bool IsTokenShaped(string? token)
+        => token is { Length: TokenLength } && token.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+
+    /// <summary>The name without control, bidi or zero-width characters, trimmed.</summary>
+    public static string CleanName(string? name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "";
+
+        var clean = new StringBuilder(name.Length);
+        foreach (var rune in name.EnumerateRunes())
+        {
+            if (Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format
+                or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+                continue;
+            clean.Append(rune.ToString());
+        }
+
+        return clean.ToString().Trim();
+    }
+
+    /// <summary>Names that pass for the platform or its staff, compared case-insensitively and with fullwidth letters folded.</summary>
+    public static bool IsReservedName(string name)
+    {
+        // Fullwidth forms U+FF01..U+FF5E are ASCII shifted by 0xFEE0.
+        var folded = string.Concat(name.Select(c => c is >= (char)0xFF01 and <= (char)0xFF5E ? (char)(c - 0xFEE0) : c)).Trim();
+        return ReservedNames.Contains(folded, StringComparer.OrdinalIgnoreCase);
+    }
 
     public static string HashToken(string token)
         => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));

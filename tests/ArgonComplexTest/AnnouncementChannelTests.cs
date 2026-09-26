@@ -1,9 +1,12 @@
 namespace ArgonComplexTest.Tests;
 
 using System.Net;
+using Argon.Grains.Interfaces;
+using Argon.Services.L1L2;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime;
+using Microsoft.Extensions.DependencyInjection;
 using static ChannelTestKit;
 
 /// <summary>
@@ -54,6 +57,18 @@ public class AnnouncementChannelTests : TestBase
             deny: ArgonEntitlement.None, allow: ArgonEntitlement.SendMessages, ct);
 
         return role.id;
+    }
+
+    /// <summary>
+    /// Takes a member out of the space. The removal leaves their cached grant to expire by itself, so
+    /// it is dropped here the way a ban would have to.
+    /// </summary>
+    private static async Task RemoveMemberAsync(Guid spaceId, Guid userId)
+    {
+        await Grains.GetGrain<ISpaceGrain>(spaceId).RemoveMemberAsync(userId);
+
+        await using var scope = Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IPermissionCache>().SignalMemberInvalidationAsync(spaceId, userId);
     }
 
     [Test, CancelAfter(120_000)]
@@ -387,5 +402,168 @@ public class AnnouncementChannelTests : TestBase
         await archetypes.UpdateArchetype(spaceId, channels with { entitlement = channels.entitlement | ArgonEntitlement.ManageArchetype }, ct).Ok();
 
         Assert.That(await mod.Channels.SetChannelType(spaceId, textId, ChannelType.Announcement, ct), Is.InstanceOf<SuccessUpdateChannel>());
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Converting_back_to_text_keeps_a_posting_deny_the_owner_set_before(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var guest = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "read-only", ChannelType.Text, ct);
+        await JoinAsync(owner, guest, spaceId, ct);
+        await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.SendMessages, ct);
+
+        Assert.That(await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Announcement, ct), Is.InstanceOf<SuccessUpdateChannel>());
+        Assert.That(await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Text, ct), Is.InstanceOf<SuccessUpdateChannel>());
+
+        var everyone = await EveryoneAsync(owner, spaceId, ct);
+        var forAll   = (await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct)).Values
+           .SingleOrDefault(o => o.archetypeId == everyone.id);
+
+        Assert.That(forAll?.deny, Is.EqualTo(ArgonEntitlement.SendMessages), "converting back lifted a deny the owner had set");
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "let me in", Entities(), NextRandomId(), null, ct),
+            Is.EqualTo(new FailedSendMessage(SendMessageError.NO_PERMISSION)), "a member posted in a channel the owner had closed");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_channel_created_for_announcements_opens_up_when_it_becomes_text(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
+
+        // Changing how the channel presents its posts must not lose who added the deny.
+        Assert.That(await owner.Channels.SetAnnouncementSettings(spaceId, channelId, false, true, false, ct), Is.InstanceOf<SuccessUpdateChannel>());
+        Assert.That(await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Text, ct), Is.InstanceOf<SuccessUpdateChannel>());
+
+        Assert.That((await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct)).Values, Is.Empty,
+            "the deny the announcement channel came with outlived it");
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "hello", Entities(), NextRandomId(), null, ct),
+            Is.InstanceOf<SuccessSendMessage>());
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task An_author_who_may_no_longer_post_cannot_rewrite_what_they_said(CancellationToken ct = default)
+    {
+        var owner    = await CreateSessionAsync(ct);
+        var silenced = await CreateSessionAsync(ct);
+        var leaver   = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
+        await JoinAsync(owner, silenced, spaceId, ct);
+        await JoinAsync(owner, leaver, spaceId, ct);
+
+        var quiet = await silenced.Channels.SendMessage(spaceId, channelId, "said once", Entities(), NextRandomId(), null, ct).Ok();
+        var left  = await leaver.Channels.SendMessage(spaceId, channelId, "said before leaving", Entities(), NextRandomId(), null, ct).Ok();
+
+        await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.SendMessages, ct);
+        await RemoveMemberAsync(spaceId, leaver.UserId);
+
+        var bySilenced = await silenced.Channels.EditMessage(spaceId, channelId, quiet, "never said", Entities(), ct);
+        var byLeaver   = await AsUserAsync(leaver.UserId,
+            () => Grains.GetGrain<IChannelGrain>(channelId).EditMessage(left, "never said", []));
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That((bySilenced as FailedEditMessage)?.error, Is.EqualTo(EditMessageError.INSUFFICIENT_PERMISSIONS),
+                "an author denied SendMessages rewrote an old message");
+            Assert.That((byLeaver as FailedEditMessage)?.error, Is.EqualTo(EditMessageError.INSUFFICIENT_PERMISSIONS),
+                "an author who left the space rewrote an old message");
+            Assert.That((await StoredMessageAsync(spaceId, channelId, quiet, ct))!.Text, Is.EqualTo("said once"));
+            Assert.That((await StoredMessageAsync(spaceId, channelId, left, ct))!.Text, Is.EqualTo("said before leaving"));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task An_author_shut_out_of_the_channel_cannot_delete_what_they_said(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var hidden = await CreateSessionAsync(ct);
+        var leaver = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
+        foreach (var session in new[] { hidden, leaver, member })
+            await JoinAsync(owner, session, spaceId, ct);
+
+        var ofHidden = await hidden.Channels.SendMessage(spaceId, channelId, "evidence", Entities(), NextRandomId(), null, ct).Ok();
+        var ofLeaver = await leaver.Channels.SendMessage(spaceId, channelId, "more evidence", Entities(), NextRandomId(), null, ct).Ok();
+        var ofMember = await member.Channels.SendMessage(spaceId, channelId, "typo", Entities(), NextRandomId(), null, ct).Ok();
+
+        var archetypes = ArchetypesOf(owner);
+        var blind      = await archetypes.CreateArchetype(spaceId, "blind", ct).Ok();
+        await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, hidden.UserId, ct), blind.id, true, ct);
+        await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, blind.id,
+            deny: ArgonEntitlement.ViewChannel, allow: ArgonEntitlement.None, ct);
+        await RemoveMemberAsync(spaceId, leaver.UserId);
+
+        var byHidden = await hidden.Channels.DeleteMessage(spaceId, channelId, ofHidden, ct);
+        var byLeaver = await AsUserAsync(leaver.UserId, () => Grains.GetGrain<IChannelGrain>(channelId).DeleteMessage(ofLeaver, ct));
+        var byMember = await member.Channels.DeleteMessage(spaceId, channelId, ofMember, ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That((byHidden as FailedDeleteMessage)?.error, Is.EqualTo(DeleteMessageError.INSUFFICIENT_PERMISSIONS),
+                "an author who can no longer see the channel deleted a message in it");
+            Assert.That(byLeaver, Is.EqualTo(DeleteMessageError.INSUFFICIENT_PERMISSIONS), "an author who left the space deleted a message");
+            Assert.That(byMember, Is.InstanceOf<SuccessDeleteMessage>(), "a member could not delete their own message");
+            Assert.That((await StoredMessageAsync(spaceId, channelId, ofHidden, ct))!.IsDeleted, Is.False);
+            Assert.That((await StoredMessageAsync(spaceId, channelId, ofLeaver, ct))!.IsDeleted, Is.False);
+        });
+
+        Assert.That(await owner.Channels.DeleteMessage(spaceId, channelId, ofLeaver, ct), Is.InstanceOf<SuccessDeleteMessage>(),
+            "a moderator could not take the message down");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_bot_rewrites_nothing_in_an_announcement_channel_nor_past_the_text_limit(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "updates", ChannelType.Text, ct);
+
+        var bot = await ChannelTestBot.SeedAsync(owner.UserId, ct);
+        await bot.JoinAsync(spaceId);
+
+        var first  = await bot.SendAsync(spaceId, channelId, "v1", ct: ct);
+        var second = await bot.SendAsync(spaceId, channelId, "v1", ct: ct);
+
+        using var tooLong = await bot.CallAsync(HttpMethod.Patch, "/IInteractions/v1/EditMessage",
+            new { channelId, messageId = first, text = new string('a', 4097) }, ct);
+
+        // Posted while the channel was open; a bot may not post in it now, so it may not rewrite either.
+        Assert.That(await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Announcement, ct), Is.InstanceOf<SuccessUpdateChannel>());
+
+        using var inNews = await bot.CallAsync(HttpMethod.Patch, "/IInteractions/v1/EditMessage",
+            new { channelId, messageId = second, text = "v2" }, ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(tooLong.IsSuccessStatusCode, Is.False, "a bot edit past the text limit was accepted");
+            Assert.That(inNews.IsSuccessStatusCode, Is.False, "a bot rewrote a post in an announcement channel");
+            Assert.That((await StoredMessageAsync(spaceId, channelId, first, ct))!.Text, Is.EqualTo("v1"));
+            Assert.That((await StoredMessageAsync(spaceId, channelId, second, ct))!.Text, Is.EqualTo("v1"));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_message_carries_at_most_512_entities_sent_or_edited(CancellationToken ct = default)
+    {
+        var owner     = await CreateSessionAsync(ct);
+        var spaceId   = await CreateSpaceAsync(owner, ct);
+        var channelId = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
+
+        var tooMany = Enumerable.Range(0, 513).Select(IMessageEntity (_) => Bold(0, 1)).ToArray();
+
+        Assert.That(await owner.Channels.SendMessage(spaceId, channelId, "x", Entities(tooMany), NextRandomId(), null, ct),
+            Is.EqualTo(new FailedSendMessage(SendMessageError.INVALID_DATA)), "a message with 513 entities was sent");
+
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "x", Entities(tooMany[..512]), NextRandomId(), null, ct).Ok();
+        var edit      = await owner.Channels.EditMessage(spaceId, channelId, messageId, "y", Entities(tooMany), ct);
+
+        Assert.That((edit as FailedEditMessage)?.error, Is.EqualTo(EditMessageError.MESSAGE_TOO_LONG), "an edit with 513 entities was taken");
+        Assert.That((await StoredMessageAsync(spaceId, channelId, messageId, ct))!.Text, Is.EqualTo("x"));
     }
 }

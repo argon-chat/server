@@ -45,6 +45,7 @@ public partial class ChannelGrain(
     IOptions<CrawlerOptions> crawlerOptions,
     ISpaceReadCache readCache,
     IPermissionCache permissionCache,
+    IArchetypeAgent archetypeAgent,
     // Same pool the read-state and replay-buffer caches use. The channel's high-water mark is a
     // cache value, not a second source of truth: it is written here and read by anyone who needs it
     // fresher than the flush interval below.
@@ -98,6 +99,9 @@ public partial class ChannelGrain(
 
     // ── Screencast drawing session (ephemeral, lives with the share) ──
     private const int DrawingDefaultTtlMs = 6000;
+
+    /// <summary>Announcement mass pings of the last hour, by message id; seeded from the stored messages when first needed.</summary>
+    private Dictionary<long, DateTimeOffset>? massPings;
 
     /// <summary>
     /// Ids handed out for the randomIds seen since this activation started, so a retry can be
@@ -171,7 +175,10 @@ public partial class ChannelGrain(
     // typing): reaches only clients currently viewing THIS channel, not all members of the space.
     // Space-wide events (voice membership, recording, meetings, mentions) keep using Fire().
     private Task FireChannel<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
-        => appHubServer.BroadcastChannel(ev, SpaceId, this.GetPrimaryKey(), ct);
+    {
+        ForgetChangedPin(ev);
+        return appHubServer.BroadcastChannel(ev, SpaceId, this.GetPrimaryKey(), ct);
+    }
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
@@ -916,14 +923,21 @@ public partial class ChannelGrain(
         patch.Modify(x => x.type, type);
         PatchAnnouncementForType(patch, channel);
 
+        var announcement = ChannelAnnouncement.Of(channel);
+
         if (type == ChannelType.Announcement)
         {
+            // A deny the owner set before stays theirs; only one added here is lifted on the way back.
+            var added = false;
+
             if (everyone is not null)
             {
+                added = !everyone.Deny.HasFlag(ArgonEntitlement.SendMessages);
                 everyone.Allow &= ~ArgonEntitlement.SendMessages;
                 everyone.Deny  |= ArgonEntitlement.SendMessages;
             }
             else if (everyoneId != Guid.Empty)
+            {
                 ctx.ChannelEntitlementOverwrites.Add(new ChannelEntitlementOverwriteEntity
                 {
                     ChannelId   = channelId,
@@ -933,6 +947,10 @@ public partial class ChannelGrain(
                     Deny        = ArgonEntitlement.SendMessages,
                     CreatorId   = callerId
                 });
+                added = true;
+            }
+
+            channel.Announcement = announcement with { AddedSendDeny = added };
 
             if (channel.SlowMode is not null)
             {
@@ -940,11 +958,17 @@ public partial class ChannelGrain(
                 patch.Remove(x => x.slowModeSeconds);
             }
         }
-        else if (everyone is not null && everyone.Deny.HasFlag(ArgonEntitlement.SendMessages))
+        else
         {
-            everyone.Deny &= ~ArgonEntitlement.SendMessages;
-            if (everyone is { Allow: ArgonEntitlement.None, Deny: ArgonEntitlement.None })
-                ctx.ChannelEntitlementOverwrites.Remove(everyone);
+            if (announcement.AddedSendDeny && everyone is not null && everyone.Deny.HasFlag(ArgonEntitlement.SendMessages))
+            {
+                everyone.Deny &= ~ArgonEntitlement.SendMessages;
+                if (everyone is { Allow: ArgonEntitlement.None, Deny: ArgonEntitlement.None })
+                    ctx.ChannelEntitlementOverwrites.Remove(everyone);
+            }
+
+            if (announcement.AddedSendDeny)
+                channel.Announcement = announcement with { AddedSendDeny = false };
         }
 
         await ctx.SaveChangesAsync(ct);
@@ -1155,10 +1179,12 @@ public partial class ChannelGrain(
         if (message is null)
             return DeleteMessageError.MESSAGE_NOT_FOUND;
 
-        // Retracting your own words needs no permission; taking down somebody else's is moderation.
-        // A crossposted copy belongs to the channel it landed in, not to the source's author.
-        if ((message.CreatorId != callerId || message.IsCrosspost)
-         && !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageMessages, ct))
+        // Retracting your own words needs only a seat in the channel, which a banned or departed author
+        // no longer has; taking down somebody else's is moderation. A crossposted copy belongs to the
+        // channel it landed in, not to the source's author.
+        var own = message.CreatorId == callerId && !message.IsCrosspost;
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId,
+                own ? ArgonEntitlement.ViewChannel : ArgonEntitlement.ManageMessages, ct))
             return DeleteMessageError.INSUFFICIENT_PERMISSIONS;
 
         // Soft delete: reports and audit trails reference messages by id, so the row has to outlive
@@ -1372,6 +1398,9 @@ public partial class ChannelGrain(
         if (text?.Length > messageOptions.Value.MaxTextLength)
             return (SendMessageError.TEXT_TOO_LONG, 0);
 
+        if (entities?.Count > messageOptions.Value.MaxEntities)
+            return (SendMessageError.INVALID_DATA, 0);
+
         if (controls is { Count: > 0 })
         {
             try
@@ -1410,6 +1439,7 @@ public partial class ChannelGrain(
         
         var sanitized = SanitizeEntities(entities ?? []);
         await CacheGifEntitiesAsync(sanitized, senderId);
+        await StripUnpingableMentionsAsync(sanitized, senderId);
         var pendingPreview = await PrepareLinkPreviewAsync(sanitized, text ?? "", senderId, channelId);
 
         var message = new ArgonMessageEntity
@@ -1471,7 +1501,7 @@ public partial class ChannelGrain(
         PublishLastMessageId(msgId);
 
         // Process mentions asynchronously (don't block message delivery)
-        _ = ProcessMentionsAsync(entities, msgId, senderId, replyTo);
+        _ = ProcessMentionsAsync(sanitized, msgId, senderId, replyTo);
         
         sw.Stop();
         
@@ -1850,48 +1880,111 @@ public partial class ChannelGrain(
     }
 
     /// <summary>
-    /// Whether an announcement may still ping everyone or a role this hour. Counts deleted messages
-    /// too, so deleting a ping does not buy another one.
+    /// Takes one of the hour's mass pings for an announcement, or says there is none left. Only
+    /// messages that actually pinged are counted, and deleting one does not give it back.
     /// </summary>
-    private async Task<bool> WithinMassMentionBudgetAsync(long messageId)
+    private async Task<bool> TakeMassMentionBudgetAsync(long messageId)
     {
         var perHour = messageOptions.Value.AnnouncementMassMentionsPerHour;
         if (perHour <= 0)
             return true;
 
+        if (massPings is null)
+        {
+            var seeded = await SeedMassPingsAsync(messageId, perHour);
+            massPings ??= seeded;
+        }
+
+        var since = DateTimeOffset.UtcNow.AddHours(-1);
+        foreach (var expired in massPings.Where(p => p.Value < since).Select(p => p.Key).ToList())
+            massPings.Remove(expired);
+
+        // Seeded already: an earlier message whose mentions were still in flight.
+        if (massPings.ContainsKey(messageId))
+            return true;
+
+        if (massPings.Count >= perHour)
+            return false;
+
+        massPings[messageId] = DateTimeOffset.UtcNow;
+        return true;
+    }
+
+    /// <summary>
+    /// The mass pings a previous activation may have sent this hour. A stored message does not say
+    /// whether its ping went out, so the latest ones that could have are taken as having done so.
+    /// </summary>
+    private async Task<Dictionary<long, DateTimeOffset>> SeedMassPingsAsync(long before, int perHour)
+    {
         var channelId = this.GetPrimaryKey();
         var since     = DateTimeOffset.UtcNow.AddHours(-1);
+        var massUsers = messageOptions.Value.AnnouncementMassUserMentions;
 
         await using var ctx = await context.CreateDbContextAsync();
         var recent = await ctx.Messages
            .IgnoreQueryFilters()
            .AsNoTracking()
-           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.CreatedAt >= since && m.MessageId < messageId)
-           .Select(m => m.Entities)
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.CreatedAt >= since && m.MessageId < before)
+           .Select(m => new { m.MessageId, m.CreatorId, m.CreatedAt, m.Entities })
            .ToListAsync();
 
-        return recent.Count(e => e.Any(x => x is MessageEntityMentionEveryone or MessageEntityMentionRole)) < perHour;
+        return recent
+           .Where(m => m.Entities.Any(e => e is MessageEntityMentionEveryone or MessageEntityMentionRole)
+                    || m.Entities.OfType<MessageEntityMention>().Select(u => u.userId).Where(u => u != m.CreatorId).Distinct().Count() > massUsers)
+           .OrderByDescending(m => m.MessageId)
+           .Take(perHour)
+           .ToDictionary(m => m.MessageId, m => m.CreatedAt);
     }
 
     /// <summary>
     /// The mentioned roles that ping: roles of this space marked mentionable, or any of its roles for
     /// a sender who may mention everyone. Never the everyone role, which only @everyone reaches.
     /// </summary>
-    private async Task<List<MessageEntityMentionRole>> PingableRolesAsync(List<MessageEntityMentionRole> mentions, bool mayPingAll)
+    private async Task<HashSet<Guid>> PingableRolesAsync(IReadOnlySet<Guid> mentioned, bool mayPingAll)
     {
-        var ids = mentions.Select(r => r.archetypeId).ToList();
+        var roles = await archetypeAgent.GetAllAsync(SpaceId);
 
-        await using var ctx = await context.CreateDbContextAsync();
-        var pingable = await ctx.Archetypes
-           .AsNoTracking()
-           .Where(a => a.SpaceId == SpaceId && ids.Contains(a.Id) && !a.IsDefault && (mayPingAll || a.IsMentionable))
-           .Select(a => a.Id)
-           .ToListAsync();
-
-        return mentions.Where(r => pingable.Contains(r.archetypeId)).ToList();
+        return roles
+           .Where(a => mentioned.Contains(a.id) && !a.isDefault && (mayPingAll || a.isMentionable))
+           .Select(a => a.id)
+           .ToHashSet();
     }
 
-    private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId, long? replyTo)
+    /// <summary>
+    /// Takes out the @everyone and role mentions the sender may not ping, so no client shows them as
+    /// pings either.
+    /// </summary>
+    private async Task StripUnpingableMentionsAsync(List<IMessageEntity> entities, Guid senderId)
+    {
+        var everyone = entities.Any(e => e is MessageEntityMentionEveryone);
+        var roles    = entities.OfType<MessageEntityMentionRole>().Select(r => r.archetypeId).ToHashSet();
+        if (!everyone && roles.Count == 0)
+            return;
+
+        var mayPingAll = await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.MentionEveryone);
+        var pingable   = roles.Count > 0 ? await PingableRolesAsync(roles, mayPingAll) : [];
+
+        entities.RemoveAll(e => e is MessageEntityMentionEveryone && !mayPingAll
+                             || e is MessageEntityMentionRole r && !pingable.Contains(r.archetypeId));
+    }
+
+    /// <summary>The users among <paramref name="userIds"/> who are members of the space now.</summary>
+    private async Task<List<Guid>> CurrentMembersAsync(List<Guid> userIds)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        return await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(m => m.SpaceId == SpaceId && userIds.Contains(m.UserId))
+           .Select(m => m.UserId)
+           .Distinct()
+           .ToListAsync();
+    }
+
+    /// <remarks>
+    /// <paramref name="entities"/> went through <see cref="StripUnpingableMentionsAsync"/> on the send,
+    /// so every @everyone and role left in it is one the sender may ping.
+    /// </remarks>
+    private async Task ProcessMentionsAsync(List<IMessageEntity> entities, long messageId, Guid senderId, long? replyTo)
     {
         try
         {
@@ -1914,32 +2007,36 @@ public partial class ChannelGrain(
                 }
             }
 
-            if (entities is null or { Count: 0 }) return;
+            if (entities.Count == 0) return;
+
+            var options = messageOptions.Value;
 
             var mentionedUsers = entities.OfType<MessageEntityMention>()
                .Select(m => m.userId)
                .Where(u => u != senderId)
+               .Distinct()
+               .Take(options.MaxMentionedUsers)
                .ToList();
 
             if (mentionedUsers.Count > 0)
-                await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), mentionedUsers);
+                mentionedUsers = await CurrentMembersAsync(mentionedUsers);
 
-            var everyoneEntity = entities.OfType<MessageEntityMentionEveryone>().Any();
-            var roleMentions   = entities.OfType<MessageEntityMentionRole>().DistinctBy(r => r.archetypeId).ToList();
-            var mayPingAll     = (everyoneEntity || roleMentions.Count > 0)
-                && await entitlementChecker.HasChannelAccessAsync(_self.SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.MentionEveryone);
-            var hasEveryoneMention = everyoneEntity && mayPingAll;
+            var hasEveryoneMention = entities.Any(e => e is MessageEntityMentionEveryone);
+            var roleMentions       = entities.OfType<MessageEntityMentionRole>().DistinctBy(r => r.archetypeId).ToList();
+            var massUserMention    = mentionedUsers.Count > options.AnnouncementMassUserMentions;
 
-            if (roleMentions.Count > 0)
-                roleMentions = await PingableRolesAsync(roleMentions, mayPingAll);
-
-            if ((hasEveryoneMention || roleMentions.Count > 0)
+            if ((hasEveryoneMention || roleMentions.Count > 0 || massUserMention)
                 && _self.ChannelType == ChannelType.Announcement
-                && !await WithinMassMentionBudgetAsync(messageId))
+                && !await TakeMassMentionBudgetAsync(messageId))
             {
                 hasEveryoneMention = false;
                 roleMentions.Clear();
+                if (massUserMention)
+                    mentionedUsers.Clear();
             }
+
+            if (mentionedUsers.Count > 0)
+                await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), mentionedUsers);
 
             if (hasEveryoneMention || roleMentions.Count > 0)
             {
@@ -2309,6 +2406,13 @@ public partial class ChannelGrain(
 
     public async Task EditBotMessage(long messageId, Guid botUserId, string? text, List<ControlRowV1>? controls)
     {
+        // What a bot may not post there, it may not rewrite there either.
+        if (_self.ChannelType == ChannelType.Announcement)
+            throw new UnauthorizedAccessException("Bots cannot post in announcement channels");
+
+        if (text?.Length > messageOptions.Value.MaxTextLength)
+            throw new InvalidOperationException($"Message text is longer than {messageOptions.Value.MaxTextLength} characters");
+
         if (controls is { Count: > 0 })
             ControlRowV1.ValidateRows(controls);
 
@@ -2345,8 +2449,13 @@ public partial class ChannelGrain(
         var channelId = this.GetPrimaryKey();
         text ??= "";
 
-        if (text.Length > messageOptions.Value.MaxTextLength)
+        if (text.Length > messageOptions.Value.MaxTextLength || entities?.Count > messageOptions.Value.MaxEntities)
             return new FailedEditMessage(EditMessageError.MESSAGE_TOO_LONG);
+
+        // An author who was banned, left, or lost the right to post does not get to rewrite the record.
+        // SendMessages also covers membership and ViewChannel.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.SendMessages))
+            return new FailedEditMessage(EditMessageError.INSUFFICIENT_PERMISSIONS);
 
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -2377,6 +2486,9 @@ public partial class ChannelGrain(
                                or MessageEntitySystemCallTimeout or MessageEntitySystemUserJoined))
            .Concat(kept)
            .ToList();
+
+        // An edit pings nobody either way; this keeps it from adding a highlight the author may not use.
+        await StripUnpingableMentionsAsync(edited, userId);
 
         message.Text      = text;
         message.Entities  = edited;
@@ -2627,6 +2739,10 @@ public partial class ChannelGrain(
         {
             var reactions = _reactionCache[message.MessageId];
             message.Reactions = reactions.Count == 0 ? null : reactions.ToList();
+
+            // A pinned copy outlives the reaction cache entry, which may be evicted once this is written.
+            if (pinnedMessages.TryGetValue(message.MessageId, out var pinned))
+                pinned.Reactions = message.Reactions;
         }
 
         // One batched round trip for every dirty message.

@@ -71,7 +71,6 @@ public partial class ChannelGrain : IChannelWebhooksGrain
 
         row.Name = name;
         await ctx.SaveChangesAsync(ct);
-        await GrainFactory.GetGrain<IIncomingWebhookGrain>(webhookId).ForgetAsync();
 
         return new SuccessUpdateWebhook(row.ToDto());
     }
@@ -91,7 +90,6 @@ public partial class ChannelGrain : IChannelWebhooksGrain
         var token = ChannelWebhookEntity.NewToken();
         row.TokenHash = ChannelWebhookEntity.HashToken(token);
         await ctx.SaveChangesAsync(ct);
-        await GrainFactory.GetGrain<IIncomingWebhookGrain>(webhookId).ForgetAsync();
 
         return new IssuedWebhookResult(row.ToDto(), token, ChannelWebhookError.NONE);
     }
@@ -104,15 +102,9 @@ public partial class ChannelGrain : IChannelWebhooksGrain
         var channelId = this.GetPrimaryKey();
 
         await using var ctx = await context.CreateDbContextAsync(ct);
-        var deleted = await ctx.ChannelWebhooks
+        return await ctx.ChannelWebhooks
            .Where(w => w.Id == webhookId && w.ChannelId == channelId)
-           .ExecuteDeleteAsync(ct);
-
-        if (deleted == 0)
-            return false;
-
-        await GrainFactory.GetGrain<IIncomingWebhookGrain>(webhookId).ForgetAsync();
-        return true;
+           .ExecuteDeleteAsync(ct) > 0;
     }
 
     public async Task<WebhookPostOutcome> PostWebhookMessage(MessageWebhookAuthor author, string text)
@@ -170,10 +162,13 @@ public partial class ChannelGrain : IChannelWebhooksGrain
 
     private static ChannelWebhookError WebhookNameError(ref string name)
     {
-        name = name?.Trim() ?? "";
-
-        if (name.Length == 0)
+        if (string.IsNullOrWhiteSpace(name))
             return ChannelWebhookError.NAME_EMPTY;
+
+        name = ChannelWebhookEntity.CleanName(name);
+
+        if (name.Length == 0 || ChannelWebhookEntity.IsReservedName(name))
+            return ChannelWebhookError.NAME_NOT_ALLOWED;
 
         return name.Length > ChannelWebhookEntity.MaxNameLength
             ? ChannelWebhookError.NAME_TOO_LONG

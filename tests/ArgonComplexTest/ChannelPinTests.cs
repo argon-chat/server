@@ -1,5 +1,6 @@
 namespace ArgonComplexTest.Tests;
 
+using Argon.Core.Entities.Data;
 using Argon.Entities;
 using Argon.Grains;
 using Argon.Grains.Interfaces;
@@ -10,8 +11,9 @@ using Microsoft.EntityFrameworkCore;
 using static ChannelTestKit;
 
 /// <summary>
-/// Pinned messages: moderators pin and unpin, everyone who reads the channel sees the pins newest
-/// first, a channel holds at most fifty, and a deleted message takes its pin with it.
+/// Pinned messages: moderators who read the history pin and unpin, everyone who reads the channel
+/// sees the pins newest first, a channel holds at most fifty live ones, and a deleted message takes
+/// its pin with it.
 /// </summary>
 [TestFixture]
 public class ChannelPinTests : TestBase
@@ -296,6 +298,99 @@ public class ChannelPinTests : TestBase
             Assert.That((voiceUnpin as FailedUnpinMessage)?.error, Is.EqualTo(PinMessageError.NOT_A_TEXT_CHANNEL));
             Assert.That(await PinsAsync(owner, spaceId, voiceId, ct), Is.Empty);
             Assert.That(await StoredPinsAsync(channelId, ct), Is.Zero);
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Pinning_and_unpinning_need_ReadHistory_too(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await RoomAsync(ChannelType.Text, ct);
+        var rules  = await SendAsync(owner, spaceId, channelId, "rules", ct);
+        var secret = await SendAsync(owner, spaceId, channelId, "secret", ct);
+        await PinsOf(owner).PinMessage(spaceId, channelId, rules, ct);
+
+        var archetypes = ArchetypesOf(owner);
+        var role       = await archetypes.CreateArchetype(spaceId, "pinner", ct).Ok();
+        await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, guest.UserId, ct), role.id, true, ct);
+        await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, role.id,
+            deny: ArgonEntitlement.None, allow: ArgonEntitlement.ManageMessages, ct);
+        await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.ReadHistory, ct);
+
+        var pin   = await PinsOf(guest).PinMessage(spaceId, channelId, secret, ct);
+        var unpin = await PinsOf(guest).UnpinMessage(spaceId, channelId, rules, ct);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That((pin as FailedPinMessage)?.error, Is.EqualTo(PinMessageError.INSUFFICIENT_PERMISSIONS),
+                "a moderator without ReadHistory pinned a message and got its content back");
+            Assert.That((unpin as FailedUnpinMessage)?.error, Is.EqualTo(PinMessageError.INSUFFICIENT_PERMISSIONS),
+                "a moderator without ReadHistory unpinned a message");
+            Assert.That((await PinsAsync(owner, spaceId, channelId, ct)).Select(p => p.message.messageId), Is.EqualTo(new[] { rules }));
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task The_pin_limit_counts_only_pins_of_live_messages(CancellationToken ct = default)
+    {
+        var (owner, _, spaceId, channelId) = await RoomAsync(ChannelType.Text, ct);
+
+        var ids = new List<long>();
+        for (var i = 0; i <= ChannelGrain.PinLimit + 1; i++)
+            ids.Add(await SendAsync(owner, spaceId, channelId, $"m{i}", ct));
+
+        // A pin row left behind by a message deleted before its pin was dropped.
+        var dead = ids[0];
+        await owner.Channels.DeleteMessage(spaceId, channelId, dead, ct);
+        await using (var db = await DbAsync(ct))
+        {
+            db.ChannelPins.Add(new ChannelPinEntity { SpaceId = spaceId, ChannelId = channelId, MessageId = dead, PinnedBy = owner.UserId });
+            await db.SaveChangesAsync(ct);
+        }
+
+        foreach (var id in ids.Skip(1).Take(ChannelGrain.PinLimit - 1))
+            Assert.That(await PinsOf(owner).PinMessage(spaceId, channelId, id, ct), Is.InstanceOf<SuccessPinMessage>());
+
+        var fiftieth = await PinsOf(owner).PinMessage(spaceId, channelId, ids[ChannelGrain.PinLimit], ct);
+        var over     = await PinsOf(owner).PinMessage(spaceId, channelId, ids[^1], ct);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(fiftieth, Is.InstanceOf<SuccessPinMessage>(), "the pin of a deleted message took a slot");
+            Assert.That((over as FailedPinMessage)?.error, Is.EqualTo(PinMessageError.PIN_LIMIT_REACHED));
+            Assert.That(await PinsAsync(owner, spaceId, channelId, ct), Has.Count.EqualTo(ChannelGrain.PinLimit));
+        });
+    }
+
+    /// <summary>
+    /// The channel is the only writer of its pins, so it keeps them: a listing does not read the pin
+    /// rows again, and still shows every change to a pinned message.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task Pins_are_kept_by_the_channel_and_follow_changes_to_the_messages(CancellationToken ct = default)
+    {
+        var (owner, guest, spaceId, channelId) = await RoomAsync(ChannelType.Text, ct);
+        var messageId = await SendAsync(owner, spaceId, channelId, "v1", ct);
+
+        await PinsOf(owner).PinMessage(spaceId, channelId, messageId, ct);
+        Assert.That((await PinsAsync(guest, spaceId, channelId, ct)).Single().message.text, Is.EqualTo("v1"));
+
+        // Taken away behind the channel's back: a listing that read the rows again would come back empty.
+        await using (var db = await DbAsync(ct))
+            await db.ChannelPins.Where(p => p.ChannelId == channelId).ExecuteDeleteAsync(ct);
+
+        Assert.That(await PinsAsync(guest, spaceId, channelId, ct), Has.Count.EqualTo(1), "the pins were read from the database again");
+
+        Assert.That(await owner.Channels.EditMessage(spaceId, channelId, messageId, "v2", Entities(), ct), Is.InstanceOf<SuccessEditMessage>());
+        Assert.That(await guest.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct), Is.InstanceOf<SuccessAddReaction>());
+
+        var pinned = (await PinsAsync(guest, spaceId, channelId, ct)).Single().message;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(pinned.text, Is.EqualTo("v2"), "the pin still shows the text from before the edit");
+            Assert.That(pinned.editedAt, Is.Not.Null);
+            Assert.That(pinned.reactions.Values.Select(r => (r.emoji, r.count)), Is.EqualTo(new[] { ("👍", 1) }),
+                "the pin does not show the new reaction");
         });
     }
 }

@@ -65,9 +65,11 @@ public static class BotEventMapper
             ? new BotCrosspostV1(cp.sourceSpaceId, cp.sourceChannelId, cp.sourceMessageId, cp.sourceSpaceName, cp.sourceChannelName)
             : null;
 
+        var webhook = msg.webhook is { } hook ? new BotWebhookV1(hook.webhookId, hook.name, hook.avatarFileId) : null;
+
         return new BotMessageV1(
             msg.messageId, msg.replyId, msg.channelId, msg.spaceId,
-            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions, crosspost);
+            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions, crosspost, webhook);
     }
 
     private static BotMessageEntityV1 Base(EntityType type, int offset, int length) => new()

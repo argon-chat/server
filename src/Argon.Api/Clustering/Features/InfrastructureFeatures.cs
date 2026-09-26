@@ -11,6 +11,7 @@ using Argon.HealthChecks;
 using Argon.Services;
 using global::Sentry.Infrastructure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Serilog.Events;
 
 public sealed class LoggingFeature : IArgonFeature
 {
@@ -28,7 +29,13 @@ public sealed class LoggingFeature : IArgonFeature
     public void Map(ArgonEndpointContext ctx)
     {
         if (ctx.Options<ArgonLoggingOptions>() is { Structured: true, RequestLogging: true })
-            ctx.App.UseSerilogRequestLogging();
+            ctx.App.UseSerilogRequestLogging(o => o.GetMessageTemplateProperties = (http, path, elapsed, status) =>
+            [
+                new("RequestMethod", new ScalarValue(http.Request.Method)),
+                new("RequestPath", new ScalarValue(SecretPaths.Redact(path))),
+                new("StatusCode", new ScalarValue(status)),
+                new("Elapsed", new ScalarValue(elapsed))
+            ]);
     }
 }
 
@@ -111,6 +118,15 @@ public sealed class SentryFeature : IArgonFeature
                 metric.SetAttribute("argon.role", role);
                 return metric;
             });
+
+            // Webhook and bot tokens travel in the path. A request routing did not resolve is named
+            // after its path, so that name is masked too.
+            o.SetBeforeSend(evt => SecretPaths.Redact(evt));
+            o.SetBeforeSendTransaction(transaction => SecretPaths.Redact(transaction));
+            o.SetBeforeBreadcrumb(crumb => SecretPaths.Redact(crumb));
+            o.TransactionNameProvider = http => SecretPaths.Redact(http.Request.Path.Value) is { } path && path != http.Request.Path.Value
+                ? $"{http.Request.Method} {path}"
+                : null;
 
             // Both are opt-in in the SDK. Metrics additionally need the bridge below, which has
             // nothing to send them through unless this is on.

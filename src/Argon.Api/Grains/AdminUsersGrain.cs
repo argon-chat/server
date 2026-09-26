@@ -314,6 +314,8 @@ public sealed class AdminUsersGrain(
         // write, is what makes the block take effect on the next call rather than at expiry.
         await cache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
 
+        await ScheduledPostsOfAuthor.CancelIfRestrictedAsync(db, GrainFactory, userId, ct);
+
         return new UserActionResult(true, null);
     }
 

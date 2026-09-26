@@ -48,16 +48,15 @@ public enum WebhookPostOutcome
     ChannelGone
 }
 
-/// <summary>An incoming webhook, keyed by its id: checks the token, rate-limits and posts.</summary>
+/// <summary>
+/// An incoming webhook, keyed by its id: checks the token, rate-limits and posts. Every post is checked
+/// against the stored row, so a new token, a rename or a delete needs no call here.
+/// </summary>
 [Alias("Argon.Grains.Interfaces.IIncomingWebhookGrain")]
 public interface IIncomingWebhookGrain : IGrainWithGuidKey
 {
     [Alias(nameof(ExecuteAsync))]
     Task<WebhookExecution> ExecuteAsync(string token, string? content, string? username);
-
-    /// <summary>Drops the cached row after a rename, a new token or a delete.</summary>
-    [Alias(nameof(ForgetAsync)), OneWay]
-    Task ForgetAsync();
 }
 
 [GenerateSerializer]
@@ -67,7 +66,9 @@ public enum WebhookExecutionOutcome
     // Unknown webhook and wrong token alike.
     NotFound,
     Invalid,
-    RateLimited
+    RateLimited,
+    // The creator is under a critical lockdown.
+    Forbidden
 }
 
 [GenerateSerializer, Immutable]
@@ -81,4 +82,8 @@ public interface IChannelInsightsGrain : IGrainWithGuidKey
 {
     [Alias(nameof(GetReadCount))]
     Task<IReadCountResult> GetReadCount(long messageId, CancellationToken ct = default);
+
+    /// <summary>Counts for up to 50 posts at once; the ones the caller may not see are left out.</summary>
+    [Alias(nameof(GetReadCounts))]
+    Task<List<ReadCountEntry>> GetReadCounts(List<long> messageIds, CancellationToken ct = default);
 }

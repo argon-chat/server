@@ -40,10 +40,23 @@ public sealed class MessagesOptions : IValidatableFeatureOptions
     public int MaxTextLength { get; set; } = 4096;
 
     /// <summary>
-    /// Messages with @everyone or a role mention that ping readers of one announcement channel per
-    /// hour, or <c>0</c> for no limit. Past it the message is still posted, without the ping.
+    /// Messages with @everyone, a role mention or a mass of user mentions that ping readers of one
+    /// announcement channel per hour, or <c>0</c> for no limit. Past it the message is still posted,
+    /// without the ping.
     /// </summary>
     public int AnnouncementMassMentionsPerHour { get; set; } = 3;
+
+    /// <summary>
+    /// In an announcement channel, a message that pings more members than this by name counts
+    /// against <see cref="AnnouncementMassMentionsPerHour"/> the way @everyone does.
+    /// </summary>
+    public int AnnouncementMassUserMentions { get; set; } = 10;
+
+    /// <summary>Most entities a send or an edit accepts.</summary>
+    public int MaxEntities { get; set; } = 512;
+
+    /// <summary>Most distinct users one message pings by name; the rest stay plain mentions.</summary>
+    public int MaxMentionedUsers { get; set; } = 50;
 
     public void Validate(IFeatureConfigurationReport report)
     {
@@ -52,6 +65,9 @@ public sealed class MessagesOptions : IValidatableFeatureOptions
 
         report.RequireRange(WriteConcurrency, 1, 64, nameof(WriteConcurrency));
         report.RequireRange(MaxTextLength, 1, 65536, nameof(MaxTextLength));
+        report.RequireRange(MaxEntities, 1, 4096, nameof(MaxEntities));
+        report.RequireRange(MaxMentionedUsers, 1, 1000, nameof(MaxMentionedUsers));
+        report.RequireRange(AnnouncementMassUserMentions, 1, 1000, nameof(AnnouncementMassUserMentions));
 
         if (AnnouncementMassMentionsPerHour < 0)
             report.Invalid($"{nameof(AnnouncementMassMentionsPerHour)} cannot be negative; use 0 to disable the limit");

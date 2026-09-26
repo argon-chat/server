@@ -22,7 +22,7 @@ internal static class BotSendErrors
         SendMessageError.NOT_TEXT_CHANNEL     => InvalidMessage.Raise("The channel is not a text channel."),
         SendMessageError.TEXT_TOO_LONG        => InvalidMessage.Raise("The message text is too long."),
         SendMessageError.TOO_MANY_ATTACHMENTS => InvalidMessage.Raise("At most 10 attachments per message."),
-        SendMessageError.INVALID_DATA         => InvalidMessage.Raise("The message controls are invalid."),
+        SendMessageError.INVALID_DATA         => InvalidMessage.Raise("The message carries too many entities or invalid controls."),
         SendMessageError.SLOW_MODE            => SlowMode.Raise("Slow mode is active in this channel."),
         SendMessageError.CHANNEL_CAP          => SlowMode.Raise("The channel is receiving too many messages."),
         _                                     => throw new InvalidOperationException($"message refused: {error}")

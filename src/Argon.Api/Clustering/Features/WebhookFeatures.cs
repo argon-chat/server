@@ -8,6 +8,9 @@ public sealed class IncomingWebhooksFeature : IArgonFeature
             .Describing("POST /api/webhooks/{id}/{token}, posting into a channel")
             .After<RoutingFeature>();
 
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddIncomingWebhookRateLimit();
+
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapIncomingWebhooks();
 }

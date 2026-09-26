@@ -176,7 +176,8 @@ public sealed record BotMessageV1(
     BotUserV1?                Sender,
     List<ControlRowV1>?       Controls  = null,
     List<BotReactionV1>?      Reactions = null,
-    BotCrosspostV1?           Crosspost = null);
+    BotCrosspostV1?           Crosspost = null,
+    BotWebhookV1?             Webhook   = null);
 
 /// <summary>
 /// Set on a message that a followed announcement channel published into this channel: where it came
@@ -189,6 +190,16 @@ public sealed record BotCrosspostV1(
     long   SourceMessageId,
     string SourceSpaceName,
     string SourceChannelName);
+
+/// <summary>
+/// Set on a message an incoming webhook posted: which webhook, and the name and avatar it posted
+/// under. The sender of such a message is the system user.
+/// </summary>
+[BotDtoVersion(1)]
+public sealed record BotWebhookV1(
+    Guid    WebhookId,
+    string  Name,
+    string? AvatarFileId);
 
 // ─── Presence ────────────────────────────────────────────
 

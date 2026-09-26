@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -24,11 +25,14 @@ public record ScheduledPostEntity : ArgonEntity, IEntityTypeConfiguration<Schedu
     public long  RandomId  { get; set; }
     public long? MessageId { get; set; }
 
+    /// <summary>Null while pending; set once the post is published, cancelled or failed.</summary>
+    public DateTimeOffset? ExpireAt { get; set; }
+
     public void Configure(EntityTypeBuilder<ScheduledPostEntity> builder)
     {
         builder.ToTable("ScheduledPosts");
 
-        // Due scan, pending count and the channel list.
+        // Due scan and the channel's live posts.
         builder.HasIndex(x => new { x.ChannelId, x.Status, x.PublishAt });
         builder.HasIndex(x => x.AuthorId);
 
@@ -36,6 +40,8 @@ public record ScheduledPostEntity : ArgonEntity, IEntityTypeConfiguration<Schedu
            .HasConversion<PolyListNewtonsoftJsonValueConverter<List<IMessageEntity>, IMessageEntity>>()
            .HasColumnType("jsonb")
            .Metadata.SetValueComparer(new PolyListJsonValueComparer<List<IMessageEntity>, IMessageEntity>());
+
+        builder.WithTTL(x => x.ExpireAt!, CronValue.Daily);
     }
 
     public static ScheduledPost Map(scoped in ScheduledPostEntity self)

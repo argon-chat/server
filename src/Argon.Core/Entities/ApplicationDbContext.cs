@@ -16,6 +16,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // ChannelLastMessageEntity for why it is not one any more.
     public DbSet<ChannelLastMessageEntity>          ChannelLastMessages          => Set<ChannelLastMessageEntity>();
     public DbSet<ChannelFollowEntity>               ChannelFollows               => Set<ChannelFollowEntity>();
+    public DbSet<CrosspostDeliveryEntity>           CrosspostDeliveries          => Set<CrosspostDeliveryEntity>();
     public DbSet<SpaceMemberEntity>                 UsersToServerRelations       => Set<SpaceMemberEntity>();
     public DbSet<SpaceMemberArchetypeEntity>        MemberArchetypes             => Set<SpaceMemberArchetypeEntity>();
     public DbSet<ArchetypeEntity>                   Archetypes                   => Set<ArchetypeEntity>();

@@ -1,6 +1,8 @@
 namespace Argon.Grains;
 
-using System.Security.Cryptography;
+using System.Globalization;
+using Argon.Core.Entities.Data;
+using Argon.Features.EF;
 using Instruments;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +11,7 @@ public partial class ChannelGrain
 {
     public const int PublishesPerHour = 10;
 
-    public async Task<Either<CrosspostBatch, PublishMessageError>> PublishMessage(long messageId)
+    public async Task<Either<PublishedCrosspost, PublishMessageError>> PublishMessage(long messageId)
     {
         var callerId  = this.GetUserId();
         var channelId = this.GetPrimaryKey();
@@ -26,8 +28,10 @@ public partial class ChannelGrain
         if (message is null)
             return PublishMessageError.MESSAGE_NOT_FOUND;
 
+        // An author publishes only while they may still post here.
         if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ViewChannel)
-         || message.CreatorId != callerId
+         || !(message.CreatorId == callerId
+               && await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.SendMessages))
          && !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageMessages))
             return PublishMessageError.INSUFFICIENT_PERMISSIONS;
 
@@ -55,37 +59,35 @@ public partial class ChannelGrain
         if (marked == 0)
             return PublishMessageError.ALREADY_PUBLISHED;
 
-        await FireChannel(new MessagePublished(SpaceId, channelId, messageId, now.UtcDateTime));
-
-        var space = await ctx.Spaces
-           .AsNoTracking()
-           .Where(s => s.Id == SpaceId)
-           .Select(s => new { s.Name, s.AvatarFileId })
-           .FirstOrDefaultAsync();
-
         // Deleted channels and spaces drop out through their query filters.
         var targets = await (
                 from f in ctx.ChannelFollows
                 join c in ctx.Channels on f.TargetChannelId equals c.Id
                 join s in ctx.Spaces on c.SpaceId equals s.Id
                 where f.SourceChannelId == channelId && c.ChannelType != ChannelType.Voice
-                select f.TargetChannelId)
-           .ToListAsync();
+                select f.Id)
+           .CountAsync();
 
-        var source = new MessageCrosspost
+        if (targets > 0)
         {
-            SourceSpaceId           = SpaceId,
-            SourceChannelId         = channelId,
-            SourceMessageId         = messageId,
-            SourceSpaceName         = space?.Name ?? string.Empty,
-            SourceChannelName       = _self.Name,
-            SourceSpaceAvatarFileId = string.IsNullOrEmpty(space?.AvatarFileId) ? null : space.AvatarFileId
-        };
+            try
+            {
+                await GrainFactory.GetGrain<ICrosspostDeliveryGrain>(channelId, messageId.ToString(CultureInfo.InvariantCulture))
+                   .StartAsync(SpaceId);
+            }
+            catch
+            {
+                // Not handed over, so not published: the author can try again.
+                await ctx.Messages
+                   .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+                   .ExecuteUpdateAsync(s => s.SetProperty(m => m.PublishedAt, (DateTimeOffset?)null));
+                throw;
+            }
+        }
 
-        return new CrosspostBatch(
-            new CrosspostDraft(message.CreatorId, message.Text, CrosspostEntities(message.Entities), source),
-            targets.Distinct().ToList(),
-            now);
+        await FireChannel(new MessagePublished(SpaceId, channelId, messageId, now.UtcDateTime));
+
+        return new PublishedCrosspost(now, targets);
     }
 
     public async Task<long?> ReceiveCrosspostAsync(CrosspostDraft draft)
@@ -95,9 +97,37 @@ public partial class ChannelGrain
 
         var channelId = this.GetPrimaryKey();
         var now       = DateTimeOffset.UtcNow;
+        var source    = draft.Source;
 
-        // Sent as the author, but nothing of the send path applies: no permission of theirs here, no
-        // slow mode, and above all no mention processing — the copy pings nobody.
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Deduplicated by what was published rather than by a randomId, which a member here could send first.
+        var claim = new CrosspostDeliveryEntity
+        {
+            TargetChannelId = channelId,
+            SourceChannelId = source.SourceChannelId,
+            SourceMessageId = source.SourceMessageId,
+            CreatedAt       = now,
+            ExpireAt        = now + CrosspostDeliveryEntity.Retention
+        };
+        ctx.CrosspostDeliveries.Add(claim);
+
+        try
+        {
+            await ctx.SaveChangesAsync();
+        }
+        catch (DbUpdateException e) when (e.IsUniqueViolation())
+        {
+            return await ctx.CrosspostDeliveries
+               .AsNoTracking()
+               .Where(d => d.TargetChannelId == channelId && d.SourceChannelId == source.SourceChannelId
+                        && d.SourceMessageId == source.SourceMessageId)
+               .Select(d => d.MessageId)
+               .FirstOrDefaultAsync();
+        }
+
+        // Nothing of the send path applies: no permission of the author's here, no slow mode, and above
+        // all no mention processing — the copy pings nobody.
         var message = new ArgonMessageEntity
         {
             SpaceId   = SpaceId,
@@ -105,19 +135,35 @@ public partial class ChannelGrain
             CreatorId = draft.AuthorId,
             Entities  = [.. draft.Entities],
             Text      = draft.Text,
-            Crosspost = draft.Source,
+            Crosspost = source,
             CreatedAt = now,
             UpdatedAt = now
         };
 
-        var randomId = CrosspostRandomId(draft.Source);
+        long msgId;
+        try
+        {
+            msgId = await messagesLayout.ExecuteInsertMessage(message, Random.Shared.NextInt64(1, long.MaxValue));
+        }
+        catch
+        {
+            ctx.CrosspostDeliveries.Remove(claim);
+            await ctx.SaveChangesAsync();
+            throw;
+        }
 
-        if (await DeduplicateAsync(message, randomId) is { } known)
-            return known;
-
-        var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
-        RememberSend(randomId, msgId);
         message.MessageId = msgId;
+
+        try
+        {
+            claim.MessageId = msgId;
+            await ctx.SaveChangesAsync();
+        }
+        catch (Exception e)
+        {
+            // The claim still stands, so a redelivery cannot duplicate the copy; it only cannot name it.
+            logger.LogWarning(e, "Crosspost {MessageId} in channel {ChannelId} was not recorded on its claim", msgId, channelId);
+        }
 
         await ResolveAttachmentUrls(message);
         FireDetached(new MessageSent(SpaceId, message.ToDto()));
@@ -146,20 +192,11 @@ public partial class ChannelGrain
     /// people and roles of the source space, so they go; files resolve anywhere by id (see
     /// <see cref="FillEntityUrls"/>), so they stay.
     /// </summary>
-    private static List<IMessageEntity> CrosspostEntities(List<IMessageEntity>? entities)
+    internal static List<IMessageEntity> CrosspostEntities(List<IMessageEntity>? entities)
         => SanitizeEntities((entities ?? [])
            .Where(e => e is not (MessageEntityMention or MessageEntityMentionEveryone or MessageEntityMentionRole))
            .Where(e => !IsSystemEntity(e))
            .Where(e => e is not MessageEntityLinkPreview p
                     || p.title is not null || p.description is not null || p.siteName is not null || p.imageUrl is not null)
            .ToList());
-
-    /// <summary>Stable per source message, so a retried delivery lands once in each target.</summary>
-    private static long CrosspostRandomId(MessageCrosspost source)
-    {
-        Span<byte> key = stackalloc byte[24];
-        source.SourceChannelId.TryWriteBytes(key);
-        BitConverter.TryWriteBytes(key[16..], source.SourceMessageId);
-        return BitConverter.ToInt64(SHA256.HashData(key)) & long.MaxValue;
-    }
 }

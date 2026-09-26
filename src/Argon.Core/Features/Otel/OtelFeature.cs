@@ -2,6 +2,7 @@ namespace Argon.Features.Otel;
 
 using System.Diagnostics.CodeAnalysis;
 
+using Argon.Features.Logging;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -68,9 +69,16 @@ public static class OtelFeature
             var tracesEndpoint = NormalizeOtlpEndpoint(tracesEnv, "/v1/traces");
 
             otel.WithTracing(tracing => tracing
-                .AddAspNetCoreInstrumentation(t => t.Filter = context =>
-                    !context.Request.Path.StartsWithSegments(HealthEndpointPath) &&
-                    !context.Request.Path.StartsWithSegments(AlivenessEndpointPath))
+                .AddAspNetCoreInstrumentation(t =>
+                {
+                    t.Filter = context =>
+                        !context.Request.Path.StartsWithSegments(HealthEndpointPath) &&
+                        !context.Request.Path.StartsWithSegments(AlivenessEndpointPath);
+
+                    // Webhook and bot tokens travel in the path.
+                    t.EnrichWithHttpRequest  = (activity, _) => SecretPaths.Redact(activity);
+                    t.EnrichWithHttpResponse = (activity, _) => SecretPaths.Redact(activity);
+                })
                 .AddHttpClientInstrumentation()
                 .AddRedisInstrumentation()
                 .AddEntityFrameworkCoreInstrumentation()

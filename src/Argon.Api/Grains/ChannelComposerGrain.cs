@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Core.Features.Transport;
 using Argon.Core.Services;
+using Argon.Features.Moderation;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -11,16 +12,21 @@ using Microsoft.EntityFrameworkCore;
 /// <para><b>Publishing.</b> One reminder per channel, armed for the earliest pending post and re-armed
 /// after every change and every tick (unregistered when nothing is pending). The posts live in
 /// <c>ScheduledPosts</c> and the reminder in the reminder table, so neither a deactivation nor a
-/// silo restart loses one; accuracy is the reminder's, about a minute.</para>
+/// silo restart loses one; accuracy is the reminder's, about a minute. The armed time is read back
+/// from the reminder table once per activation, so an unchanged target is not written again.</para>
 ///
-/// <para><b>The send.</b> A due post is re-checked (channel, membership, SendMessages, AttachFiles)
-/// and then sent through <see cref="IChannelGrain.SendMessage"/> as its author, so pings, the
-/// mass-mention budget and the length rule apply as they do to a live send. Its stored randomId
-/// deduplicates a publish repeated after a crash.</para>
+/// <para><b>The send.</b> A due post is re-checked (channel, the author's lockdown, membership,
+/// SendMessages, AttachFiles) and then sent through <see cref="IChannelGrain.SendMessage"/> as its
+/// author, so pings, the mass-mention budget and the length rule apply as they do to a live send. Its
+/// stored randomId deduplicates a publish repeated after a crash.</para>
 ///
 /// <para><b>Slow mode applies.</b> A post the author's cooldown refuses is held and retried on the
 /// next tick, and fails as SLOW_MODE once it is <see cref="RetryWindow"/> late. Other transient
 /// refusals are held the same way and fail as SEND_FAILED.</para>
+///
+/// <para><b>The activation caches</b> the channel's space and type and its live posts (pending, and
+/// failed ones not yet expired). It is their only writer; the tick still takes due rows from the
+/// table, so a row an erasure deleted is never published.</para>
 ///
 /// <para><b>Tests</b> backdate <c>PublishAt</c> in the table and deliver the tick through
 /// <see cref="IRemindable.ReceiveReminder"/>, as TtlSweepTests do, rather than wait for the minute.</para>
@@ -29,23 +35,34 @@ public class ChannelComposerGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IEntitlementChecker entitlementChecker,
     AppHubServer appHubServer,
+    IReminderTable reminderTable,
     IOptions<MessagesOptions> messageOptions,
     IOptions<Orleans.Hosting.ReminderOptions> reminderOptions,
     ILogger<ChannelComposerGrain> logger) : Grain, IChannelComposerGrain, IRemindable
 {
     public const string ReminderName = "scheduled-posts";
 
-    public const int MaxPendingPerChannel = 25;
+    public const int MaxPendingPerAuthor  = 10;
+    public const int MaxPendingPerChannel = 100;
     public const int MaxAttachments       = 10;
 
-    public static readonly TimeSpan MinLead     = TimeSpan.FromMinutes(1);
-    public static readonly TimeSpan MaxLead     = TimeSpan.FromDays(30);
-    public static readonly TimeSpan RetryWindow = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan MinLead         = TimeSpan.FromMinutes(1);
+    public static readonly TimeSpan MaxLead         = TimeSpan.FromDays(30);
+    public static readonly TimeSpan RetryWindow     = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan FailedRetention = TimeSpan.FromDays(7);
 
     // A far post is reached in steps: the tick finds nothing due and arms again.
     private static readonly TimeSpan MaxArmAhead = TimeSpan.FromDays(1);
 
+    // The reminder service stamps a registration with its own clock.
+    private static readonly TimeSpan ArmTolerance = TimeSpan.FromSeconds(5);
+
+    private ChannelInfo?                           channelInfo;
+    private Dictionary<Guid, ScheduledPostEntity>? live;
+
+    // The armed reminder's first tick (in the past once it is ticking); null when none is armed.
     private DateTimeOffset? armedFor;
+    private bool            armKnown;
 
     private Guid ChannelId => this.GetPrimaryKey();
 
@@ -66,9 +83,7 @@ public class ChannelComposerGrain(
         text     ??= "";
         entities ??= [];
 
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var channel = await ChannelAsync(ctx);
+        var channel = await ChannelAsync();
         if (channel is null || channel.SpaceId != spaceId)
             return Failed(SchedulePostError.CHANNEL_NOT_FOUND);
         if (channel.Type is not (ChannelType.Text or ChannelType.Announcement))
@@ -85,7 +100,7 @@ public class ChannelComposerGrain(
         if (error != SchedulePostError.NONE)
             return Failed(error);
 
-        if (await PendingCountAsync(ctx) >= MaxPendingPerChannel)
+        if (!await HasRoomAsync(authorId))
             return Failed(SchedulePostError.TOO_MANY_SCHEDULED);
 
         var now = DateTimeOffset.UtcNow;
@@ -105,10 +120,14 @@ public class ChannelComposerGrain(
             UpdatedAt = now
         };
 
-        ctx.ScheduledPosts.Add(post);
-        await ctx.SaveChangesAsync();
+        await using (var ctx = await context.CreateDbContextAsync())
+        {
+            ctx.ScheduledPosts.Add(post);
+            await ctx.SaveChangesAsync();
+        }
 
-        await ArmAsync(ctx);
+        Keep(post);
+        await ArmAsync();
         await NotifyAsync(post);
 
         return new SuccessSchedulePost(post.ToDto());
@@ -118,11 +137,11 @@ public class ChannelComposerGrain(
     {
         var callerId = this.GetUserId();
 
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var channel = await ChannelAsync(ctx);
+        var channel = await ChannelAsync();
         if (channel is null || channel.SpaceId != spaceId)
             return Failed(SchedulePostError.CHANNEL_NOT_FOUND);
+
+        await using var ctx = await context.CreateDbContextAsync();
 
         var post = await ctx.ScheduledPosts.FirstOrDefaultAsync(p => p.Id == postId && p.ChannelId == ChannelId);
         if (post is null)
@@ -139,7 +158,7 @@ public class ChannelComposerGrain(
         if (error != SchedulePostError.NONE)
             return Failed(error);
 
-        if (post.Status == ScheduledPostStatus.FAILED && await PendingCountAsync(ctx) >= MaxPendingPerChannel)
+        if (post.Status == ScheduledPostStatus.FAILED && !await HasRoomAsync(callerId))
             return Failed(SchedulePostError.TOO_MANY_SCHEDULED);
 
         post.PublishAt = publishAt.ToUniversalTime();
@@ -147,9 +166,11 @@ public class ChannelComposerGrain(
         post.Failure   = ScheduledPostFailure.NONE;
         post.RandomId  = NewRandomId();
         post.UpdatedAt = DateTimeOffset.UtcNow;
+        post.ExpireAt  = null;
         await ctx.SaveChangesAsync();
 
-        await ArmAsync(ctx);
+        Keep(post);
+        await ArmAsync();
         await NotifyAsync(post);
 
         return new SuccessSchedulePost(post.ToDto());
@@ -173,11 +194,11 @@ public class ChannelComposerGrain(
         if (!allowed)
             return false;
 
-        post.Status    = ScheduledPostStatus.CANCELLED;
-        post.UpdatedAt = DateTimeOffset.UtcNow;
+        Finish(post, ScheduledPostStatus.CANCELLED, DateTimeOffset.UtcNow);
         await ctx.SaveChangesAsync();
 
-        await ArmAsync(ctx);
+        Keep(post);
+        await ArmAsync();
         await NotifyAsync(post);
 
         return true;
@@ -187,23 +208,52 @@ public class ChannelComposerGrain(
     {
         var callerId = this.GetUserId();
 
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var channel = await ChannelAsync(ctx);
+        var channel = await ChannelAsync();
         if (channel is null || channel.SpaceId != spaceId)
             return [];
 
         var moderator = await entitlementChecker.HasChannelAccessAsync(spaceId, ChannelId, callerId, ArgonEntitlement.ManageMessages);
+        var now       = DateTimeOffset.UtcNow;
 
-        var posts = await ctx.ScheduledPosts.AsNoTracking()
-           .Where(p => p.ChannelId == ChannelId)
-           .Where(p => (p.AuthorId == callerId && (p.Status == ScheduledPostStatus.PENDING || p.Status == ScheduledPostStatus.FAILED))
-                    || (moderator && p.AuthorId != callerId && p.Status == ScheduledPostStatus.PENDING))
+        return (await LiveAsync()).Values
+           .Where(p => IsLive(p, now))
+           .Where(p => p.AuthorId == callerId || (moderator && p.Status == ScheduledPostStatus.PENDING))
            .OrderBy(p => p.PublishAt)
            .Take(200)
-           .ToListAsync();
+           .Select(p => p.ToDto())
+           .ToList();
+    }
 
-        return posts.Select(p => p.ToDto()).ToList();
+    public async Task CancelPendingOfAuthorAsync(Guid authorId)
+    {
+        var cancelled = (await LiveAsync()).Values
+           .Where(p => p.AuthorId == authorId && p.Status == ScheduledPostStatus.PENDING)
+           .ToList();
+
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var ctx = await context.CreateDbContextAsync())
+        {
+            await ctx.ScheduledPosts
+               .Where(p => p.ChannelId == ChannelId && p.AuthorId == authorId && p.Status == ScheduledPostStatus.PENDING)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(p => p.Status, ScheduledPostStatus.CANCELLED)
+                   .SetProperty(p => p.UpdatedAt, now)
+                   .SetProperty(p => p.ExpireAt, now));
+        }
+
+        foreach (var post in cancelled)
+        {
+            Finish(post, ScheduledPostStatus.CANCELLED, now);
+            Keep(post);
+        }
+
+        await ArmAsync();
+
+        foreach (var post in cancelled)
+            await NotifyAsync(post);
+
+        logger.LogInformation("Cancelled {Count} scheduled post(s) of {AuthorId} in channel {ChannelId}", cancelled.Count, authorId, ChannelId);
     }
 
     public async Task ReceiveReminder(string reminderName, TickStatus status)
@@ -224,6 +274,8 @@ public class ChannelComposerGrain(
 
     private async Task PublishDueAsync()
     {
+        var posts = await LiveAsync();
+
         await using var ctx = await context.CreateDbContextAsync();
 
         var now = DateTimeOffset.UtcNow;
@@ -233,29 +285,43 @@ public class ChannelComposerGrain(
            .ThenBy(p => p.CreatedAt)
            .ToListAsync();
 
+        // A due post the table no longer holds as pending was removed outside this grain.
+        foreach (var gone in posts.Values.Where(p => p.Status == ScheduledPostStatus.PENDING && p.PublishAt <= now && due.All(d => d.Id != p.Id)).ToList())
+            posts.Remove(gone.Id);
+
         if (due.Count > 0)
         {
-            var channel = await ChannelAsync(ctx);
+            var channel    = channelInfo = await ReadChannelAsync(ctx);
+            var restricted = new Dictionary<Guid, bool>();
 
             foreach (var post in due)
             {
-                if (!await PublishAsync(post, channel))
+                if (!await PublishAsync(post, channel, restricted))
+                {
+                    Keep(post);
                     continue;
+                }
 
-                post.UpdatedAt = DateTimeOffset.UtcNow;
+                Finish(post, post.Status, DateTimeOffset.UtcNow);
                 await ctx.SaveChangesAsync();
+                Keep(post);
                 await NotifyAsync(post);
             }
         }
 
-        await ArmAsync(ctx);
+        await ArmAsync();
     }
 
     /// <summary>Publishes or fails one due post. False when it is held for the next tick.</summary>
-    private async Task<bool> PublishAsync(ScheduledPostEntity post, ChannelInfo? channel)
+    private async Task<bool> PublishAsync(ScheduledPostEntity post, ChannelInfo? channel, Dictionary<Guid, bool> restricted)
     {
         if (channel is null || channel.SpaceId != post.SpaceId || channel.Type is not (ChannelType.Text or ChannelType.Announcement))
             return Fail(post, ScheduledPostFailure.CHANNEL_NOT_FOUND);
+
+        if (!restricted.TryGetValue(post.AuthorId, out var locked))
+            restricted[post.AuthorId] = locked = await IsRestrictedAsync(post.AuthorId);
+        if (locked)
+            return Fail(post, ScheduledPostFailure.ACCOUNT_RESTRICTED);
 
         if (!await MaySendAsync(post.SpaceId, post.AuthorId, post.Entities))
             return Fail(post, ScheduledPostFailure.INSUFFICIENT_PERMISSIONS);
@@ -302,6 +368,20 @@ public class ChannelComposerGrain(
         return true;
     }
 
+    // A failed post stays listed for its author for a week; published and cancelled ones are done.
+    private static void Finish(ScheduledPostEntity post, ScheduledPostStatus status, DateTimeOffset now)
+    {
+        post.Status    = status;
+        post.UpdatedAt = now;
+        post.ExpireAt  = status == ScheduledPostStatus.FAILED ? now + FailedRetention : now;
+    }
+
+    private async Task<bool> IsRestrictedAsync(Guid authorId)
+    {
+        var lockdown = await GrainFactory.GetGrain<IIdentityDirectoryGrain>(Guid.Empty).GetLockdownAsync(authorId);
+        return ScheduledPostsOfAuthor.IsRestricted(lockdown.Reason, lockdown.ExpiresAt);
+    }
+
     private async Task<(SendMessageError error, long messageId)> SendAsAuthorAsync(ScheduledPostEntity post)
     {
         // The author is the caller, carried the way the Ion layer carries one.
@@ -318,16 +398,24 @@ public class ChannelComposerGrain(
         }
     }
 
-    private async Task ArmAsync(ApplicationDbContext ctx)
+    private async Task ArmAsync()
     {
         try
         {
-            var next = await ctx.ScheduledPosts.AsNoTracking()
-               .Where(p => p.ChannelId == ChannelId && p.Status == ScheduledPostStatus.PENDING)
-               .MinAsync(p => (DateTimeOffset?)p.PublishAt);
+            var next = (await LiveAsync()).Values
+               .Where(p => p.Status == ScheduledPostStatus.PENDING)
+               .Min(p => (DateTimeOffset?)p.PublishAt);
+
+            if (!armKnown)
+            {
+                armedFor = await ArmedInTableAsync();
+                armKnown = true;
+            }
 
             if (next is null)
             {
+                if (armedFor is null)
+                    return;
                 if (await this.GetReminder(ReminderName) is { } reminder)
                     await this.UnregisterReminder(reminder);
                 armedFor = null;
@@ -335,12 +423,21 @@ public class ChannelComposerGrain(
             }
 
             var now = DateTimeOffset.UtcNow;
+
+            // A held post waits for the next period of the reminder that is already ticking.
+            if (next <= now && armedFor <= now + TickPeriod)
+                return;
+
+            // A step towards a far post that is still on its way is not moved.
+            if (next - now > MaxArmAhead && armedFor > now && armedFor <= next)
+                return;
+
             // A post already due is being held: it waits for the next period rather than spinning.
             var target = next.Value > now ? next.Value : now + TickPeriod;
             if (target - now > MaxArmAhead)
                 target = now + MaxArmAhead;
 
-            if (armedFor == target)
+            if (armedFor is { } armed && (armed - target).Duration() < ArmTolerance)
                 return;
 
             await this.RegisterOrUpdateReminder(ReminderName, target - now, TickPeriod);
@@ -349,8 +446,15 @@ public class ChannelComposerGrain(
         catch (Exception e)
         {
             // The next change or tick arms it again.
+            armKnown = false;
             logger.LogError(e, "Could not arm the scheduled-post reminder of channel {ChannelId}", ChannelId);
         }
+    }
+
+    private async Task<DateTimeOffset?> ArmedInTableAsync()
+    {
+        var entry = await reminderTable.ReadRow(this.GetGrainId(), ReminderName);
+        return entry is null ? null : new DateTimeOffset(DateTime.SpecifyKind(entry.StartAt, DateTimeKind.Utc));
     }
 
     private async Task NotifyAsync(ScheduledPostEntity post)
@@ -365,14 +469,58 @@ public class ChannelComposerGrain(
         }
     }
 
-    private async Task<ChannelInfo?> ChannelAsync(ApplicationDbContext ctx)
+    private async Task<ChannelInfo?> ChannelAsync()
+    {
+        if (channelInfo is not null)
+            return channelInfo;
+
+        await using var ctx = await context.CreateDbContextAsync();
+        return channelInfo = await ReadChannelAsync(ctx);
+    }
+
+    private async Task<ChannelInfo?> ReadChannelAsync(ApplicationDbContext ctx)
         => await ctx.Channels.AsNoTracking()
            .Where(c => c.Id == ChannelId)
            .Select(c => new ChannelInfo(c.SpaceId, c.ChannelType))
            .FirstOrDefaultAsync();
 
-    private async Task<int> PendingCountAsync(ApplicationDbContext ctx)
-        => await ctx.ScheduledPosts.CountAsync(p => p.ChannelId == ChannelId && p.Status == ScheduledPostStatus.PENDING);
+    private async Task<Dictionary<Guid, ScheduledPostEntity>> LiveAsync()
+    {
+        if (live is not null)
+            return live;
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        var rows = await ctx.ScheduledPosts.AsNoTracking()
+           .Where(p => p.ChannelId == ChannelId
+                    && (p.Status == ScheduledPostStatus.PENDING || p.Status == ScheduledPostStatus.FAILED)
+                    && (p.ExpireAt == null || p.ExpireAt > now))
+           .ToListAsync();
+
+        return live = rows.ToDictionary(p => p.Id);
+    }
+
+    private static bool IsLive(ScheduledPostEntity post, DateTimeOffset now)
+        => post.Status is ScheduledPostStatus.PENDING or ScheduledPostStatus.FAILED && (post.ExpireAt is null || post.ExpireAt > now);
+
+    /// <summary>Brings the cached copy in line with a row just written.</summary>
+    private void Keep(ScheduledPostEntity post)
+    {
+        if (live is null)
+            return;
+
+        if (IsLive(post, DateTimeOffset.UtcNow))
+            live[post.Id] = post;
+        else
+            live.Remove(post.Id);
+    }
+
+    private async Task<bool> HasRoomAsync(Guid authorId)
+    {
+        var pending = (await LiveAsync()).Values.Where(p => p.Status == ScheduledPostStatus.PENDING).ToList();
+        return pending.Count < MaxPendingPerChannel && pending.Count(p => p.AuthorId == authorId) < MaxPendingPerAuthor;
+    }
 
     private async Task<bool> MaySendAsync(Guid spaceId, Guid userId, List<IMessageEntity> entities)
     {
@@ -420,4 +568,38 @@ public class ChannelComposerGrain(
     private static long NewRandomId() => Random.Shared.NextInt64(1, long.MaxValue);
 
     private static ISchedulePostResult Failed(SchedulePostError error) => new FailedSchedulePost(error);
+}
+
+/// <summary>An author's scheduled posts across channels, for platform moderation and account erasure.</summary>
+public static class ScheduledPostsOfAuthor
+{
+    /// <summary>A Critical lockdown that has not lapsed: what the Ion gate refuses a send for.</summary>
+    public static bool IsRestricted(LockdownReason reason, DateTimeOffset? expiresAt)
+        => !(expiresAt is { } lapse && lapse <= DateTimeOffset.UtcNow)
+        && ReportActionPlanner.SeverityOf(reason) == LockdownSeverity.Critical;
+
+    /// <summary>Cancels the author's pending posts in every channel, through each channel's composer.</summary>
+    public static async Task CancelPendingAsync(ApplicationDbContext ctx, IGrainFactory grains, Guid authorId, CancellationToken ct = default)
+    {
+        var channels = await ctx.ScheduledPosts.AsNoTracking()
+           .Where(p => p.AuthorId == authorId && p.Status == ScheduledPostStatus.PENDING)
+           .Select(p => p.ChannelId)
+           .Distinct()
+           .ToListAsync(ct);
+
+        foreach (var channelId in channels)
+            await grains.GetGrain<IChannelComposerGrain>(channelId).CancelPendingOfAuthorAsync(authorId);
+    }
+
+    /// <summary>The lockdown hook: when the user now stands under a Critical lockdown, their pending posts are cancelled.</summary>
+    public static async Task CancelIfRestrictedAsync(ApplicationDbContext ctx, IGrainFactory grains, Guid userId, CancellationToken ct = default)
+    {
+        var lockdown = await ctx.Users.AsNoTracking()
+           .Where(u => u.Id == userId)
+           .Select(u => new { u.LockdownReason, u.LockDownExpiration })
+           .FirstOrDefaultAsync(ct);
+
+        if (lockdown is not null && IsRestricted(lockdown.LockdownReason, lockdown.LockDownExpiration))
+            await CancelPendingAsync(ctx, grains, userId, ct);
+    }
 }

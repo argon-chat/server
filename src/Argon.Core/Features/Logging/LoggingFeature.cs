@@ -14,6 +14,7 @@ public static class LoggingFeature
     {
         Log.Logger = new LoggerConfiguration()
            .Enrich.FromLogContext()
+           .Enrich.With<SecretPathEnricher>()
            .ReadFrom.Configuration(builder.Configuration)
            .WriteTo.Console(new JsonFormatter(renderMessage: true))
            .CreateLogger();

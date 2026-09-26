@@ -30,6 +30,7 @@ public static class L1L2CacheExtensions
         builder.Services.AddScoped<IPermissionCache, HybridPermissionCache>();
         builder.Services.AddScoped<IEntitlementChecker, EntitlementChecker>();
         builder.Services.AddScoped<ISpaceReadCache, HybridSpaceReadCache>();
+        builder.Services.AddHostedService<HybridArchetypeCacheAdapter>();
         builder.Services.AddHostedService<HybridPermissionCacheAdapter>();
         builder.Services.AddHostedService<HybridSpaceReadCacheAdapter>();
     }

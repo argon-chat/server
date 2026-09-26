@@ -7,6 +7,12 @@ public sealed record ChannelAnnouncement
     public bool PostAsSpace { get; init; }
     public bool ShowAuthor  { get; init; } = true;
 
+    /// <summary>
+    /// The SendMessages deny on everyone was added by creating the channel as an announcement channel
+    /// or converting it to one, not by the owner; only then does converting back to text lift it.
+    /// </summary>
+    public bool AddedSendDeny { get; init; }
+
     public static readonly ChannelAnnouncement Default = new();
 
     /// <summary>What the channel stores, or the defaults.</summary>

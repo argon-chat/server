@@ -221,6 +221,8 @@ public partial class SpaceGrain(
                .SetProperty(x => x.DeletedAt, DateTimeOffset.UtcNow)
                .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow));
 
+        await ForgetMemberFollowsAsync(ctx, spaceId, userId);
+
         if (removed == 0)
             return;
 
@@ -234,6 +236,7 @@ public partial class SpaceGrain(
         }
 
         await Invalidate();
+        await permissionCache.SignalMemberInvalidationAsync(spaceId, userId);
         await grainFactory.GetGrain<IUserPresenceGrain>(userId).ForgetSpaceAsync(spaceId);
         await Fire(new LeavedFromServerUser(spaceId, userId));
     }
@@ -250,6 +253,7 @@ public partial class SpaceGrain(
         var spaceId = this.GetPrimaryKey();
 
         await Invalidate();
+        await permissionCache.SignalMemberInvalidationAsync(spaceId, userId);
         await grainFactory.GetGrain<IUserPresenceGrain>(userId).ForgetSpaceAsync(spaceId);
         await Fire(new LeavedFromServerUser(spaceId, userId));
 
@@ -1052,6 +1056,7 @@ public partial class SpaceGrain(
                .FirstOrDefaultAsync();
 
             if (everyoneId != Guid.Empty)
+            {
                 ctx.ChannelEntitlementOverwrites.Add(new ChannelEntitlementOverwriteEntity
                 {
                     ChannelId   = channel.Id,
@@ -1061,6 +1066,9 @@ public partial class SpaceGrain(
                     Deny        = ArgonEntitlement.SendMessages,
                     CreatorId   = callerId
                 });
+                // So converting to text lifts this deny and no other.
+                channel.Announcement = new ChannelAnnouncement { AddedSendDeny = true };
+            }
         }
 
         await ctx.SaveChangesAsync();

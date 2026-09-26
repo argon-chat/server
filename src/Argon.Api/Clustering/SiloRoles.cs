@@ -80,6 +80,7 @@ public sealed class CoreRole : IArgonRole
 
         registry.AddToRef<ChannelGrain>();
         registry.AddToRef<ChannelFollowGrain>();
+        registry.AddToRef<CrosspostDeliveryGrain>();
         registry.AddToRef<IncomingWebhookGrain>();
         registry.AddToRef<VoiceBroadcastGrain>();
         registry.AddToRef<ChannelComposerGrain>();

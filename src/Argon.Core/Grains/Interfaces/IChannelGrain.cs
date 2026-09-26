@@ -209,13 +209,16 @@ public interface IChannelGrain : IGrainWithGuidKey
         CancellationToken ct = default);
 
     /// <summary>
-    /// Marks an announcement published and returns the copy with its targets. The caller delivers it
-    /// (<see cref="ReceiveCrosspostAsync"/> per target), so this channel is not held during the fan-out.
+    /// Marks an announcement published and hands it to its <see cref="ICrosspostDeliveryGrain"/>, which
+    /// delivers it (<see cref="ReceiveCrosspostAsync"/> per target) after this returns.
     /// </summary>
     [Alias(nameof(PublishMessage))]
-    Task<Either<CrosspostBatch, PublishMessageError>> PublishMessage(long messageId);
+    Task<Either<PublishedCrosspost, PublishMessageError>> PublishMessage(long messageId);
 
-    /// <summary>Inserts a crosspost copy into this channel. Null when the channel does not take one.</summary>
+    /// <summary>
+    /// Inserts a crosspost copy into this channel, once per source message. Null when the channel does
+    /// not take one; a repeat returns the copy already made.
+    /// </summary>
     [Alias(nameof(ReceiveCrosspostAsync))]
     Task<long?> ReceiveCrosspostAsync(CrosspostDraft draft);
 }

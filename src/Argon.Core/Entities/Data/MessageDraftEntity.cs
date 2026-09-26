@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -17,6 +18,9 @@ public record MessageDraftEntity : IEntityTypeConfiguration<MessageDraftEntity>,
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>Thirty days after the last save.</summary>
+    public DateTimeOffset ExpireAt { get; set; }
+
     public void Configure(EntityTypeBuilder<MessageDraftEntity> builder)
     {
         builder.ToTable("MessageDrafts");
@@ -27,6 +31,8 @@ public record MessageDraftEntity : IEntityTypeConfiguration<MessageDraftEntity>,
            .HasConversion<PolyListNewtonsoftJsonValueConverter<List<IMessageEntity>, IMessageEntity>>()
            .HasColumnType("jsonb")
            .Metadata.SetValueComparer(new PolyListJsonValueComparer<List<IMessageEntity>, IMessageEntity>());
+
+        builder.WithTTL(x => x.ExpireAt, CronValue.Daily);
     }
 
     public static MessageDraft Map(scoped in MessageDraftEntity self)

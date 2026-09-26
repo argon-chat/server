@@ -28,7 +28,7 @@ public class ReadStateCacheTests : TestBase
 {
     private const int CacheDb = 6;
 
-    private static string CacheKey(Guid userId) => $"read_state:{userId}";
+    private static string CacheKey(Guid userId) => ReadStateService.GetCacheKey(userId);
 
     private async Task WriteRawAsync(Guid userId, Guid channelId, string value)
     {
@@ -147,6 +147,31 @@ public class ReadStateCacheTests : TestBase
             Assert.That(inserted!.LastReadMessageId, Is.EqualTo(7));
             Assert.That(inserted.SpaceId, Is.EqualTo(spaceId));
         });
+    }
+
+    /// <summary>
+    /// An ack after the cached hash was dropped must not leave one holding only its own channel, which
+    /// the badge fetch would then serve as the whole list.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task An_ack_on_a_cold_cache_does_not_hide_the_other_channels(CancellationToken ct = default)
+    {
+        var userId = Guid.NewGuid();
+        var first  = Guid.NewGuid();
+        var second = Guid.NewGuid();
+
+        await ReadStates.IncrementMentionsAsync(userId, first, null, 1, ct);
+        await ReadStates.IncrementMentionsAsync(userId, second, null, 2, ct);
+        Assert.That(await ReadStates.GetAllReadStatesAsync(userId, ct), Has.Count.EqualTo(2), "premise: both rows are read");
+
+        await ReadStates.IncrementMentionsAsync(userId, second, null, 1, ct);
+        await ReadStates.AckAsync(userId, first, null, 10, ct);
+
+        var states = await ReadStates.GetAllReadStatesAsync(userId, ct);
+
+        Assert.That(states.Select(s => s.ChannelId), Is.EquivalentTo(new[] { first, second }),
+            "an ack on a cold cache left only its own channel");
+        Assert.That(states.Single(s => s.ChannelId == second).MentionCount, Is.EqualTo(3));
     }
 
     /// <summary>

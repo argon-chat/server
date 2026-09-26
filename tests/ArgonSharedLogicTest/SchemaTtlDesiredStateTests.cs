@@ -50,7 +50,7 @@ public class SchemaTtlDesiredStateTests
     }
 
     /// <summary>
-    /// Exactly three tables carry a TTL, named as the database names them.
+    /// Exactly these tables carry a TTL, named as the database names them.
     /// </summary>
     /// <remarks>
     /// <para>Spelled out rather than derived, so that adding a fourth <c>WithTTL</c> — or deleting one
@@ -66,13 +66,34 @@ public class SchemaTtlDesiredStateTests
     /// exist", which reads like a table that simply has not been created yet.</para>
     /// </remarks>
     [Test]
-    public void The_three_tables_that_expire_rows_are_named_as_the_database_names_them()
+    public void The_tables_that_expire_rows_are_named_as_the_database_names_them()
         => Assert.That(Desired().Keys.Select(table => table.Name), Is.EquivalentTo(new[]
         {
             "Invites",
             "TeamInvites",
-            "user_friend_requests"
+            "user_friend_requests",
+            "ScheduledPosts",
+            "MessageDrafts",
+            // Appended: crosspost delivery claims, kept a week (CrosspostDeliveryEntity.Retention).
+            "CrosspostDeliveries"
         }));
+
+    /// <summary>
+    /// Finished scheduled posts and stale drafts expire on their own <c>ExpireAt</c>, which a pending
+    /// post leaves null so that it never expires.
+    /// </summary>
+    [Test]
+    public void Composer_rows_expire_on_their_expiry_column()
+    {
+        var desired = Desired();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(desired[new TableRef("public", "ScheduledPosts")].ExpirationExpression, Is.EqualTo("ExpireAt"));
+            Assert.That(desired[new TableRef("public", "MessageDrafts")].ExpirationExpression, Is.EqualTo("ExpireAt"));
+            Assert.That(desired[new TableRef("public", "ScheduledPosts")].JobCron, Is.EqualTo("0 0 * * *"));
+        });
+    }
 
     [Test]
     public void Every_declared_table_lives_in_the_public_schema()

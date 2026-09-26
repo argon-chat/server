@@ -226,6 +226,20 @@ public class UserTrustGrain(
 
     public async Task OnReportResolvedAsync(ReportStatus resolution, CancellationToken ct = default)
     {
+        // ReportGrain calls here for the target once a decision, a ban included, is applied.
+        if (resolution == ReportStatus.RESOLVED_ACTION_TAKEN)
+        {
+            try
+            {
+                await using var ctx = await context.CreateDbContextAsync(ct);
+                await ScheduledPostsOfAuthor.CancelIfRestrictedAsync(ctx, GrainFactory, this.GetPrimaryKey(), ct);
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Scheduled posts of {UserId} were not cancelled after a decision", this.GetPrimaryKey());
+            }
+        }
+
         if (!RCfg.IsEnabled) return;
 
         await RecalculateTrustAsync(ct);

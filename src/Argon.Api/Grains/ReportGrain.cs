@@ -450,15 +450,45 @@ public class ReportGrain(
         if (message is null)
             return null;
 
+        // The author is the case's target whatever id the client sent: the message is the fact. The
+        // system account is never a target; a case without a person keeps it only as the sender.
+        var author = await AuthorOfAsync(ctx, message, ct);
+        var target = author ?? message.CreatorId;
+
         var snapshot = new ReportContentSnapshot(
-            "message", message.CreatorId, message.Text, ReportSnapshots.EntitiesJson(message.Entities), null, null, null,
+            "message", target, message.Text, ReportSnapshots.EntitiesJson(message.Entities), null, null, null,
             channel.SpaceId, channelId, message.CreatedAt, now);
 
-        // The author is the case's target whatever id the client sent: the message is the fact.
-        return new ResolvedTarget(ReportTargetKind.MESSAGE, message.CreatorId, message.CreatorId, channel.SpaceId, channelId, messageId, null,
-            ReportTargetRules.GroupKey(ReportTargetKind.MESSAGE, message.CreatorId, channelId, null, messageId),
+        return new ResolvedTarget(ReportTargetKind.MESSAGE, target, author, channel.SpaceId, channelId, messageId, null,
+            ReportTargetRules.GroupKey(ReportTargetKind.MESSAGE, target, channelId, null, messageId),
             ReportSnapshots.Serialize(snapshot));
     }
+
+    /// <summary>
+    /// Who answers for a channel message: the creator of the webhook that posted it, the author of the
+    /// post a crosspost copies, or its sender. Null when that is no person, or nobody is left.
+    /// </summary>
+    private static async Task<Guid?> AuthorOfAsync(ApplicationDbContext ctx, ArgonMessageEntity message, CancellationToken ct)
+    {
+        if (message.Webhook is { } hook)
+            return await ctx.ChannelWebhooks.AsNoTracking()
+               .Where(w => w.Id == hook.WebhookId)
+               .Select(w => (Guid?)w.CreatorId)
+               .FirstOrDefaultAsync(ct);
+
+        var author = message.CreatorId;
+
+        if (message.Crosspost is { } source)
+            author = await ctx.Messages.AsNoTracking()
+               .Where(m => m.SpaceId == source.SourceSpaceId && m.ChannelId == source.SourceChannelId && m.MessageId == source.SourceMessageId)
+               .Select(m => (Guid?)m.CreatorId)
+               .FirstOrDefaultAsync(ct) ?? author;
+
+        return IsSystemAccount(author) ? null : author;
+    }
+
+    private static bool IsSystemAccount(Guid userId)
+        => userId == UserEntity.SystemUser || userId == UserEntity.EchoUser;
 
     private static async Task<ResolvedTarget?> ResolveDirectMessageAsync(ApplicationDbContext ctx, Guid reporterId, Guid peerId, long messageId, DateTimeOffset now, CancellationToken ct)
     {
@@ -705,6 +735,9 @@ public class ReportGrain(
         if (ReportActionPlanner.TargetsAPerson(command.Action) && !ReportTargetRules.TargetsAPerson(@case.TargetKind))
             return ReportOperationResult.Fail($"Action {command.Action} needs a case whose target is a person; this one is a {@case.TargetKind}");
 
+        if (ReportActionPlanner.TargetsAPerson(command.Action) && IsSystemAccount(@case.TargetId))
+            return ReportOperationResult.Fail($"Action {command.Action} cannot be applied to the system account");
+
         if (ReportActionPlanner.TargetsContent(command.Action) && !ReportTargetRules.CarriesContent(@case.TargetKind))
             return ReportOperationResult.Fail($"Action {command.Action} needs a case about a message; this one is a {@case.TargetKind}");
 
@@ -801,7 +834,7 @@ public class ReportGrain(
         // The lockdown an earlier resolution applied stays: lifting it is UnblockUser's job, and
         // an explicit one. Trust is recomputed because the confirmation this case counted for is
         // no longer a confirmation.
-        if (ReportTargetRules.TargetsAPerson(@case.TargetKind))
+        if (ReportTargetRules.TargetsAPerson(@case.TargetKind) && !IsSystemAccount(@case.TargetId))
             await RecalculateQuietlyAsync(@case.TargetId, ct);
 
         return ReportOperationResult.Ok;
@@ -895,7 +928,7 @@ public class ReportGrain(
     /// </summary>
     private async Task AfterDecisionAsync(ApplicationDbContext ctx, ReportCaseEntity @case, ReportStatus resolution, CancellationToken ct)
     {
-        if (ReportTargetRules.TargetsAPerson(@case.TargetKind))
+        if (ReportTargetRules.TargetsAPerson(@case.TargetKind) && !IsSystemAccount(@case.TargetId))
         {
             try
             {
