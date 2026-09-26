@@ -1347,7 +1347,7 @@ public partial class ChannelGrain(
             return VoiceInviteError.CHANNEL_IS_NOT_VOICE;
 
         // You cannot hand out a key to a room you cannot walk into yourself — Connect also implies
-        // JoinToVoice and ViewChannel through the entitlement analyzer, so one check covers the path.
+        // ViewChannel through the entitlement analyzer, so one check covers the path.
         if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.Connect, ct))
             return VoiceInviteError.INSUFFICIENT_PERMISSIONS;
 

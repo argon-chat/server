@@ -196,7 +196,7 @@ public class EntitlementEvaluatorTests
                 Is.False, "Broadcast without Speak must not be satisfied");
             Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(
                     ArgonEntitlement.Speak | ArgonEntitlement.Broadcast, ArgonEntitlement.Broadcast),
-                Is.False, "Speak itself needs JoinToVoice and Connect");
+                Is.False, "Speak itself needs ViewChannel and Connect");
             Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(
                     voice | ArgonEntitlement.Speak | ArgonEntitlement.Broadcast, ArgonEntitlement.Broadcast),
                 Is.True);
@@ -206,19 +206,35 @@ public class EntitlementEvaluatorTests
     }
 
     [Test]
-    public void IsEntitlementSatisfied_VoiceEntitlement_RequiresJoinToVoiceAndConnect()
+    public void IsEntitlementSatisfied_VoiceEntitlement_RequiresViewChannelAndConnect()
     {
-        var withoutJoin    = ArgonEntitlement.ViewChannel | ArgonEntitlement.Connect | ArgonEntitlement.Speak;
-        var withJoin       = withoutJoin | ArgonEntitlement.JoinToVoice;
-        var withoutConnect = withJoin & ~ArgonEntitlement.Connect;
+        var withView       = ArgonEntitlement.ViewChannel | ArgonEntitlement.Connect | ArgonEntitlement.Speak;
+        var withoutView    = withView & ~ArgonEntitlement.ViewChannel;
+        var withoutConnect = withView & ~ArgonEntitlement.Connect;
 
         Assert.Multiple(() =>
         {
-            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutJoin, ArgonEntitlement.Speak), Is.False);
-            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withJoin, ArgonEntitlement.Speak), Is.True);
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withView, ArgonEntitlement.Speak), Is.True);
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutView, ArgonEntitlement.Connect), Is.False,
+                "a hidden room cannot be joined");
             Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutConnect, ArgonEntitlement.Speak), Is.False,
                 "speaking is a right inside a room the member may connect to");
-            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(withoutConnect, ArgonEntitlement.JoinToVoice), Is.True);
+        });
+    }
+
+    // Production "everyone" roles carry the kits' voice rights but never JoinToVoice, which no editor grants.
+    [Test]
+    public void IsEntitlementSatisfied_BaseMember_CanJoinVoiceWithoutJoinToVoice()
+    {
+        var member = ArgonEntitlementKit.BaseMember;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(member.HasFlag(ArgonEntitlement.JoinToVoice), Is.False, "premise");
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(member, ArgonEntitlement.Connect), Is.True);
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied(member, ArgonEntitlement.Speak), Is.True);
+            Assert.That(EntitlementAnalyzer.IsEntitlementSatisfied((ArgonEntitlement)15760355, ArgonEntitlement.Connect), Is.True,
+                "the everyone role of the space that reported the outage");
         });
     }
 

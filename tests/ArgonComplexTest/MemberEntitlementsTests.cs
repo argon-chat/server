@@ -34,6 +34,23 @@ public class MemberEntitlementsTests : TestBase
         });
     }
 
+    // Production "everyone" roles predate JoinToVoice and no role editor grants it.
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_member_may_join_voice_through_an_everyone_role_without_JoinToVoice(CancellationToken ct = default)
+    {
+        var (owner, member, spaceId) = await SpaceWithMemberAsync(ct);
+        var channelId  = await CreateChannelAsync(owner, spaceId, "lobby", ChannelType.Voice, ct);
+        var archetypes = ArchetypesOf(owner);
+        var everyone   = await EveryoneAsync(archetypes, spaceId, ct);
+
+        await archetypes.UpdateArchetype(spaceId, everyone with { entitlement = everyone.entitlement & ~ArgonEntitlement.JoinToVoice }, ct).Ok();
+
+        var theirs = await member.Servers.GetMyEntitlements(spaceId, ct);
+        var here   = theirs.channels.Values.Single(c => c.channelId == channelId).entitlements;
+
+        Assert.That(here.HasFlag(ArgonEntitlement.Connect | ArgonEntitlement.Speak), Is.True);
+    }
+
     [Test, CancelAfter(1000 * 60 * 3)]
     public async Task Channel_overwrites_shape_what_the_member_is_told(CancellationToken ct = default)
     {

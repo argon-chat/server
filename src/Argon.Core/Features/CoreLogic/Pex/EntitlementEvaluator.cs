@@ -30,7 +30,9 @@ public static class EntitlementAnalyzer
         if (IsSendMessagesEntitlement(target) && !permissions.HasFlag(ArgonEntitlement.ViewChannel))
             return false;
 
-        if (IsVoiceEntitlement(target) && !permissions.HasFlag(ArgonEntitlement.JoinToVoice))
+        // A room the member cannot see is not one they can join. Not JoinToVoice: no role editor or kit
+        // grants it, so requiring it locked every non-admin out of voice.
+        if (IsVoiceEntitlement(target) && !permissions.HasFlag(ArgonEntitlement.ViewChannel))
             return false;
 
         // Speaking, video and streaming are rights inside a room the member may connect to.
