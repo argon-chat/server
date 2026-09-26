@@ -75,14 +75,17 @@ public class EntitlementGrain(
         return result.Values.ToList();
     }
 
-    public async Task<Archetype> CreateArchetypeAsync(string name)
+    public async Task<(ArchetypeError error, Archetype? archetype)> CreateArchetypeAsync(string name)
     {
         var creatorId = this.GetUserId();
 
         await using var ctx = await context.CreateDbContextAsync();
 
         if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), creatorId, ArgonEntitlement.ManageArchetype))
-            throw new UnauthorizedAccessException("No permission to manage archetypes");
+            return (ArchetypeError.NO_PERMISSION, null);
+
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 64)
+            return (ArchetypeError.INVALID_DATA, null);
 
         // Below everything that already has a rank, which is where a brand new role belongs: it
         // starts with base entitlements, so ranking it above existing roles would let it out-rank
@@ -116,10 +119,10 @@ public class EntitlementGrain(
 
         await Fire(new ArchetypeCreated(this.GetPrimaryKey(), arch.ToDto()));
 
-        return await archetypeAgent.DoCreatedAsync(arch);
+        return (ArchetypeError.NONE, await archetypeAgent.DoCreatedAsync(arch));
     }
 
-    public async Task<Archetype?> UpdateArchetypeAsync(Archetype dto)
+    public async Task<(ArchetypeError error, Archetype? archetype)> UpdateArchetypeAsync(Archetype dto)
     {
         var callerId = this.GetUserId();
 
@@ -131,9 +134,9 @@ public class EntitlementGrain(
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
 
-        if (string.IsNullOrWhiteSpace(dto.name)) return null;
-        if (dto.name.Length > 64) return null;
-        if (dto.description.Length > 256) return null;
+        if (string.IsNullOrWhiteSpace(dto.name)) return (ArchetypeError.INVALID_DATA, null);
+        if (dto.name.Length > 64) return (ArchetypeError.INVALID_DATA, null);
+        if (dto.description.Length > 256) return (ArchetypeError.INVALID_DATA, null);
 
         if (invoker is null)
         {
@@ -141,7 +144,7 @@ public class EntitlementGrain(
                 "User {userId} tried to change the {archetypeId} right on server {spaceId}, although he is not a member of the server.",
                 callerId, dto.id, this.GetPrimaryKey()
             );
-            return null;
+            return (ArchetypeError.NO_PERMISSION, null);
         }
 
         var entity = await ctx.Archetypes.FirstOrDefaultAsync(x => x.Id == dto.id && x.SpaceId == this.GetPrimaryKey());
@@ -152,7 +155,7 @@ public class EntitlementGrain(
                 "User {userId} tried to change the {archetypeId} right on server {spaceId}, but the right is not part of the server.",
                 callerId, dto.id, this.GetPrimaryKey()
             );
-            return null;
+            return (ArchetypeError.NOT_FOUND, null);
         }
 
         var invokerArchetypes = invoker
@@ -172,7 +175,7 @@ public class EntitlementGrain(
             {
                 logger.LogError("User {userId} is trying to edit archetype {archetypeId}, but he does not have the rights",
                     invoker.UserId, archetype.Id);
-                return null;
+                return (ArchetypeError.NO_PERMISSION, null);
             }
 
             archetype.Entitlement = promptedEntitlements;
@@ -185,7 +188,7 @@ public class EntitlementGrain(
         }
 
         if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
-            return null;
+            return (ArchetypeError.NO_PERMISSION, null);
 
         if (!archetype.Name.Equals(dto.name, StringComparison.Ordinal))
             archetype.Name = dto.name;
@@ -200,7 +203,7 @@ public class EntitlementGrain(
         return await Changed(archetypeEntity.Entity);
 
 
-        async Task<Archetype?> Changed(ArchetypeEntity value)
+        async Task<(ArchetypeError, Archetype?)> Changed(ArchetypeEntity value)
         {
             var result = value.ToDto();
             await archetypeAgent.DoUpdatedAsync(value);
@@ -208,7 +211,7 @@ public class EntitlementGrain(
             await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
             await Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
             await FireEntitlementsChanged(null);
-            return result;
+            return (ArchetypeError.NONE, result);
         }
     }
 

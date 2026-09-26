@@ -8,13 +8,23 @@ public class ArchetypeInteraction : IArchetypeInteraction
     public async Task<IonArray<Archetype>> GetServerArchetypes(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).GetServerArchetypes();
 
-    public async Task<Archetype> CreateArchetype(Guid spaceId, string name, CancellationToken ct = default)
-        => await this.GetGrain<IEntitlementGrain>(spaceId).CreateArchetypeAsync(name);
+    public async Task<ICreateArchetypeResult> CreateArchetype(Guid spaceId, string name, CancellationToken ct = default)
+    {
+        var (error, archetype) = await this.GetGrain<IEntitlementGrain>(spaceId).CreateArchetypeAsync(name);
 
-    // The contract promises a role, so a refusal (unknown, deleted, forbidden or invalid) cannot be a null.
-    public async Task<Archetype> UpdateArchetype(Guid spaceId, Archetype data, CancellationToken ct = default)
-        => await this.GetGrain<IEntitlementGrain>(spaceId).UpdateArchetypeAsync(data)
-           ?? throw new IonRequestException(new IonProtocolError("ARCHETYPE_UPDATE_REFUSED", "archetype update refused"));
+        return error is ArchetypeError.NONE
+            ? new SuccessCreateArchetype(archetype!)
+            : new FailedCreateArchetype(error);
+    }
+
+    public async Task<IUpdateArchetypeResult> UpdateArchetype(Guid spaceId, Archetype data, CancellationToken ct = default)
+    {
+        var (error, archetype) = await this.GetGrain<IEntitlementGrain>(spaceId).UpdateArchetypeAsync(data);
+
+        return error is ArchetypeError.NONE
+            ? new SuccessUpdateArchetype(archetype!)
+            : new FailedUpdateArchetype(error);
+    }
 
     public async Task<bool> SetArchetypeToMember(Guid spaceId, Guid memberId, Guid archetypeId, bool isGrant, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).SetArchetypeToMember(memberId, archetypeId, isGrant);

@@ -262,28 +262,37 @@ public class ChannelComposerGrain(
 
         try
         {
-            post.MessageId = await SendAsAuthorAsync(post);
-            post.Status    = ScheduledPostStatus.PUBLISHED;
-            return true;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Fail(post, ScheduledPostFailure.INSUFFICIENT_PERMISSIONS);
+            var (error, messageId) = await SendAsAuthorAsync(post);
+
+            switch (error)
+            {
+                case SendMessageError.NONE:
+                    post.MessageId = messageId;
+                    post.Status    = ScheduledPostStatus.PUBLISHED;
+                    return true;
+                case SendMessageError.NO_PERMISSION or SendMessageError.BOTS_NOT_ALLOWED or SendMessageError.NO_ATTACH_PERMISSION:
+                    return Fail(post, ScheduledPostFailure.INSUFFICIENT_PERMISSIONS);
+                default:
+                    return Hold(post, error.ToString(), error is SendMessageError.SLOW_MODE);
+            }
         }
         catch (Exception e)
         {
-            var slowMode = e is SlowModeException;
-
-            if (DateTimeOffset.UtcNow - post.PublishAt < RetryWindow)
-            {
-                logger.LogInformation("Scheduled post {PostId} held ({Reason}); retried on the next tick",
-                    post.Id, slowMode ? "slow mode" : e.GetType().Name);
-                return false;
-            }
-
-            logger.LogWarning(e, "Scheduled post {PostId} gave up after the retry window", post.Id);
-            return Fail(post, slowMode ? ScheduledPostFailure.SLOW_MODE : ScheduledPostFailure.SEND_FAILED);
+            return Hold(post, e.GetType().Name, false, e);
         }
+    }
+
+    /// <summary>False while the post is inside its retry window, then fails it.</summary>
+    private bool Hold(ScheduledPostEntity post, string reason, bool slowMode, Exception? e = null)
+    {
+        if (DateTimeOffset.UtcNow - post.PublishAt < RetryWindow)
+        {
+            logger.LogInformation("Scheduled post {PostId} held ({Reason}); retried on the next tick", post.Id, reason);
+            return false;
+        }
+
+        logger.LogWarning(e, "Scheduled post {PostId} gave up after the retry window", post.Id);
+        return Fail(post, slowMode ? ScheduledPostFailure.SLOW_MODE : ScheduledPostFailure.SEND_FAILED);
     }
 
     private static bool Fail(ScheduledPostEntity post, ScheduledPostFailure failure)
@@ -293,7 +302,7 @@ public class ChannelComposerGrain(
         return true;
     }
 
-    private async Task<long> SendAsAuthorAsync(ScheduledPostEntity post)
+    private async Task<(SendMessageError error, long messageId)> SendAsAuthorAsync(ScheduledPostEntity post)
     {
         // The author is the caller, carried the way the Ion layer carries one.
         RequestContext.Clear();

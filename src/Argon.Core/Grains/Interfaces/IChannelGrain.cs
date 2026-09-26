@@ -57,7 +57,8 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<Either<string, VoiceInviteError>> CreateVoiceInvite(TimeSpan expiration, int maxUses, CancellationToken ct = default);
 
     [Alias(nameof(SendMessage))]
-    Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null);
+    Task<(SendMessageError error, long messageId)> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo,
+        List<ControlRowV1>? controls = null);
 
     [Alias(nameof(QueryMessages))]
     Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit);

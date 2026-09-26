@@ -54,12 +54,15 @@ public sealed class InteractionsV1(
            .Permission(ArgonEntitlement.SendMessages)
            .Handle(async (_, request) =>
             {
-                var msgId = await grains.GetGrain<IChannelGrain>(request.ChannelId).SendMessage(
+                var (error, msgId) = await grains.GetGrain<IChannelGrain>(request.ChannelId).SendMessage(
                     request.Text,
                     request.Entities ?? [],
                     request.RandomId,
                     request.ReplyTo,
                     request.Controls);
+
+                if (error is not SendMessageError.NONE)
+                    throw new InvalidOperationException($"message refused: {error}");
 
                 return new ReplyResponse(msgId);
             });

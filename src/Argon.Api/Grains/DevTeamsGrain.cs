@@ -479,13 +479,15 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
          : !UsernameRules.IsWellFormed(username)                         ? CheckBotUsernameValid.INVALID_FORMAT
          : null;
 
-    public async Task<AppDetails> GetAppDetailsAsync(Guid teamId, Guid appId, CancellationToken ct = default)
+    public async Task<(AppManagementError error, AppDetails? app)> GetAppDetailsAsync(Guid teamId, Guid appId, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
         var appInfo = await db.AppEntities.AsNoTracking()
-                         .FirstOrDefaultAsync(x => x.TeamId == teamId && x.AppId == appId, ct)
-                      ?? throw new InvalidOperationException("App not found.");
+           .FirstOrDefaultAsync(x => x.TeamId == teamId && x.AppId == appId, ct);
+
+        if (appInfo is null)
+            return (AppManagementError.NOT_FOUND, null);
 
         if (appInfo.AppType is DevAppType.Bot)
         {
@@ -495,7 +497,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                .ThenInclude(x => x.Profile)
                .FirstAsync(x => x.AppId == appId, ct);
 
-            return Describe(botEntity);
+            return (AppManagementError.NONE, Describe(botEntity));
         }
 
         if (appInfo.AppType is DevAppType.Application)
@@ -504,7 +506,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                .AsNoTracking()
                .FirstAsync(x => x.AppId == appId, ct);
 
-            return Describe(appEntity);
+            return (AppManagementError.NONE, Describe(appEntity));
         }
 
         throw new NotSupportedException($"App type {appInfo.AppType} is not supported.");
@@ -642,30 +644,34 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                 botApp.TeamId);
     }
 
-    public async Task<string> RegenerateBotTokenAsync(Guid teamId, Guid appId, CancellationToken ct = default)
+    public async Task<(AppManagementError error, string? token)> RegenerateBotTokenAsync(Guid teamId, Guid appId, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var botEntity = await RequireBotAsync(db, teamId, appId, ct);
-        var previous  = botEntity.BotToken;
+        if (await FindBotAsync(db, teamId, appId, ct) is not { } botEntity)
+            return (AppManagementError.NOT_FOUND, null);
+
+        var previous = botEntity.BotToken;
 
         botEntity.BotToken = GenerateBotToken(botEntity.AppId);
 
         await db.SaveChangesAsync(ct);
         await cache.RemoveAsync(BotTokenAuthenticationHandler.CacheKeyFor(previous), ct);
 
-        return botEntity.BotToken;
+        return (AppManagementError.NONE, botEntity.BotToken);
     }
 
-    public async Task UpdateScopeAsync(Guid teamId, Guid appId, ScopeKeyValue scope, CancellationToken ct = default)
+    public async Task<AppManagementError> UpdateScopeAsync(Guid teamId, Guid appId, ScopeKeyValue scope, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var app     = await RequireAppAsync(db, teamId, appId, ct);
+        if (await FindAppAsync(db, teamId, appId, ct) is not { } app)
+            return AppManagementError.NOT_FOUND;
+
         var granted = app.RequiredScopes.Contains(scope.key);
 
         if (scope.isRequired == granted)
-            return;
+            return AppManagementError.NONE;
 
         if (scope.isRequired)
             app.RequiredScopes.Add(scope.key);
@@ -673,13 +679,15 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             app.RequiredScopes.Remove(scope.key);
 
         await db.SaveChangesAsync(ct);
+        return AppManagementError.NONE;
     }
 
     public async Task<AddRedirectResult> AddRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var app = await RequireAppAsync(db, teamId, appId, ct);
+        if (await FindAppAsync(db, teamId, appId, ct) is not { } app)
+            return new AddRedirectResult(false, "App not found.");
 
         if (app.AllowedRedirects.Contains(redirect))
             return new AddRedirectResult(false, "Redirect already exists.");
@@ -691,28 +699,31 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         return new AddRedirectResult(true, null);
     }
 
-    public async Task RemoveRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default)
+    public async Task<AppManagementError> RemoveRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var app = await RequireAppAsync(db, teamId, appId, ct);
+        if (await FindAppAsync(db, teamId, appId, ct) is not { } app)
+            return AppManagementError.NOT_FOUND;
 
         if (!app.AllowedRedirects.Remove(redirect))
-            return;
+            return AppManagementError.NONE;
 
         await db.SaveChangesAsync(ct);
+        return AppManagementError.NONE;
     }
 
-    public async Task<bool> SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default)
+    public async Task<AppManagementError> SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var bot = await RequireBotAsync(db, teamId, appId, ct);
+        if (await FindBotAsync(db, teamId, appId, ct) is not { } bot)
+            return AppManagementError.NOT_FOUND;
 
         // A team lifts only a suspension it imposed; anything else is an operator's to lift.
         if (bot.LifecycleState == BotLifecycleState.Suspended && bot.SuspendedBy != BotSuspendedBy.Team
          && state != BotLifecycleState.Suspended)
-            return false;
+            return AppManagementError.SUSPENDED_BY_OPERATOR;
 
         if (state != BotLifecycleState.Suspended)
             bot.SuspendedBy = BotSuspendedBy.None;
@@ -727,33 +738,37 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         // The Bot API caches whether a token's bot is restricted; a suspension has to reach it now.
         await cache.RemoveAsync(BotTokenAuthenticationHandler.CacheKeyFor(bot.BotToken), ct);
 
-        return true;
+        return AppManagementError.NONE;
     }
 
-    public async Task UpdateBotEntitlementsAsync(
+    public async Task<AppManagementError> UpdateBotEntitlementsAsync(
         Guid teamId, Guid appId, ArgonEntitlement entitlements, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var bot = await RequireBotAsync(db, teamId, appId, ct);
+        if (await FindBotAsync(db, teamId, appId, ct) is not { } bot)
+            return AppManagementError.NOT_FOUND;
 
         bot.RequiredEntitlements = entitlements;
         bot.EntitlementsVersion++;
         bot.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
+        return AppManagementError.NONE;
     }
 
-    public async Task SetBotOAuthAsync(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default)
+    public async Task<AppManagementError> SetBotOAuthAsync(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var bot = await RequireBotAsync(db, teamId, appId, ct);
+        if (await FindBotAsync(db, teamId, appId, ct) is not { } bot)
+            return AppManagementError.NOT_FOUND;
 
         bot.RequiresOAuth2 = enabled;
         bot.UpdatedAt      = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
+        return AppManagementError.NONE;
     }
 
     // ── mapping ──────────────────────────────────────────────────────────────────────────────
@@ -763,24 +778,22 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     /// the caller's membership, so matching on both is what stops one team from editing another's
     /// bot by guessing an app id.
     /// </summary>
-    private static async Task<BotEntity> RequireBotAsync(
+    private static Task<BotEntity?> FindBotAsync(
         ApplicationDbContext db, Guid teamId, Guid appId, CancellationToken ct)
-        => await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId && b.TeamId == teamId, ct)
-        ?? throw new InvalidOperationException("Bot not found.");
+        => db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId && b.TeamId == teamId, ct);
 
     /// <summary>
     /// The same guard for the mutations that are not about bots at all.
     /// </summary>
     /// <remarks>
     /// Scopes and redirects are an OAuth registration rather than a bot feature, and they live on
-    /// the base table for that reason. Resolving them through <see cref="RequireBotAsync"/> is what
+    /// the base table for that reason. Resolving them through <see cref="FindBotAsync"/> is what
     /// made a client app's registration unwritable — and therefore its client id unknown to the
     /// authorization endpoint, which resolves an application by what is registered on it.
     /// </remarks>
-    private static async Task<DevAppEntity> RequireAppAsync(
+    private static Task<DevAppEntity?> FindAppAsync(
         ApplicationDbContext db, Guid teamId, Guid appId, CancellationToken ct)
-        => await db.AppEntities.FirstOrDefaultAsync(a => a.AppId == appId && a.TeamId == teamId, ct)
-        ?? throw new InvalidOperationException("App not found.");
+        => db.AppEntities.FirstOrDefaultAsync(a => a.AppId == appId && a.TeamId == teamId, ct);
 
     private static AppDetails Describe(BotEntity bot)
         => new(bot.AppId,

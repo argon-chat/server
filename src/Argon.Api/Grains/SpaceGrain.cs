@@ -111,7 +111,7 @@ public partial class SpaceGrain(
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 
-    public async Task<SpaceEntity> UpdateSpace(ServerInput input)
+    public async Task<SpaceManageError> UpdateSpace(ServerInput input)
     {
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
@@ -122,11 +122,11 @@ public partial class SpaceGrain(
             ctx, spaceId, callerId, ArgonEntitlement.ManageServer);
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage server");
+            return SpaceManageError.NO_PERMISSION;
 
         var name = input.Name?.Trim();
         if (name is { Length: > MaxSpaceNameLength } || input.Description is { Length: > MaxSpaceDescriptionLength })
-            throw new ArgumentException("Space name or description is too long");
+            return SpaceManageError.INVALID_DATA;
 
         var server = await ctx.Spaces
            .FirstAsync(s => s.Id == spaceId);
@@ -143,7 +143,7 @@ public partial class SpaceGrain(
             server.IsCommunity, server.MainAnnouncementChannelId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
         await Fire(new ServerModified(spaceId, IonArray<string>.Empty));
-        return server;
+        return SpaceManageError.NONE;
     }
 
     /// <summary>
@@ -307,7 +307,7 @@ public partial class SpaceGrain(
         return true;
     }
 
-    public async Task SetBoostStripHidden(bool hidden)
+    public async Task<SpaceManageError> SetBoostStripHidden(bool hidden)
     {
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
@@ -318,7 +318,7 @@ public partial class SpaceGrain(
             ctx, spaceId, callerId, ArgonEntitlement.ManageServer);
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage server");
+            return SpaceManageError.NO_PERMISSION;
 
         var space = await ctx.Spaces.FirstAsync(x => x.Id == spaceId);
         space.HideBoostStrip = hidden;
@@ -329,6 +329,7 @@ public partial class SpaceGrain(
             space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
             space.IsCommunity, space.MainAnnouncementChannelId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
+        return SpaceManageError.NONE;
     }
 
     public async Task SetPlatformSpaceFlags(bool? isCommunity, bool? isOfficial, CancellationToken ct = default)
@@ -718,7 +719,7 @@ public partial class SpaceGrain(
     public async Task AnnounceDeletionCancelled()
         => await Fire(new SpaceDeletionCancelled(this.GetPrimaryKey()));
 
-    public async Task<ChannelGroupEntity> CreateChannelGroup(string name, string? description = null)
+    public async Task<ChannelLayoutError> CreateChannelGroup(string name, string? description = null)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -733,10 +734,10 @@ public partial class SpaceGrain(
         );
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return ChannelLayoutError.NO_PERMISSION;
 
-        name = RequireName(name);
-        RequireDescription(description, MaxGroupDescriptionLength);
+        if (ValidName(name) is not { } groupName || !ValidDescription(description, MaxGroupDescriptionLength))
+            return ChannelLayoutError.INVALID_DATA;
 
         var lastGroup = await ctx.Set<ChannelGroupEntity>()
            .Where(g => g.SpaceId == spaceId)
@@ -749,7 +750,7 @@ public partial class SpaceGrain(
 
         var group = new ChannelGroupEntity
         {
-            Name            = name,
+            Name            = groupName,
             Description     = description,
             SpaceId         = spaceId,
             CreatorId       = callerId,
@@ -762,10 +763,10 @@ public partial class SpaceGrain(
         await Invalidate();
         await Fire(new ChannelGroupCreated(spaceId, group.ToDto()));
 
-        return group;
+        return ChannelLayoutError.NONE;
     }
 
-    public async Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null,
+    public async Task<ChannelLayoutError> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null,
         CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
@@ -780,19 +781,19 @@ public partial class SpaceGrain(
             ArgonEntitlement.ManageChannels, ct);
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return ChannelLayoutError.NO_PERMISSION;
 
-        if (name is not null)
-            name = RequireName(name);
-        RequireDescription(description, MaxGroupDescriptionLength);
+        var newName = name is null ? null : ValidName(name);
+        if (name is not null && newName is null || !ValidDescription(description, MaxGroupDescriptionLength))
+            return ChannelLayoutError.INVALID_DATA;
 
         var group = await ctx.Set<ChannelGroupEntity>()
            .FirstOrDefaultAsync(g => g.Id == groupId && g.SpaceId == spaceId, cancellationToken: ct);
 
         if (group == null)
-            throw new InvalidOperationException("Channel group not found");
+            return ChannelLayoutError.NOT_FOUND;
 
-        group.Name        = name ?? group.Name;
+        group.Name        = newName ?? group.Name;
         group.Description = description ?? group.Description;
         if (isCollapsed.HasValue)
             group.IsCollapsed = isCollapsed.Value;
@@ -802,7 +803,7 @@ public partial class SpaceGrain(
         await Invalidate(ct);
         await Fire(new ChannelGroupModified(spaceId, group.Id, group.ToDto()), ct);
 
-        return group;
+        return ChannelLayoutError.NONE;
     }
 
     private const int RebalanceThreshold = 20;
@@ -811,48 +812,39 @@ public partial class SpaceGrain(
     private const int MaxChannelDescriptionLength  = 1024;
     private const int MaxGroupDescriptionLength    = 512;
 
-    /// <summary>The rule <c>ChannelGrain.UpdateChannelSettings</c> applies to a rename.</summary>
-    private static string RequireName(string? name)
+    /// <summary>The rule <c>ChannelGrain.UpdateChannelSettings</c> applies to a rename: the trimmed name, or null.</summary>
+    private static string? ValidName(string? name)
     {
         var trimmed = name?.Trim();
 
-        if (string.IsNullOrEmpty(trimmed) || trimmed.Length > MaxNameLength)
-            throw new ArgumentException($"Name must be 1 to {MaxNameLength} characters");
-
-        return trimmed;
+        return string.IsNullOrEmpty(trimmed) || trimmed.Length > MaxNameLength ? null : trimmed;
     }
 
-    private static void RequireDescription(string? description, int maxLength)
-    {
-        if (description is { } text && text.Length > maxLength)
-            throw new ArgumentException($"Description must be at most {maxLength} characters");
-    }
+    private static bool ValidDescription(string? description, int maxLength)
+        => description is not { } text || text.Length <= maxLength;
 
     /// <summary>The foreign key accepts any group row, including another space's.</summary>
-    private static async Task RequireGroupInSpace(ApplicationDbContext ctx, Guid spaceId, Guid? groupId)
-    {
-        if (groupId is { } id && !await ctx.Set<ChannelGroupEntity>().AnyAsync(g => g.Id == id && g.SpaceId == spaceId))
-            throw new ArgumentException("Channel group not found");
-    }
+    private static async Task<bool> IsGroupInSpaceAsync(ApplicationDbContext ctx, Guid spaceId, Guid? groupId)
+        => groupId is not { } id || await ctx.Set<ChannelGroupEntity>().AnyAsync(g => g.Id == id && g.SpaceId == spaceId);
 
-    /// <summary>The client's channel id when it chose one — a UUIDv7 that reads as the space's region, like <see cref="ArgonId.NewIn"/> mints, and free — else a minted one.</summary>
-    private static async Task<Guid> RequireChannelIdAsync(ApplicationDbContext ctx, Guid spaceId, Guid? channelId)
+    /// <summary>The client's channel id when it chose one — a UUIDv7 that reads as the space's region, like <see cref="ArgonId.NewIn"/> mints, and free — else a minted one. Null when the chosen one is unusable.</summary>
+    private static async Task<Guid?> ChannelIdAsync(ApplicationDbContext ctx, Guid spaceId, Guid? channelId)
     {
         if (channelId is not { } id || id == Guid.Empty)
             return ArgonId.NewIn(spaceId);
 
         // Grain calls route by the key's region once there are peers; an id that reads as another region is unroutable.
         if (ArgonId.RegionIndexOf(id, ArgonId.Epoch) != ArgonId.RegionIndexOrOriginal(spaceId, ArgonId.Epoch))
-            throw new ArgumentException("Channel id must be a UUIDv7 in the space's region");
+            return null;
 
         // Soft-deleted rows keep their id: a second row under it is refused, not minted elsewhere.
         if (await ctx.Channels.IgnoreQueryFilters().AnyAsync(c => c.Id == id))
-            throw new ArgumentException("A channel with this id already exists");
+            return null;
 
         return id;
     }
 
-    public async Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
+    public async Task<ChannelLayoutError> MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -867,11 +859,11 @@ public partial class SpaceGrain(
         );
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return ChannelLayoutError.NO_PERMISSION;
 
         var group = await ctx.Set<ChannelGroupEntity>().FindAsync(groupId);
         if (group == null || group.SpaceId != spaceId)
-            return;
+            return ChannelLayoutError.NOT_FOUND;
 
         FractionalIndex newIndex;
 
@@ -903,7 +895,7 @@ public partial class SpaceGrain(
                 : (FractionalIndex?)null;
 
             if (afterIndex != null && beforeIndex != null && afterIndex.Value.CompareTo(beforeIndex.Value) >= 0)
-                return;
+                return ChannelLayoutError.NONE;
 
             if (afterIndex == null && beforeIndex is { IsMin: true })
             {
@@ -939,9 +931,10 @@ public partial class SpaceGrain(
 
         await Invalidate();
         await Fire(new ChannelGroupReordered(spaceId, groupId, group.FractionalIndex));
+        return ChannelLayoutError.NONE;
     }
 
-    public async Task DeleteChannelGroup(Guid groupId, bool deleteChannels = false)
+    public async Task<ChannelLayoutError> DeleteChannelGroup(Guid groupId, bool deleteChannels = false)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -956,14 +949,15 @@ public partial class SpaceGrain(
         );
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return ChannelLayoutError.NO_PERMISSION;
 
+        // Already gone is not an error: the client may be a click behind.
         var group = await ctx.Set<ChannelGroupEntity>()
            .Include(g => g.Channels)
            .FirstOrDefaultAsync(g => g.Id == groupId && g.SpaceId == spaceId);
 
         if (group == null)
-            return;
+            return ChannelLayoutError.NONE;
 
         var deleted = new List<Guid>();
         if (deleteChannels)
@@ -990,9 +984,10 @@ public partial class SpaceGrain(
         await ForgetMainAnnouncementChannelsAsync(deleted);
         await ForgetFollowsAsync(ctx, deleted);
         await DropWebhooksAsync(ctx, deleted);
+        return ChannelLayoutError.NONE;
     }
 
-    public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null)
+    public async Task<(ChannelLayoutError error, ChannelEntity? channel)> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -1007,16 +1002,17 @@ public partial class SpaceGrain(
         );
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return (ChannelLayoutError.NO_PERMISSION, null);
 
-        var name = RequireName(input.Name);
-        RequireDescription(input.Description, MaxChannelDescriptionLength);
+        if (ValidName(input.Name) is not { } name || !ValidDescription(input.Description, MaxChannelDescriptionLength)
+         || !Enum.IsDefined(input.ChannelType))
+            return (ChannelLayoutError.INVALID_DATA, null);
 
-        if (!Enum.IsDefined(input.ChannelType))
-            throw new ArgumentException($"Unknown channel type {input.ChannelType}");
+        if (!await IsGroupInSpaceAsync(ctx, spaceId, groupId))
+            return (ChannelLayoutError.NOT_FOUND, null);
 
-        await RequireGroupInSpace(ctx, spaceId, groupId);
-        var id = await RequireChannelIdAsync(ctx, spaceId, channelId);
+        if (await ChannelIdAsync(ctx, spaceId, channelId) is not { } id)
+            return (ChannelLayoutError.INVALID_DATA, null);
 
         var lastChannel = await ctx.Set<ChannelEntity>()
            .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == groupId)
@@ -1072,10 +1068,10 @@ public partial class SpaceGrain(
         await Fire(new ChannelCreated(spaceId, channel.ToDto()));
 
         // Without the overwrites: the entity crosses the grain boundary and they do not deserialize.
-        return channel with { EntitlementOverwrites = new List<ChannelEntitlementOverwriteEntity>() };
+        return (ChannelLayoutError.NONE, channel with { EntitlementOverwrites = new List<ChannelEntitlementOverwriteEntity>() });
     }
 
-    public async Task MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId)
+    public async Task<ChannelLayoutError> MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -1084,12 +1080,13 @@ public partial class SpaceGrain(
 
         var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
         if (channel == null || channel.SpaceId != spaceId)
-            return;
+            return ChannelLayoutError.NOT_FOUND;
 
         if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return ChannelLayoutError.NO_PERMISSION;
 
-        await RequireGroupInSpace(ctx, spaceId, targetGroupId);
+        if (!await IsGroupInSpaceAsync(ctx, spaceId, targetGroupId))
+            return ChannelLayoutError.NOT_FOUND;
 
         channel.ChannelGroupId = targetGroupId;
 
@@ -1123,7 +1120,7 @@ public partial class SpaceGrain(
                 : (FractionalIndex?)null;
 
             if (afterIndex != null && beforeIndex != null && afterIndex.Value.CompareTo(beforeIndex.Value) >= 0)
-                return;
+                return ChannelLayoutError.NONE;
 
             if (afterIndex == null && beforeIndex is { IsMin: true })
             {
@@ -1159,9 +1156,10 @@ public partial class SpaceGrain(
 
         await Invalidate();
         await Fire(new ChannelReordered(spaceId, channelId, targetGroupId, channel.FractionalIndex));
+        return ChannelLayoutError.NONE;
     }
 
-    public async Task DeleteChannel(Guid channelId)
+    public async Task<ChannelLayoutError> DeleteChannel(Guid channelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -1170,10 +1168,10 @@ public partial class SpaceGrain(
 
         var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
         if (channel == null || channel.SpaceId != spaceId)
-            return;
+            return ChannelLayoutError.NONE;
 
         if (!await entitlementChecker.HasChannelAccessAsync(spaceId, channelId, callerId, ArgonEntitlement.ManageChannels))
-            throw new UnauthorizedAccessException("No permission to manage channels");
+            return ChannelLayoutError.NO_PERMISSION;
 
         await TeardownVoiceAsync(channel);
         ctx.Set<ChannelEntity>().Remove(channel);
@@ -1184,6 +1182,7 @@ public partial class SpaceGrain(
         await ForgetMainAnnouncementChannelsAsync([channelId]);
         await ForgetFollowsAsync(ctx, [channelId]);
         await DropWebhooksAsync(ctx, [channelId]);
+        return ChannelLayoutError.NONE;
     }
 
     public async Task UntargetChannelAsync(Guid channelId)
@@ -1365,7 +1364,7 @@ public partial class SpaceGrain(
         }
     }
 
-    public async ValueTask CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default)
+    public async ValueTask<SpaceManageError> CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default)
     {
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
@@ -1380,7 +1379,7 @@ public partial class SpaceGrain(
             ct);
 
         if (!hasPermission)
-            throw new UnauthorizedAccessException("No permission to manage server");
+            return SpaceManageError.NO_PERMISSION;
 
         var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(callerId);
         var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
@@ -1401,11 +1400,12 @@ public partial class SpaceGrain(
                     spaceId, callerId, fileInfo.FileId, modResult.StagesUsed,
                     FormatScores(modResult.Scores), FormatScores(modResult.RefinedScores));
 
-                throw new ContentViolationException("Space avatar rejected by content moderation");
+                return SpaceManageError.CONTENT_REJECTED;
             }
         }
 
         await UpdateFileIdFor(kind, fileInfo.FileId, ct);
+        return SpaceManageError.NONE;
     }
 
     private async ValueTask UpdateFileIdFor(SpaceFileKind kind, Guid fileId, CancellationToken ct = default)

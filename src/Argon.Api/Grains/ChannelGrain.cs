@@ -1236,12 +1236,12 @@ public partial class ChannelGrain(
     /// what should not be punished.
     /// </para>
     /// </remarks>
-    private void EnforceChannelCap()
+    private bool TakeChannelCap()
     {
         var limit = messageOptions.Value.PerChannelPerSecond;
 
         if (limit <= 0)
-            return;
+            return true;
 
         var now = DateTimeOffset.UtcNow;
 
@@ -1251,21 +1251,18 @@ public partial class ChannelGrain(
             activation.State.CapAccepted = 0;
         }
 
-        if (++activation.State.CapAccepted > limit)
-            throw new InvalidOperationException(
-                $"this channel is accepting at most {limit} message(s) per second right now");
+        return ++activation.State.CapAccepted <= limit;
     }
 
-    private async Task EnforceSlowModeAsync(Guid senderId, Guid channelId)
+    private async Task<bool> IsSlowModeHoldingAsync(Guid senderId, Guid channelId)
     {
         if (_self.SlowMode is not { } window || window <= TimeSpan.Zero)
-            return;
+            return false;
 
         if (await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.ManageMessages))
-            return;
+            return false;
 
-        if (activation.State.LastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
-            throw new SlowModeException();
+        return activation.State.LastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window;
     }
 
     /// <summary>
@@ -1330,9 +1327,15 @@ public partial class ChannelGrain(
 
         try
         {
-            var code = await GrainFactory.GetGrain<IServerInvitesGrain>(SpaceId)
+            var (error, code) = await GrainFactory.GetGrain<IServerInvitesGrain>(SpaceId)
                .CreateInviteLinkAsync(callerId, expiration, maxUses, channelId);
-            return code.inviteCode;
+
+            return error switch
+            {
+                SpaceManageError.NONE          => code.inviteCode,
+                SpaceManageError.NO_PERMISSION => VoiceInviteError.INSUFFICIENT_PERMISSIONS,
+                _                              => VoiceInviteError.INTERNAL_ERROR
+            };
         }
         catch (Exception e)
         {
@@ -1357,40 +1360,52 @@ public partial class ChannelGrain(
         return messages;
     }
 
-    public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null)
+    public async Task<(SendMessageError error, long messageId)> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo,
+        List<ControlRowV1>? controls = null)
     {
         if (_self.ChannelType is not (ChannelType.Text or ChannelType.Announcement))
-            throw new InvalidOperationException("Channel is not text");
+            return (SendMessageError.NOT_TEXT_CHANNEL, 0);
 
         if (_self.ChannelType == ChannelType.Announcement && this.IsBotCaller())
-            throw new UnauthorizedAccessException("Bots cannot post in announcement channels");
+            return (SendMessageError.BOTS_NOT_ALLOWED, 0);
 
         if (text?.Length > messageOptions.Value.MaxTextLength)
-            throw new InvalidOperationException($"Message text is longer than {messageOptions.Value.MaxTextLength} characters");
+            return (SendMessageError.TEXT_TOO_LONG, 0);
 
         if (controls is { Count: > 0 })
-            ControlRowV1.ValidateRows(controls);
-        
+        {
+            try
+            {
+                ControlRowV1.ValidateRows(controls);
+            }
+            catch (ArgumentException)
+            {
+                return (SendMessageError.INVALID_DATA, 0);
+            }
+        }
+
         var sw = Stopwatch.StartNew();
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
 
         // Before the cap, so a caller who may not post cannot use up the channel's allowance.
         if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.SendMessages))
-            throw new UnauthorizedAccessException("No permission to send messages in this channel");
+            return (SendMessageError.NO_PERMISSION, 0);
 
-        EnforceChannelCap();
+        if (!TakeChannelCap())
+            return (SendMessageError.CHANNEL_CAP, 0);
 
-        await EnforceSlowModeAsync(senderId, channelId);
+        if (await IsSlowModeHoldingAsync(senderId, channelId))
+            return (SendMessageError.SLOW_MODE, 0);
 
         if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif))
         {
             if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.AttachFiles))
-                throw new InvalidOperationException("User does not have AttachFiles permission");
+                return (SendMessageError.NO_ATTACH_PERMISSION, 0);
 
             var attachmentCount = entities.Count(e => e is MessageEntityAttachment or MessageEntityGif);
             if (attachmentCount > 10)
-                throw new InvalidOperationException("Maximum 10 attachments per message");
+                return (SendMessageError.TOO_MANY_ATTACHMENTS, 0);
         }
         
         var sanitized = SanitizeEntities(entities ?? []);
@@ -1416,7 +1431,7 @@ public partial class ChannelGrain(
         {
             sw.Stop();
             logger.LogInformation("Duplicate message detected, returning existing MessageId={MessageId}", dup.Value);
-            return dup.Value;
+            return (SendMessageError.NONE, dup.Value);
         }
 
         var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
@@ -1472,7 +1487,7 @@ public partial class ChannelGrain(
         // Track message sent for stats
         _ = TrackMessageSentAsync(senderId);
 
-        return msgId;
+        return (SendMessageError.NONE, msgId);
     }
 
     /// <summary>

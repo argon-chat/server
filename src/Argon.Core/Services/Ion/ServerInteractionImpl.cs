@@ -37,38 +37,50 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
            .GetGrain<ISpaceGrain>(spaceId)
            .GetMember(userId);
 
-    public async Task<ServerInvites> GetInviteCodes(Guid spaceId, CancellationToken ct = default)
+    public async Task<IGetInviteCodesResult> GetInviteCodes(Guid spaceId, CancellationToken ct = default)
     {
-        var result = await this.GetGrain<IServerInvitesGrain>(spaceId)
+        var (error, result) = await this.GetGrain<IServerInvitesGrain>(spaceId)
            .GetInviteCodes(this.GetUserId());
+
+        if (error is not SpaceManageError.NONE)
+            return new FailedGetInviteCodes(error);
+
         var invites = new IonArray<InviteCodeEntity>(result.Select(x
             => new InviteCodeEntity(new InviteCode(x.code.inviteCode), x.spaceId, x.issuerId, x.expireTime.UtcDateTime,
                 (ulong)x.used, x.maxUses, x.createdAt.UtcDateTime)));
         var domain = configuration["Invites:Domain"] ?? DefaultInviteDomain;
-        return new ServerInvites(domain, invites);
+        return new SuccessGetInviteCodes(new ServerInvites(domain, invites));
     }
 
-    public async Task<InviteCode> CreateInviteCode(Guid spaceId, int expireMinutes, int maxUses, CancellationToken ct = default)
+    public async Task<ICreateInviteCodeResult> CreateInviteCode(Guid spaceId, int expireMinutes, int maxUses, CancellationToken ct = default)
     {
         // expireMinutes <= 0 means "never" — model it as a far-future timestamp so the TTL sweeper leaves it be.
         var expiration = expireMinutes <= 0
             ? TimeSpan.FromDays(365 * 100)
             : TimeSpan.FromMinutes(expireMinutes);
 
-        var result = await this
+        var (error, result) = await this
            .GetGrain<IServerInvitesGrain>(spaceId)
            .CreateInviteLinkAsync(this.GetUserId(), expiration, maxUses);
-        return new InviteCode(result.inviteCode);
+
+        return error is SpaceManageError.NONE
+            ? new SuccessCreateInviteCode(new InviteCode(result.inviteCode))
+            : new FailedCreateInviteCode(error);
     }
 
-    public async Task RevokeInviteCode(Guid spaceId, InviteCode code, CancellationToken ct = default)
-        => await this.GetGrain<IServerInvitesGrain>(spaceId).RevokeInviteAsync(this.GetUserId(), code.inviteCode);
+    public async Task<ISpaceManageResult> RevokeInviteCode(Guid spaceId, InviteCode code, CancellationToken ct = default)
+        => Manage(await this.GetGrain<IServerInvitesGrain>(spaceId).RevokeInviteAsync(this.GetUserId(), code.inviteCode));
 
-    public async Task UpdateSpaceInfo(Guid spaceId, string name, string description, CancellationToken ct = default)
-        => await this.GetGrain<ISpaceGrain>(spaceId).UpdateSpace(new ServerInput(name, description, null));
+    public async Task<ISpaceManageResult> UpdateSpaceInfo(Guid spaceId, string name, string description, CancellationToken ct = default)
+        => Manage(await this.GetGrain<ISpaceGrain>(spaceId).UpdateSpace(new ServerInput(name, description, null)));
 
-    public async Task SetBoostStripHidden(Guid spaceId, bool hidden, CancellationToken ct = default)
-        => await this.GetGrain<ISpaceGrain>(spaceId).SetBoostStripHidden(hidden);
+    public async Task<ISpaceManageResult> SetBoostStripHidden(Guid spaceId, bool hidden, CancellationToken ct = default)
+        => Manage(await this.GetGrain<ISpaceGrain>(spaceId).SetBoostStripHidden(hidden));
+
+    private static ISpaceManageResult Manage(SpaceManageError error)
+        => error is SpaceManageError.NONE
+            ? new SuccessSpaceManage()
+            : new FailedSpaceManage(error);
 
     public async Task<SpaceStats> GetSpaceStats(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).GetSpaceStats();
@@ -133,8 +145,8 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
         return new FailedUploadFile(result.Error);
     }
 
-    public async Task CompleteUploadSpaceProfileHeader(Guid spaceId, Guid blobId, CancellationToken ct = default)
-        => await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.ProfileHeader, ct);
+    public async Task<ISpaceManageResult> CompleteUploadSpaceProfileHeader(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => Manage(await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.ProfileHeader, ct));
 
     public async Task<IUploadFileResult> BeginUploadSpaceAvatar(Guid spaceId, CancellationToken ct = default)
     {
@@ -148,8 +160,8 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
         return new FailedUploadFile(result.Error);
     }
 
-    public async Task CompleteUploadSpaceAvatar(Guid spaceId, Guid blobId, CancellationToken ct = default)
-        => await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.Avatar, ct);
+    public async Task<ISpaceManageResult> CompleteUploadSpaceAvatar(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => Manage(await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.Avatar, ct));
 
     public async Task<IUploadFileResult> BeginUploadInviteImage(Guid spaceId, CancellationToken ct = default)
     {
@@ -163,6 +175,6 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
         return new FailedUploadFile(result.Error);
     }
 
-    public async Task CompleteUploadInviteImage(Guid spaceId, Guid blobId, CancellationToken ct = default)
-        => await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.InviteImage, ct);
+    public async Task<ISpaceManageResult> CompleteUploadInviteImage(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => Manage(await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.InviteImage, ct));
 }

@@ -5,8 +5,8 @@ using Microsoft.Extensions.Caching.Memory;
 
 public interface ITeamAccessChecker
 {
-    Task EnsureTeamMemberAsync(Guid userId, Guid teamId, CancellationToken ct);
-    Task EnsureTeamOwnerAsync(Guid userId, Guid teamId, CancellationToken ct);
+    Task<bool> IsTeamMemberAsync(Guid userId, Guid teamId, CancellationToken ct);
+    Task<bool> IsTeamOwnerAsync(Guid userId, Guid teamId, CancellationToken ct);
 }
 
 /// <summary>
@@ -27,17 +27,11 @@ public sealed class TeamAccessChecker(
 
     private IDevTeamsGrain Teams => cluster.GetGrain<IDevTeamsGrain>(Guid.Empty);
 
-    public async Task EnsureTeamMemberAsync(Guid userId, Guid teamId, CancellationToken ct)
-    {
-        if (!await IsAllowed($"team_access:member:{teamId}:{userId}", () => Teams.IsUserInTeamAsync(userId, teamId, ct)))
-            throw new UnauthorizedAccessException("You are not a member of this team.");
-    }
+    public Task<bool> IsTeamMemberAsync(Guid userId, Guid teamId, CancellationToken ct)
+        => IsAllowed($"team_access:member:{teamId}:{userId}", () => Teams.IsUserInTeamAsync(userId, teamId, ct));
 
-    public async Task EnsureTeamOwnerAsync(Guid userId, Guid teamId, CancellationToken ct)
-    {
-        if (!await IsAllowed($"team_access:owner:{teamId}:{userId}", () => Teams.IsUserTeamOwnerAsync(userId, teamId, ct)))
-            throw new UnauthorizedAccessException("You are not the owner of this team.");
-    }
+    public Task<bool> IsTeamOwnerAsync(Guid userId, Guid teamId, CancellationToken ct)
+        => IsAllowed($"team_access:owner:{teamId}:{userId}", () => Teams.IsUserTeamOwnerAsync(userId, teamId, ct));
 
     private async Task<bool> IsAllowed(string key, Func<Task<bool>> resolve)
     {

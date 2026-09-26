@@ -10,10 +10,10 @@ public interface IEntitlementGrain : IGrainWithGuidKey
     Task<List<ArchetypeGroup>> GetFullyServerArchetypes();
 
     [Alias(nameof(CreateArchetypeAsync))]
-    Task<Archetype> CreateArchetypeAsync( string name);
+    Task<(ArchetypeError error, Archetype? archetype)> CreateArchetypeAsync(string name);
 
     [Alias(nameof(UpdateArchetypeAsync))]
-    Task<Archetype?> UpdateArchetypeAsync(Archetype dto);
+    Task<(ArchetypeError error, Archetype? archetype)> UpdateArchetypeAsync(Archetype dto);
 
     /// <summary>Removes an archetype and every grant of it. <see cref="ArchetypeError.NONE"/> on success.</summary>
     [Alias(nameof(DeleteArchetypeAsync))]

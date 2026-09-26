@@ -53,12 +53,15 @@ public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
            .Handle(async (_, request) =>
             {
                 var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
-                var msgId   = await channel.SendMessage(
+                var (error, msgId) = await channel.SendMessage(
                     request.Text,
                     request.Entities ?? [],
                     request.RandomId,
                     request.ReplyTo,
                     request.Controls);
+
+                if (error is not SendMessageError.NONE)
+                    throw new InvalidOperationException($"message refused: {error}");
 
                 return new SendMessageResponse(msgId);
             });

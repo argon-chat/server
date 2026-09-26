@@ -20,9 +20,6 @@ public interface IChannelComposerGrain : IGrainWithGuidKey
     Task<List<ScheduledPost>> GetScheduledPostsAsync(Guid spaceId);
 }
 
-/// <summary>SendMessage refused by the sender's slow-mode cooldown. A scheduled publish is held, not failed, on it.</summary>
-public sealed class SlowModeException() : InvalidOperationException("Slow mode is active in this channel");
-
 /// <summary>The caller's composer drafts, keyed by the caller's user id.</summary>
 [Alias("Argon.Grains.Interfaces.IMessageDraftsGrain")]
 public interface IMessageDraftsGrain : IGrainWithGuidKey

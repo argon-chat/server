@@ -33,13 +33,13 @@ public sealed record InviteTarget(
 public interface IServerInvitesGrain : IGrainWithGuidKey
 {
     [Alias("CreateInviteLinkAsync")]
-    Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses, Guid? channelId = null);
+    Task<(SpaceManageError error, InviteCode code)> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses, Guid? channelId = null);
 
     [Alias("GetInviteCodes")]
-    Task<List<InviteCodeEntityData>> GetInviteCodes(Guid callerId);
+    Task<(SpaceManageError error, List<InviteCodeEntityData> codes)> GetInviteCodes(Guid callerId);
 
     [Alias("RevokeInviteAsync")]
-    Task RevokeInviteAsync(Guid callerId, string inviteCode);
+    Task<SpaceManageError> RevokeInviteAsync(Guid callerId, string inviteCode);
 
 
     public const string StorageId = $"{nameof(IServerInvitesGrain)}";

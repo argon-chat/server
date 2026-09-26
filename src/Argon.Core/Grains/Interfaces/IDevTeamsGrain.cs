@@ -84,7 +84,7 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
     Task<CheckBotUsernameValid> CheckUsernameForBotAsync(string username, CancellationToken ct = default);
 
     [Alias(nameof(GetAppDetailsAsync))]
-    Task<AppDetails> GetAppDetailsAsync(Guid teamId, Guid appId, CancellationToken ct = default);
+    Task<(AppManagementError error, AppDetails? app)> GetAppDetailsAsync(Guid teamId, Guid appId, CancellationToken ct = default);
 
     [Alias(nameof(GetAppLoginCheckInfoAsync))]
     Task<AppLoginCheckInfo?> GetAppLoginCheckInfoAsync(string clientId, CancellationToken ct = default);
@@ -107,29 +107,29 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
     Task<AppOAuthDisplayInfo?> GetAppOAuthDisplayInfoAsync(string clientId, CancellationToken ct = default);
 
     [Alias(nameof(RegenerateBotTokenAsync))]
-    Task<string> RegenerateBotTokenAsync(Guid teamId, Guid appId, CancellationToken ct = default);
+    Task<(AppManagementError error, string? token)> RegenerateBotTokenAsync(Guid teamId, Guid appId, CancellationToken ct = default);
 
     [Alias(nameof(UpdateScopeAsync))]
-    Task UpdateScopeAsync(Guid teamId, Guid appId, ScopeKeyValue scope, CancellationToken ct = default);
+    Task<AppManagementError> UpdateScopeAsync(Guid teamId, Guid appId, ScopeKeyValue scope, CancellationToken ct = default);
 
     [Alias(nameof(AddRedirectAsync))]
     Task<AddRedirectResult> AddRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default);
 
     [Alias(nameof(RemoveRedirectAsync))]
-    Task RemoveRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default);
+    Task<AppManagementError> RemoveRedirectAsync(Guid teamId, Guid appId, string redirect, CancellationToken ct = default);
 
     /// <summary>
-    /// Moves a bot through its lifecycle on the team's behalf. <see langword="false"/> when the bot is
+    /// Moves a bot through its lifecycle on the team's behalf. <see cref="AppManagementError.SUSPENDED_BY_OPERATOR"/> when the bot is
     /// under a suspension the team did not impose, which only an operator lifts.
     /// </summary>
     [Alias(nameof(SetBotLifecycleAsync))]
-    Task<bool> SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default);
+    Task<AppManagementError> SetBotLifecycleAsync(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct = default);
 
     [Alias(nameof(UpdateBotEntitlementsAsync))]
-    Task UpdateBotEntitlementsAsync(Guid teamId, Guid appId, ArgonEntitlement entitlements, CancellationToken ct = default);
+    Task<AppManagementError> UpdateBotEntitlementsAsync(Guid teamId, Guid appId, ArgonEntitlement entitlements, CancellationToken ct = default);
 
     [Alias(nameof(SetBotOAuthAsync))]
-    Task SetBotOAuthAsync(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default);
+    Task<AppManagementError> SetBotOAuthAsync(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default);
 }
 
 /// <summary>

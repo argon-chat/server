@@ -15,53 +15,72 @@ public sealed class AppManagementService(
 {
     private IDevTeamsGrain Teams => this.GetGrain<IDevTeamsGrain>(Guid.Empty);
 
-    public async Task<AppDetails> CreateBotApp(Guid teamId, string name, string username, CancellationToken ct = default)
+    public async Task<IAppDetailsResult> CreateBotApp(Guid teamId, string name, string username, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return new FailedAppDetails(AppManagementError.NO_PERMISSION);
 
-        // Checked here rather than left to the grain so the client gets the protocol error it knows
-        // how to render; the grain keeps its own guard for the race between check and insert.
+        // Checked here rather than left to the grain so the client gets an error it knows how to
+        // render; the grain keeps its own guard for the race between check and insert.
         if (await Teams.CheckUsernameForBotAsync(username, ct) is not CheckBotUsernameValid.OK)
-            throw new IonRequestException(new IonProtocolError("VALIDATION_FAILED", "bad payload"));
+            return new FailedAppDetails(AppManagementError.INVALID_USERNAME);
 
-        return await Teams.CreateBotAppAsync(teamId, name, username, ct);
+        return new SuccessAppDetails(await Teams.CreateBotAppAsync(teamId, name, username, ct));
     }
 
-    public async Task<AppDetails> CreateClientApp(Guid teamId, string name, ClientAppPlatform platform, CancellationToken ct = default)
+    public async Task<IAppDetailsResult> CreateClientApp(Guid teamId, string name, ClientAppPlatform platform, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        return await Teams.CreateClientAppAsync(teamId, name, platform, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return new FailedAppDetails(AppManagementError.NO_PERMISSION);
+
+        return new SuccessAppDetails(await Teams.CreateClientAppAsync(teamId, name, platform, ct));
     }
 
-    public async Task<AppDetails> GetAppDetails(Guid teamId, Guid appId, CancellationToken ct = default)
+    public async Task<IAppDetailsResult> GetAppDetails(Guid teamId, Guid appId, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        return await Teams.GetAppDetailsAsync(teamId, appId, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return new FailedAppDetails(AppManagementError.NO_PERMISSION);
+
+        var (error, app) = await Teams.GetAppDetailsAsync(teamId, appId, ct);
+
+        return error is AppManagementError.NONE
+            ? new SuccessAppDetails(app!)
+            : new FailedAppDetails(error);
     }
 
     public Task<CheckBotUsernameValid> CheckUsernameForBot(Guid teamId, string username, CancellationToken ct = default)
         => Teams.CheckUsernameForBotAsync(username, ct);
 
-    public async Task<string> RegenerateBotToken(Guid teamId, Guid appId, CancellationToken ct = default)
+    public async Task<IRegenerateBotTokenResult> RegenerateBotToken(Guid teamId, Guid appId, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        return await Teams.RegenerateBotTokenAsync(teamId, appId, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return new FailedRegenerateBotToken(AppManagementError.NO_PERMISSION);
+
+        var (error, token) = await Teams.RegenerateBotTokenAsync(teamId, appId, ct);
+
+        return error is AppManagementError.NONE
+            ? new SuccessRegenerateBotToken(token!)
+            : new FailedRegenerateBotToken(error);
     }
 
-    public async Task UpdateScope(Guid teamId, Guid appId, ScopeKeyValue scope, CancellationToken ct = default)
+    public async Task<IAppManagementResult> UpdateScope(Guid teamId, Guid appId, ScopeKeyValue scope, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        await Teams.UpdateScopeAsync(teamId, appId, scope, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return Managed(AppManagementError.NO_PERMISSION);
+
+        return Managed(await Teams.UpdateScopeAsync(teamId, appId, scope, ct));
     }
 
     public async Task<AddRedirectResult> AddRedirect(Guid teamId, Guid appId, string redirect, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return new AddRedirectResult(false, "You are not a member of this team.");
 
         // Which rules apply depends on where the application runs, so the app is read before its
-        // redirect is judged. It also throws when the app is not this team's, which is the same
+        // redirect is judged. It is also refused when the app is not this team's, which is the same
         // guard the grain applies to the write below.
-        var app = await Teams.GetAppDetailsAsync(teamId, appId, ct);
+        if (await Teams.GetAppDetailsAsync(teamId, appId, ct) is not (AppManagementError.NONE, { } app))
+            return new AddRedirectResult(false, "App not found.");
 
         // The validator dials the redirect host to inspect its certificate. That outbound connection
         // is made from the console, which is a client role, so a hostile redirect target never gets
@@ -72,34 +91,40 @@ public sealed class AppManagementService(
         return await Teams.AddRedirectAsync(teamId, appId, redirect, ct);
     }
 
-    public async Task RemoveRedirect(Guid teamId, Guid appId, string redirect, CancellationToken ct = default)
+    public async Task<IAppManagementResult> RemoveRedirect(Guid teamId, Guid appId, string redirect, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        await Teams.RemoveRedirectAsync(teamId, appId, redirect, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return Managed(AppManagementError.NO_PERMISSION);
+
+        return Managed(await Teams.RemoveRedirectAsync(teamId, appId, redirect, ct));
     }
 
     public Task UpdateRedirects(Guid teamId, Guid appId, IonArray<string> redirects, CancellationToken ct = default)
         => throw new NotImplementedException();
 
-    public Task PublishBot(Guid teamId, Guid appId, CancellationToken ct = default)
+    public Task<IAppManagementResult> PublishBot(Guid teamId, Guid appId, CancellationToken ct = default)
         => SetLifecycle(teamId, appId, BotLifecycleState.Published, ct);
 
-    public Task UnpublishBot(Guid teamId, Guid appId, CancellationToken ct = default)
+    public Task<IAppManagementResult> UnpublishBot(Guid teamId, Guid appId, CancellationToken ct = default)
         => SetLifecycle(teamId, appId, BotLifecycleState.Development, ct);
 
-    public Task SuspendBot(Guid teamId, Guid appId, CancellationToken ct = default)
+    public Task<IAppManagementResult> SuspendBot(Guid teamId, Guid appId, CancellationToken ct = default)
         => SetLifecycle(teamId, appId, BotLifecycleState.Suspended, ct);
 
-    public async Task UpdateBotEntitlements(Guid teamId, Guid appId, ulong entitlements, CancellationToken ct = default)
+    public async Task<IAppManagementResult> UpdateBotEntitlements(Guid teamId, Guid appId, ulong entitlements, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        await Teams.UpdateBotEntitlementsAsync(teamId, appId, (ArgonEntitlement)entitlements, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return Managed(AppManagementError.NO_PERMISSION);
+
+        return Managed(await Teams.UpdateBotEntitlementsAsync(teamId, appId, (ArgonEntitlement)entitlements, ct));
     }
 
-    public async Task SetBotOAuth(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default)
+    public async Task<IAppManagementResult> SetBotOAuth(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        await Teams.SetBotOAuthAsync(teamId, appId, enabled, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return Managed(AppManagementError.NO_PERMISSION);
+
+        return Managed(await Teams.SetBotOAuthAsync(teamId, appId, enabled, ct));
     }
 
     public Task<IUploadAvatarResult> BeginUploadAppAvatar(Guid teamId, CancellationToken ct = default)
@@ -117,27 +142,36 @@ public sealed class AppManagementService(
             ? NativeAppRedirectValidator.ForNativeApps()
             : CompositeOAuthRedirectValidator.ValidatorForOAuthApps();
 
-    private async Task SetLifecycle(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct)
+    private async Task<IAppManagementResult> SetLifecycle(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return Managed(AppManagementError.NO_PERMISSION);
 
-        if (!await Teams.SetBotLifecycleAsync(teamId, appId, state, ct))
-            throw new IonRequestException(new IonProtocolError("SUSPENDED_BY_OPERATOR",
-                "This bot was suspended by Argon staff, and only they can lift the suspension."));
+        return Managed(await Teams.SetBotLifecycleAsync(teamId, appId, state, ct));
     }
+
+    private Task<bool> IsMemberAsync(Guid teamId, CancellationToken ct)
+        => accessChecker.IsTeamMemberAsync(this.GetUserId(), teamId, ct);
+
+    private static IAppManagementResult Managed(AppManagementError error)
+        => error is AppManagementError.NONE
+            ? new SuccessAppManagement()
+            : new FailedAppManagement(error);
 
     /// <summary>
     /// Issues the browser cookie that lets a developer exercise their own app against the live
     /// domain without going through a full sign-in.
     /// </summary>
-    public async Task EnsureCoockiesForApp(Guid teamId, Guid appId, CancellationToken ct = default)
+    public async Task<IAppManagementResult> EnsureCoockiesForApp(Guid teamId, Guid appId, CancellationToken ct = default)
     {
         if (accessor.HttpContext is null)
             throw new InvalidOperationException("HttpContext is not available");
 
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
+        if (!await IsMemberAsync(teamId, ct))
+            return Managed(AppManagementError.NO_PERMISSION);
 
-        var details = await Teams.GetAppDetailsAsync(teamId, appId, ct);
+        if (await Teams.GetAppDetailsAsync(teamId, appId, ct) is not (AppManagementError.NONE, { } details))
+            return Managed(AppManagementError.NOT_FOUND);
 
         var userAgent = accessor.HttpContext.Request.Headers.UserAgent.ToString();
         var deviceId  = Convert.ToBase64String(Encoding.UTF8.GetBytes(string.IsNullOrEmpty(userAgent) ? "unknown" : userAgent));
@@ -158,6 +192,8 @@ public sealed class AppManagementService(
             Path     = "/",
             SameSite = SameSiteMode.None
         });
+
+        return Managed(AppManagementError.NONE);
     }
 
     private static (Guid SessionId, long UnixTime) GenerateHashSession(string deviceId)

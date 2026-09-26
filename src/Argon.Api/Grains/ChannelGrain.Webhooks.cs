@@ -123,14 +123,8 @@ public partial class ChannelGrain : IChannelWebhooksGrain
         if (string.IsNullOrWhiteSpace(text) || text.Length > messageOptions.Value.MaxTextLength)
             return WebhookPostOutcome.Invalid;
 
-        try
-        {
-            EnforceChannelCap();
-        }
-        catch (InvalidOperationException)
-        {
+        if (!TakeChannelCap())
             return WebhookPostOutcome.ChannelBusy;
-        }
 
         var channelId = this.GetPrimaryKey();
         var now       = DateTimeOffset.UtcNow;

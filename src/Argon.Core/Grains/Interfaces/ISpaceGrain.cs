@@ -14,7 +14,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task<SpaceEntity> GetSpace();
 
     [Alias(nameof(UpdateSpace))]
-    Task<SpaceEntity> UpdateSpace(ServerInput input);
+    Task<SpaceManageError> UpdateSpace(ServerInput input);
 
     [Alias(nameof(DeleteSpace))]
     Task DeleteSpace();
@@ -26,30 +26,30 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task AnnounceDeletionCancelled();
 
     [Alias(nameof(CreateChannelGroup))]
-    Task<ChannelGroupEntity> CreateChannelGroup(string name, string? description = null);
+    Task<ChannelLayoutError> CreateChannelGroup(string name, string? description = null);
 
     [Alias(nameof(MoveChannelGroup))]
-    Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId);
+    Task<ChannelLayoutError> MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId);
 
     [Alias(nameof(DeleteChannelGroup))]
-    Task DeleteChannelGroup(Guid groupId, bool deleteChannels = false);
+    Task<ChannelLayoutError> DeleteChannelGroup(Guid groupId, bool deleteChannels = false);
 
     [Alias(nameof(UpdateChannelGroup))]
-    Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null, CancellationToken ct = default);
+    Task<ChannelLayoutError> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null, CancellationToken ct = default);
 
     /// <summary>
     /// <paramref name="channelId"/> is the id the client chose (the <c>ChannelInteraction</c> service
     /// key); null or empty lets the server mint one. A chosen id must be a UUIDv7 in the space's region
-    /// and not yet taken, or the call is refused with an <see cref="ArgumentException"/>.
+    /// and not yet taken, or the call is refused with <see cref="ChannelLayoutError.INVALID_DATA"/>.
     /// </summary>
     [Alias(nameof(CreateChannel))]
-    Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null);
+    Task<(ChannelLayoutError error, ChannelEntity? channel)> CreateChannel(ChannelInput input, Guid? groupId = null, Guid? channelId = null);
 
     [Alias(nameof(MoveChannel))]
-    Task MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId);
+    Task<ChannelLayoutError> MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId);
 
     [Alias(nameof(DeleteChannel))]
-    Task DeleteChannel(Guid channelId);
+    Task<ChannelLayoutError> DeleteChannel(Guid channelId);
 
     /// <summary>The channel turned broadcast: it drops out of every other broadcast channel's targets (decision 8).</summary>
     [OneWay, Alias(nameof(UntargetChannelAsync))]
@@ -129,7 +129,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task AnnounceMemberLeftAsync(Guid userId);
 
     [Alias(nameof(SetBoostStripHidden))]
-    Task SetBoostStripHidden(bool hidden);
+    Task<SpaceManageError> SetBoostStripHidden(bool hidden);
 
     /// <summary>
     /// Flips the platform-controlled space flags on behalf of an operator. Null leaves a flag
@@ -176,7 +176,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default);
 
     [Alias(nameof(CompleteUploadSpaceFile))]
-    ValueTask CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default);
+    ValueTask<SpaceManageError> CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default);
 
     [Alias(nameof(GetInstalledBots))]
     Task<List<InstalledBotRecord>> GetInstalledBots();

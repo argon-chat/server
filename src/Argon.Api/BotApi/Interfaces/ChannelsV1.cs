@@ -66,28 +66,26 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
            .Throws(InvalidChannel)
            .Handle(async (_, request) =>
             {
-                try
-                {
-                    var channel = await grains.GetGrain<ISpaceGrain>(request.SpaceId).CreateChannel(
-                        new ChannelInput(request.Name, request.Description, request.ChannelType),
-                        request.GroupId);
+                var (error, channel) = await grains.GetGrain<ISpaceGrain>(request.SpaceId).CreateChannel(
+                    new ChannelInput(request.Name, request.Description, request.ChannelType),
+                    request.GroupId);
 
-                    return new BotChannel(
-                        channel.Id,
-                        channel.SpaceId,
-                        channel.Name,
-                        channel.Description,
-                        channel.ChannelType.ToString(),
-                        channel.ChannelGroupId);
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    throw NoManageChannels.Raise();
-                }
-                catch (ArgumentException e)
-                {
-                    throw InvalidChannel.Raise(e.Message);
-                }
+                if (error is not ChannelLayoutError.NONE)
+                    throw error switch
+                    {
+                        ChannelLayoutError.NO_PERMISSION => NoManageChannels.Raise(),
+                        ChannelLayoutError.NOT_FOUND     => InvalidChannel.Raise("Channel group not found"),
+                        ChannelLayoutError.INVALID_DATA  => InvalidChannel.Raise(),
+                        _                                => throw new InvalidOperationException($"unhandled ChannelLayoutError {error}")
+                    };
+
+                return new BotChannel(
+                    channel!.Id,
+                    channel.SpaceId,
+                    channel.Name,
+                    channel.Description,
+                    channel.ChannelType.ToString(),
+                    channel.ChannelGroupId);
             });
 
         group.Delete<DeleteChannelQuery, DeletedResponse>("/Delete")
@@ -97,15 +95,14 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
            .Throws(NoManageChannels)
            .Handle(async (_, query) =>
             {
-                try
-                {
-                    await grains.GetGrain<ISpaceGrain>(query.SpaceId).DeleteChannel(query.ChannelId);
-                    return new DeletedResponse(true);
-                }
-                catch (UnauthorizedAccessException)
-                {
+                var error = await grains.GetGrain<ISpaceGrain>(query.SpaceId).DeleteChannel(query.ChannelId);
+
+                if (error is ChannelLayoutError.NO_PERMISSION)
                     throw NoManageChannels.Raise();
-                }
+                if (error is not ChannelLayoutError.NONE)
+                    throw new InvalidOperationException($"unhandled ChannelLayoutError {error}");
+
+                return new DeletedResponse(true);
             });
     }
 }

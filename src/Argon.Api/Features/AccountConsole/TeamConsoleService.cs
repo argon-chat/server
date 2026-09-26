@@ -13,16 +13,20 @@ public sealed class TeamConsoleService(ITeamAccessChecker accessChecker) : ITeam
     public async Task<IonArray<TeamShortDetails>> GetMyTeams(CancellationToken ct = default)
         => new(await Teams.GetMyTeamsAsync(this.GetUserId(), ct));
 
-    public async Task<TeamDetails> GetTeamDetails(Guid teamId, CancellationToken ct = default)
+    public async Task<IGetTeamDetailsResult> GetTeamDetails(Guid teamId, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        return await Teams.GetTeamDetailsAsync(teamId, ct);
+        if (!await accessChecker.IsTeamMemberAsync(this.GetUserId(), teamId, ct))
+            return new FailedGetTeamDetails(TeamConsoleError.NO_PERMISSION);
+
+        return new SuccessGetTeamDetails(await Teams.GetTeamDetailsAsync(teamId, ct));
     }
 
-    public async Task<IonArray<TeamInviteInfo>> GetTeamInvites(Guid teamId, CancellationToken ct = default)
+    public async Task<IGetTeamInvitesResult> GetTeamInvites(Guid teamId, CancellationToken ct = default)
     {
-        await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
-        return new IonArray<TeamInviteInfo>(await Teams.GetTeamInvitesAsync(teamId, ct));
+        if (!await accessChecker.IsTeamMemberAsync(this.GetUserId(), teamId, ct))
+            return new FailedGetTeamInvites(TeamConsoleError.NO_PERMISSION);
+
+        return new SuccessGetTeamInvites(new IonArray<TeamInviteInfo>(await Teams.GetTeamInvitesAsync(teamId, ct)));
     }
 
     public Task<TeamDetails> CreateTeam(string name, CancellationToken ct = default)
@@ -31,7 +35,10 @@ public sealed class TeamConsoleService(ITeamAccessChecker accessChecker) : ITeam
     public async Task<InviteUserError> InviteUserToTeam(Guid teamId, string username, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await accessChecker.EnsureTeamMemberAsync(userId, teamId, ct);
+
+        if (!await accessChecker.IsTeamMemberAsync(userId, teamId, ct))
+            return InviteUserError.NO_PERMISSION;
+
         return await Teams.InviteUserToTeamAsync(teamId, userId, username, TimeSpan.FromHours(24), ct);
     }
 

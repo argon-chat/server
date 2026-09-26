@@ -14,45 +14,52 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
     // by eye — "argon.gl/v/..." is the shape the design hands out.
     private const string DefaultVoiceInviteDomain = "https://argon.gl/v";
 
-    public async Task CreateChannelGroup(Guid spaceId, Guid channelId, string name, string? description, CancellationToken ct = default)
-        => await this
+    public async Task<IChannelLayoutResult> CreateChannelGroup(Guid spaceId, Guid channelId, string name, string? description, CancellationToken ct = default)
+        => Layout(await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .CreateChannelGroup(name, description);
-        
-    public async Task MoveChannelGroup(Guid spaceId, Guid groupId, Guid? afterGroupId, Guid? beforeGroupId, CancellationToken ct = default)
-        => await this
-           .GetGrain<ISpaceGrain>(spaceId)
-           .MoveChannelGroup(groupId, afterGroupId, beforeGroupId);
+           .CreateChannelGroup(name, description));
 
-    public async Task DeleteChannelGroup(Guid spaceId, Guid channelId, Guid groupId, bool deleteChannels, CancellationToken ct = default)
-        => await this
+    public async Task<IChannelLayoutResult> MoveChannelGroup(Guid spaceId, Guid groupId, Guid? afterGroupId, Guid? beforeGroupId, CancellationToken ct = default)
+        => Layout(await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .DeleteChannelGroup(groupId, deleteChannels);
+           .MoveChannelGroup(groupId, afterGroupId, beforeGroupId));
+
+    public async Task<IChannelLayoutResult> DeleteChannelGroup(Guid spaceId, Guid channelId, Guid groupId, bool deleteChannels, CancellationToken ct = default)
+        => Layout(await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .DeleteChannelGroup(groupId, deleteChannels));
 
     // The service key is the id the client chose for the new channel; Guid.Empty leaves it to the server.
-    public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
-        => await this
+    public async Task<IChannelLayoutResult> CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
+        => Layout((await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId, channelId);
+           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId, channelId)).error);
 
-    public async Task MoveChannel(Guid spaceId, Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId, CancellationToken ct = default)
-        => await this
+    public async Task<IChannelLayoutResult> MoveChannel(Guid spaceId, Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId,
+        CancellationToken ct = default)
+        => Layout(await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .MoveChannel(channelId, targetGroupId, afterChannelId, beforeChannelId);
+           .MoveChannel(channelId, targetGroupId, afterChannelId, beforeChannelId));
 
-    public async Task DeleteChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
-        => await this
+    public async Task<IChannelLayoutResult> DeleteChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => Layout(await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .DeleteChannel(channelId);
+           .DeleteChannel(channelId));
 
     public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => new(await this.GetGrain<ISpaceReadGrain>(spaceId)
            .GetChannels());
 
-    public async Task UpdateChannelGroup(Guid spaceId, Guid channelId, Guid groupId, string? name, string? description, CancellationToken ct = default)
-        => await this
+    public async Task<IChannelLayoutResult> UpdateChannelGroup(Guid spaceId, Guid channelId, Guid groupId, string? name, string? description,
+        CancellationToken ct = default)
+        => Layout(await this
            .GetGrain<ISpaceGrain>(spaceId)
-           .UpdateChannelGroup(groupId, name, description, null, ct);
+           .UpdateChannelGroup(groupId, name, description, null, ct));
+
+    private static IChannelLayoutResult Layout(ChannelLayoutError error)
+        => error is ChannelLayoutError.NONE
+            ? new SuccessChannelLayout()
+            : new FailedChannelLayout(error);
 
     public async Task<IUpdateChannelResult> UpdateChannel(Guid spaceId, Guid channelId, string? name, string? description, int? slowModeSeconds,
         int? bitrate, CancellationToken ct = default)
@@ -128,24 +135,17 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
         return result.Select(x => x.ToDto()).ToList();
     }
 
-    public async Task<long> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities, long randomId,
+    public async Task<ISendMessageResult> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities, long randomId,
         long? replyTo, CancellationToken ct = default)
     {
         this.EnforceLockdown(LockdownSeverity.Critical);
-        return await this
+        var (error, msgId) = await this
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
-    }
 
-    public async Task<SendMessageReadback> SendMessageWithReadback(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities,
-        long randomId, long? replyTo,
-        CancellationToken ct = default)
-    {
-        this.EnforceLockdown(LockdownSeverity.Critical);
-        var msgId = await this
-           .GetGrain<IChannelGrain>(channelId)
-           .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
-        return new SendMessageReadback(msgId, channelId, spaceId, randomId);
+        return error is SendMessageError.NONE
+            ? new SuccessSendMessage(new SendMessageReadback(msgId, channelId, spaceId, randomId))
+            : new FailedSendMessage(error);
     }
 
     public async Task<IEditMessageResult> EditMessage(Guid spaceId, Guid channelId, long messageId, string text,
