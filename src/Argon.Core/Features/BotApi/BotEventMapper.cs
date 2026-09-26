@@ -8,8 +8,9 @@ public static class BotEventMapper
     public static BotChannelFullV1 FromArgonChannel(ArgonChannel ch)
         => new(ch.channelId, ch.spaceId, (BotChannelType)(int)ch.type, ch.name, ch.description);
 
+    // Bot API V1 has no Snooze: to a bot a sleeping user is Away.
     public static BotUserStatus FromUserStatus(UserStatus s)
-        => (BotUserStatus)(int)s;
+        => s is UserStatus.Snooze ? BotUserStatus.Away : (BotUserStatus)(int)s;
 
     public static BotActivityV1 FromActivityPresence(UserActivityPresence p)
         => new((BotActivityKind)(int)p.kind, (uint)p.startTimestampSeconds, p.titleName);

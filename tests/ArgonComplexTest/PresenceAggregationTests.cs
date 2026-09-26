@@ -33,6 +33,7 @@ using StackExchange.Redis;
 /// <c>Away</c> because it means the same thing said on purpose, and below the present tier because a
 /// device that is genuinely being used is the more informative answer about the account.</description></item>
 /// <item><description><c>Away</c> — derived from idleness rather than chosen.</description></item>
+/// <item><description><c>Snooze</c> — Away that has lasted an hour.</description></item>
 /// <item><description><c>Offline</c> — the floor, and reachable only when every session says so.</description></item>
 /// </list>
 ///
@@ -156,12 +157,13 @@ public class PresenceAggregationTests : TestBase
     /// </remarks>
     private static int Tier(UserStatus status) => status switch
     {
-        UserStatus.DoNotDisturb => 6,
-        UserStatus.Online       => 5,
-        UserStatus.InGame       => 4,
-        UserStatus.Listen       => 3,
-        UserStatus.TouchGrass   => 2,
-        UserStatus.Away         => 1,
+        UserStatus.DoNotDisturb => 7,
+        UserStatus.Online       => 6,
+        UserStatus.InGame       => 5,
+        UserStatus.Listen       => 4,
+        UserStatus.TouchGrass   => 3,
+        UserStatus.Away         => 2,
+        UserStatus.Snooze       => 1,
         _                       => 0 // Offline
     };
 
@@ -212,7 +214,7 @@ public class PresenceAggregationTests : TestBase
     }
 
     /// <summary>
-    /// One connected session, seven statuses: the aggregate is what that session said it was.
+    /// One connected session, eight statuses: the aggregate is what that session said it was.
     /// </summary>
     /// <remarks>
     /// With a single session there is nothing to fold and no precedence to argue about — the answer
@@ -252,7 +254,7 @@ public class PresenceAggregationTests : TestBase
     /// Same-status pairs are included deliberately — "Away on both" reading as anything but Away, or
     /// "TouchGrass on both" reading as Offline, is the multi-device shape of the same fold bug.
     ///
-    /// <para>The contract it guards (defect S1, fixed): for every one of the 28 pairs the aggregate
+    /// <para>The contract it guards (defect S1, fixed): for every one of the 36 pairs the aggregate
     /// is the higher of the two on the fixture's ladder, and no pair of connected devices reads
     /// Offline. The pairs that used to resolve to the weaker device (Away+InGame, Away+Listen,
     /// Away+TouchGrass) were the same dropped-enum-member bug seen from the side where a weaker
@@ -290,8 +292,8 @@ public class PresenceAggregationTests : TestBase
     /// back the session set, which is unordered. A third session is what makes an order-dependent
     /// fold visible: a rule that happens to be order-independent for two members need not stay so.
     ///
-    /// <para>The contract it guards (defect S1, fixed): the ladder is a total order over the seven
-    /// declared members, so every one of the 35 triples has exactly one right answer whatever order
+    /// <para>The contract it guards (defect S1, fixed): the ladder is a total order over the eight
+    /// declared members, so every one of the 56 triples has exactly one right answer whatever order
     /// the session set is walked in — including the DoNotDisturb short-circuit, which must win from
     /// every position rather than only when it is seen first.</para>
     /// </remarks>

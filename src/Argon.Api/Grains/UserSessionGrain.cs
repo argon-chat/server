@@ -1080,6 +1080,7 @@ public class UserSessionGrain(
     {
         UserStatus.Online       => "online",
         UserStatus.Away         => "away",
+        UserStatus.Snooze       => "snooze",
         UserStatus.DoNotDisturb => "dnd",
         UserStatus.Offline      => "offline",
         _                       => "online"

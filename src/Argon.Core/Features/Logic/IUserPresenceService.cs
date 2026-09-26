@@ -714,7 +714,7 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
     /// leave that rendering permanently dead.</para>
     ///
     /// <para>The ladder, strongest first — <c>DoNotDisturb</c> &gt; <c>Online</c> &gt; <c>InGame</c>
-    /// &gt; <c>Listen</c> &gt; <c>TouchGrass</c> &gt; <c>Away</c> &gt; <c>Offline</c>. DND is the one
+    /// &gt; <c>Listen</c> &gt; <c>TouchGrass</c> &gt; <c>Away</c> &gt; <c>Snooze</c> &gt; <c>Offline</c>. DND is the one
     /// explicit "do not contact me" and no other device may mask it, so it short-circuits the loop;
     /// the middle of the ladder is ordered by how present the status claims the user is, and
     /// TouchGrass sits just above Away because it means the same thing said deliberately. Equal ranks
@@ -794,13 +794,14 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
     private static int Rank(UserStatus status) => status switch
     {
         UserStatus.Offline      => 0,
-        UserStatus.Away         => 1,
-        UserStatus.TouchGrass   => 2,
-        UserStatus.Listen       => 3,
-        UserStatus.InGame       => 4,
-        UserStatus.Online       => 5,
-        UserStatus.DoNotDisturb => 6,
-        _                       => 5
+        UserStatus.Snooze       => 1,
+        UserStatus.Away         => 2,
+        UserStatus.TouchGrass   => 3,
+        UserStatus.Listen       => 4,
+        UserStatus.InGame       => 5,
+        UserStatus.Online       => 6,
+        UserStatus.DoNotDisturb => 7,
+        _                       => 6
     };
 
     private static string SessionStatusKey(Guid userId, string sessionId)
