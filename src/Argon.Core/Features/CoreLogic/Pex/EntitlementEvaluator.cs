@@ -11,21 +11,7 @@ public static class EntitlementAnalyzer
 
     public static bool HasEntitlement(SpaceMemberEntity member, IArchetypeObject obj, ArgonEntitlement target)
     {
-        var permissions = EntitlementEvaluator.GetBasePermissions(member);
-
-        foreach (var overwrite in obj.Overwrites.Where(o => o.Scope == IArchetypeScope.Archetype))
-        {
-            if (!overwrite.ArchetypeId.HasValue || member.SpaceMemberArchetypes.All(smr => smr.ArchetypeId != overwrite.ArchetypeId.Value)) continue;
-            permissions &= ~overwrite.Deny;
-            permissions |= overwrite.Allow;
-        }
-
-        foreach (var overwrite in obj.Overwrites.Where(o => o.Scope == IArchetypeScope.Member))
-        {
-            if (overwrite.SpaceMemberId != member.Id) continue;
-            permissions &= ~overwrite.Deny;
-            permissions |= overwrite.Allow;
-        }
+        var permissions = EntitlementEvaluator.ApplyPermissionOverwrites(EntitlementEvaluator.GetBasePermissions(member), member, obj);
 
         return IsEntitlementSatisfied(permissions, target);
     }
@@ -118,27 +104,10 @@ public static class EntitlementEvaluator
     public static bool HasAccessTo(ArgonEntitlement basePermissions, SpaceMemberEntity member, IArchetypeObject obj,
         ArgonEntitlement targetCheck)
     {
-        var permissions = basePermissions;
-
-        if (permissions.HasFlag(ArgonEntitlementKit.Administrator))
+        if (basePermissions.HasFlag(ArgonEntitlementKit.Administrator))
             return true;
 
-        foreach (var overwrite in obj.Overwrites.Where(o => o.Scope == IArchetypeScope.Archetype))
-        {
-            if (!overwrite.ArchetypeId.HasValue ||
-                member.SpaceMemberArchetypes.All(smr => smr.ArchetypeId != overwrite.ArchetypeId.Value))
-                continue;
-            permissions &= ~overwrite.Deny;
-            permissions |= overwrite.Allow;
-        }
-
-        foreach (var overwrite in obj.Overwrites.Where(o => o.Scope == IArchetypeScope.Member))
-        {
-            if (overwrite.SpaceMemberId != member.Id)
-                continue;
-            permissions &= ~overwrite.Deny;
-            permissions |= overwrite.Allow;
-        }
+        var permissions = ApplyPermissionOverwrites(basePermissions, member, obj);
 
         // Only an Allow makes a channel opt-in for that entitlement. A Deny for a role the member does
         // not hold must not affect them — otherwise a "Muted: deny SendMessages" role locks everyone out.
@@ -216,22 +185,40 @@ public static class EntitlementEvaluator
     public static ArgonEntitlement GetBasePermissions(SpaceMemberEntity member)
         => member.SpaceMemberArchetypes.Aggregate(ArgonEntitlement.None, (current, smr) => current | smr.Archetype.Entitlement);
 
-    public static ArgonEntitlement ApplyPermissionOverwrites(ArgonEntitlement permissions, SpaceMemberEntity member, ChannelEntity channel)
+    /// <summary>
+    /// A channel's overwrites on top of the base permissions, the same whatever order they were stored
+    /// in: "everyone" first, then every other role the member holds at once, so an allow on one beats a
+    /// deny on another, then the member's own.
+    /// </summary>
+    public static ArgonEntitlement ApplyPermissionOverwrites(ArgonEntitlement permissions, SpaceMemberEntity member, IArchetypeObject obj)
     {
-        var roleOverwrites = channel.EntitlementOverwrites
-           .Where(po => po.Scope == IArchetypeScope.Archetype)
-           .Where(po => member.SpaceMemberArchetypes.Any(smr => smr.ArchetypeId == po.ArchetypeId))
-           .ToList();
+        var everyone  = member.SpaceMemberArchetypes.FirstOrDefault(smr => smr.Archetype?.IsDefault == true)?.ArchetypeId;
+        var roleDeny  = ArgonEntitlement.None;
+        var roleAllow = ArgonEntitlement.None;
 
-        foreach (var overwrite in roleOverwrites)
+        foreach (var overwrite in obj.Overwrites)
         {
-            permissions &= ~overwrite.Deny;
-            permissions |= overwrite.Allow;
+            if (overwrite.Scope != IArchetypeScope.Archetype || overwrite.ArchetypeId is not { } archetypeId
+             || member.SpaceMemberArchetypes.All(smr => smr.ArchetypeId != archetypeId))
+                continue;
+
+            if (archetypeId == everyone)
+            {
+                permissions &= ~overwrite.Deny;
+                permissions |= overwrite.Allow;
+            }
+            else
+            {
+                roleDeny  |= overwrite.Deny;
+                roleAllow |= overwrite.Allow;
+            }
         }
 
-        var overwrites = channel.EntitlementOverwrites
-           .Where(po => po.Scope == IArchetypeScope.Member)
-           .FirstOrDefault(po => po.SpaceMemberId == member.Id);
+        permissions &= ~roleDeny;
+        permissions |= roleAllow;
+
+        var overwrites = obj.Overwrites
+           .FirstOrDefault(po => po.Scope == IArchetypeScope.Member && po.SpaceMemberId == member.Id);
 
         if (overwrites == null)
             return permissions;

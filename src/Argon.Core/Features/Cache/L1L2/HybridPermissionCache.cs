@@ -72,7 +72,7 @@ public class HybridPermissionCache(
                     {
                         x.Id,
                         Archetypes = x.SpaceMemberArchetypes
-                           .Select(a => new CachedArchetypeGrant(a.ArchetypeId, a.Archetype.Entitlement))
+                           .Select(a => new CachedArchetypeGrant(a.ArchetypeId, a.Archetype.Entitlement, a.Archetype.IsDefault))
                            .ToList()
                     })
                    .AsSingleQuery()
@@ -219,7 +219,7 @@ public interface IPermissionCache
 // refuses. Immutable so an L1 hit hands back the same instance instead of deserializing it again.
 
 [ImmutableObject(true)]
-public sealed record CachedArchetypeGrant(Guid ArchetypeId, ArgonEntitlement Entitlement);
+public sealed record CachedArchetypeGrant(Guid ArchetypeId, ArgonEntitlement Entitlement, bool IsDefault = false);
 
 [ImmutableObject(true)]
 public sealed record CachedMemberGrant(Guid? MemberId, CachedArchetypeGrant[] Archetypes)
@@ -236,7 +236,7 @@ public sealed record CachedMemberGrant(Guid? MemberId, CachedArchetypeGrant[] Ar
                 {
                     SpaceMemberId = memberId,
                     ArchetypeId   = a.ArchetypeId,
-                    Archetype     = new ArchetypeEntity { Id = a.ArchetypeId, SpaceId = spaceId, Entitlement = a.Entitlement }
+                    Archetype     = new ArchetypeEntity { Id = a.ArchetypeId, SpaceId = spaceId, Entitlement = a.Entitlement, IsDefault = a.IsDefault }
                 }).ToList()
             };
 }

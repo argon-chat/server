@@ -340,7 +340,7 @@ public class UserGrain(
                     {
                         m.Id,
                         Archetypes = m.SpaceMemberArchetypes
-                           .Select(a => new { a.ArchetypeId, a.Archetype.Entitlement })
+                           .Select(a => new { a.ArchetypeId, a.Archetype.Entitlement, a.Archetype.IsDefault })
                            .ToList()
                     })
                    .FirstOrDefault()
@@ -356,7 +356,11 @@ public class UserGrain(
         {
             Id                    = member.Id,
             SpaceMemberArchetypes = member.Archetypes
-               .Select(a => new SpaceMemberArchetypeEntity { ArchetypeId = a.ArchetypeId })
+               .Select(a => new SpaceMemberArchetypeEntity
+                {
+                    ArchetypeId = a.ArchetypeId,
+                    Archetype   = new ArchetypeEntity { Id = a.ArchetypeId, Entitlement = a.Entitlement, IsDefault = a.IsDefault }
+                })
                .ToList()
         };
 

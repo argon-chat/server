@@ -709,7 +709,7 @@ public class ChannelFollowTests : TestBase
     }
 
     [Test, CancelAfter(240_000)]
-    public async Task A_private_source_is_followed_and_kept_only_by_whoever_manages_it(CancellationToken ct = default)
+    public async Task A_private_source_is_never_followed_and_a_follow_ends_when_its_source_turns_private(CancellationToken ct = default)
     {
         var p        = await PairAsync(ct);
         var stranger = await CreateSessionAsync(ct);
@@ -731,14 +731,15 @@ public class ChannelFollowTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That(ErrorOf(reader), Is.EqualTo(FollowChannelError.SOURCE_PRIVATE),
-                "a reader of a private channel who does not manage it followed it");
+            Assert.That(ErrorOf(reader), Is.EqualTo(FollowChannelError.SOURCE_PRIVATE), "a reader of a private channel followed it");
             Assert.That(ErrorOf(outside), Is.EqualTo(FollowChannelError.NO_ACCESS_TO_SOURCE));
         });
 
+        // Managing it does not make a private channel followable either.
         await roles.UpsertArchetypeEntitlementForChannel(p.SourceSpaceId, vault, insiders.id,
             deny: ArgonEntitlement.None, allow: ArgonEntitlement.ViewChannel | ArgonEntitlement.ManageChannels, ct);
-        await FollowAsync(p.Admin, p.SourceSpaceId, vault, p.TargetSpaceId, desk, ct);
+        var manager = await FollowsOf(p.Admin).FollowChannel(p.SourceSpaceId, vault, p.TargetSpaceId, desk, ct);
+        Assert.That(ErrorOf(manager), Is.EqualTo(FollowChannelError.SOURCE_PRIVATE), "a manager of a private channel followed it");
 
         // A public source takes reading it and nothing more, until it turns private under the follow.
         var link = await FollowAsync(p, ct);
@@ -750,7 +751,7 @@ public class ChannelFollowTests : TestBase
         await DeliveredAsync(p.SourceChannelId, post, ct);
 
         Assert.That(published.targetCount, Is.EqualTo(1));
-        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.Zero, "a private post was copied out by a follower who does not manage it");
+        Assert.That(await StoredCopiesAsync([p.TargetChannelId], ct), Is.Zero, "a post was copied out of a source that turned private");
         Assert.That(await FollowExistsAsync(link.followId, ct), Is.False, "the follow survived its creator failing the rule");
     }
 

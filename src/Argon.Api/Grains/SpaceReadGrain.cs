@@ -500,7 +500,8 @@ public sealed class SpaceReadGrain(
         return new CachedMember(member.memberId,
             granted.Where(a => held.Contains(a.id))
                .Aggregate(ArgonEntitlement.None, (permissions, a) => permissions | a.entitlement),
-            held);
+            held,
+            granted.FirstOrDefault(a => a.isDefault)?.id);
     }
 }
 
@@ -513,13 +514,18 @@ public sealed class SpaceReadGrain(
 /// serializer refuses the graph outright. Projecting also keeps the entry down to what is actually
 /// read, a few hundred bytes rather than the whole object graph.
 /// </remarks>
-public sealed record CachedMember(Guid Id, ArgonEntitlement BasePermissions, List<Guid> ArchetypeIds)
+public sealed record CachedMember(Guid Id, ArgonEntitlement BasePermissions, List<Guid> ArchetypeIds, Guid? EveryoneId = null)
 {
+    // The evaluator tells "everyone" apart by IsDefault, which decides the order overwrites apply in.
     public SpaceMemberEntity AsEntity()
         => new()
         {
             Id                    = Id,
-            SpaceMemberArchetypes = ArchetypeIds.Select(id => new SpaceMemberArchetypeEntity { ArchetypeId = id }).ToList()
+            SpaceMemberArchetypes = ArchetypeIds.Select(id => new SpaceMemberArchetypeEntity
+            {
+                ArchetypeId = id,
+                Archetype   = new ArchetypeEntity { Id = id, IsDefault = id == EveryoneId }
+            }).ToList()
         };
 }
 

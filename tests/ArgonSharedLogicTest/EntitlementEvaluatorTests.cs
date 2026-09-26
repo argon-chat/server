@@ -535,4 +535,58 @@ public class EntitlementEvaluatorTests
             EntitlementEvaluator.IsAllowedToEdit(editor, ArgonEntitlement.ViewChannel, [editor]),
             Is.False);
     }
+
+    // ── Overwrite order ─────────────────────────────────────────────────────────────────────────
+    // The overwrites come back from the database in no particular order, and an UPDATE on Postgres
+    // moves a row to the end. The answer must not depend on it.
+
+    private static ArchetypeEntity Everyone(ArgonEntitlement entitlement)
+    {
+        var everyone = Archetype(entitlement, name: "everyone");
+        everyone.IsDefault = true;
+        return everyone;
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void A_role_allow_beats_the_everyone_deny_in_either_stored_order(bool everyoneFirst)
+    {
+        var everyone = Everyone(ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages);
+        var herald   = Archetype(ArgonEntitlement.None, name: "herald");
+
+        var deny  = ArchetypeOverwrite(everyone.Id, deny: ArgonEntitlement.SendMessages);
+        var allow = ArchetypeOverwrite(herald.Id, allow: ArgonEntitlement.SendMessages);
+
+        Assert.That(EntitlementEvaluator.HasAccessTo(Member(everyone, herald),
+            everyoneFirst ? Channel(deny, allow) : Channel(allow, deny), ArgonEntitlement.SendMessages), Is.True);
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void A_role_deny_beats_the_everyone_allow_in_either_stored_order(bool everyoneFirst)
+    {
+        var everyone = Everyone(ArgonEntitlement.ViewChannel);
+        var muted    = Archetype(ArgonEntitlement.None, name: "muted");
+
+        var allow = ArchetypeOverwrite(everyone.Id, allow: ArgonEntitlement.SendMessages);
+        var deny  = ArchetypeOverwrite(muted.Id, deny: ArgonEntitlement.SendMessages);
+
+        Assert.That(EntitlementEvaluator.HasAccessTo(Member(everyone, muted),
+            everyoneFirst ? Channel(allow, deny) : Channel(deny, allow), ArgonEntitlement.SendMessages), Is.False);
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void Between_two_roles_an_allow_beats_a_deny_in_either_stored_order(bool allowFirst)
+    {
+        var everyone = Everyone(ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages);
+        var quiet    = Archetype(ArgonEntitlement.None, name: "quiet");
+        var speaker  = Archetype(ArgonEntitlement.None, name: "speaker");
+
+        var deny  = ArchetypeOverwrite(quiet.Id, deny: ArgonEntitlement.SendMessages);
+        var allow = ArchetypeOverwrite(speaker.Id, allow: ArgonEntitlement.SendMessages);
+
+        Assert.That(EntitlementEvaluator.HasAccessTo(Member(everyone, quiet, speaker),
+            allowFirst ? Channel(allow, deny) : Channel(deny, allow), ArgonEntitlement.SendMessages), Is.True);
+    }
 }

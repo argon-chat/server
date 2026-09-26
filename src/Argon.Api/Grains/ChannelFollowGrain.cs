@@ -204,8 +204,8 @@ public static class FollowAccess
     /// every delivery. NONE when allowed.
     /// </summary>
     /// <remarks>
-    /// Reading it (ViewChannel and ReadHistory) always. A private source, one "everyone" cannot read,
-    /// also takes ManageChannels there: whether such a source may be followed at all is still open.
+    /// Reading it (ViewChannel and ReadHistory) is checked first, so a private channel cannot be probed
+    /// for; then only a public source, one "everyone" can read, may be followed at all.
     /// </remarks>
     public static async Task<FollowChannelError> CheckSourceAsync(IEntitlementChecker entitlements, Guid spaceId, Guid channelId,
         Guid userId, bool isPublic)
@@ -214,7 +214,7 @@ public static class FollowAccess
          || !await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ReadHistory))
             return FollowChannelError.NO_ACCESS_TO_SOURCE;
 
-        if (!isPublic && !await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ManageChannels))
+        if (!isPublic)
             return FollowChannelError.SOURCE_PRIVATE;
 
         return FollowChannelError.NONE;
@@ -243,7 +243,7 @@ public static class FollowAccess
                 new SpaceMemberArchetypeEntity
                 {
                     ArchetypeId = everyone.Id,
-                    Archetype   = new ArchetypeEntity { Id = everyone.Id, SpaceId = spaceId, Entitlement = everyone.Entitlement }
+                    Archetype   = new ArchetypeEntity { Id = everyone.Id, SpaceId = spaceId, Entitlement = everyone.Entitlement, IsDefault = true }
                 }
             ]
         };
