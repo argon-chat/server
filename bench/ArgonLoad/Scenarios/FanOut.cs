@@ -190,8 +190,13 @@ public sealed class FanOut(Uri target, int clients, int messages, int senders, d
 
         try
         {
-            await send.TimeAsync<object?>(async () => await sender.Service<IChannelInteraction>()
-               .SendMessage(sender.SpaceId, channel, $"{ProbePrefix}{probe}", [], Random.Shared.NextInt64(), null, ct));
+            await send.TimeAsync<object?>(async () =>
+            {
+                var sent = await sender.Service<IChannelInteraction>()
+                   .SendMessage(sender.SpaceId, channel, $"{ProbePrefix}{probe}", [], Random.Shared.NextInt64(), null, ct);
+
+                return sent as SuccessSendMessage ?? throw new InvalidOperationException($"the send was refused: {sent}");
+            });
         }
         catch
         {

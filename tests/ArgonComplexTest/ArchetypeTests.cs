@@ -86,6 +86,25 @@ public class ArchetypeTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
+    public async Task CreateArchetype_WithABlankOrOverlongName_IsRefused(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+        var before  = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+
+        var blank    = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "  ", ct);
+        var overlong = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, new string('r', 65), ct);
+        var after    = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(blank, Is.EqualTo(new FailedCreateArchetype(ArchetypeError.INVALID_DATA)));
+            Assert.That(overlong, Is.EqualTo(new FailedCreateArchetype(ArchetypeError.INVALID_DATA)));
+            Assert.That(after.Size, Is.EqualTo(before.Size), "a refused role was created anyway");
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
     public async Task GetDetailedServerArchetypes_IncludesMembership(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();

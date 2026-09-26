@@ -105,7 +105,7 @@ public class ArchetypePermissionTests : TestBase
         var memberId = await MemberIdAsync(owner, spaceId, member.UserId, ct);
         var all      = (await Roles(member).GetServerArchetypes(spaceId, ct)).Values.Select(a => a.id).ToArray();
 
-        AssertRefused(() => Roles(member).CreateArchetype(spaceId, "mine", ct).Ok(), "NO_PERMISSION");
+        Assert.That(await Roles(member).CreateArchetype(spaceId, "mine", ct), Is.EqualTo(new FailedCreateArchetype(ArchetypeError.NO_PERMISSION)));
 
         var reorder = await Roles(member).ReorderArchetypes(spaceId, new IonArray<Guid>(all), ct);
 
@@ -163,9 +163,12 @@ public class ArchetypePermissionTests : TestBase
         var spaceId  = await SpaceOfAsync(owner, ct);
         var role     = await Roles(owner).CreateArchetype(spaceId, "kept", ct).Ok();
 
-        AssertUpdateRefused(() => Roles(stranger).UpdateArchetype(spaceId, role with { name = "taken" }, ct).Ok());
-        AssertUpdateRefused(() => Roles(owner).UpdateArchetype(spaceId, role with { id = Guid.NewGuid() }, ct).Ok());
-        AssertUpdateRefused(() => Roles(owner).UpdateArchetype(spaceId, role with { name = " " }, ct).Ok());
+        Assert.That(await Roles(stranger).UpdateArchetype(spaceId, role with { name = "taken" }, ct),
+            Is.EqualTo(new FailedUpdateArchetype(ArchetypeError.NO_PERMISSION)));
+        Assert.That(await Roles(owner).UpdateArchetype(spaceId, role with { id = Guid.NewGuid() }, ct),
+            Is.EqualTo(new FailedUpdateArchetype(ArchetypeError.NOT_FOUND)));
+        Assert.That(await Roles(owner).UpdateArchetype(spaceId, role with { name = " " }, ct),
+            Is.EqualTo(new FailedUpdateArchetype(ArchetypeError.INVALID_DATA)));
 
         Assert.That((await ReadRoleAsync(owner, spaceId, role.id, ct)).name, Is.EqualTo("kept"));
     }
@@ -180,17 +183,9 @@ public class ArchetypePermissionTests : TestBase
 
         Assert.That(await Roles(owner).DeleteArchetype(spaceId, role.id, ct), Is.InstanceOf<SuccessDeleteArchetype>());
 
-        AssertUpdateRefused(() => Roles(owner).UpdateArchetype(spaceId, role with { name = "renamed" }, ct).Ok());
+        Assert.That(await Roles(owner).UpdateArchetype(spaceId, role with { name = "renamed" }, ct),
+            Is.EqualTo(new FailedUpdateArchetype(ArchetypeError.NOT_FOUND)));
     }
-
-    // Checks the code: a server crash also arrives as IonRequestException, just with INTERNAL_ERROR.
-    private static void AssertRefused(Func<Task> call, string code)
-    {
-        var refused = Assert.ThrowsAsync<IonRequestException>(async () => await call());
-        Assert.That(refused?.Error.code, Is.EqualTo(code), $"{refused?.Error}");
-    }
-
-    private static void AssertUpdateRefused(Func<Task<Archetype>> call) => AssertRefused(call, "ARCHETYPE_UPDATE_REFUSED");
 
     [Test, CancelAfter(120_000)]
     public async Task A_moderator_edits_roles_beneath_them_and_nothing_above(CancellationToken ct = default)
@@ -209,10 +204,12 @@ public class ArchetypePermissionTests : TestBase
         await GrantAsync(owner, spaceId, moderatorId, mods, ct);
 
         // Handing out a right the moderator does not hold.
-        AssertUpdateRefused(() => Roles(moderator).UpdateArchetype(spaceId, plain with { entitlement = plain.entitlement | ArgonEntitlement.ManageServer }, ct).Ok());
+        Assert.That(await Roles(moderator).UpdateArchetype(spaceId, plain with { entitlement = plain.entitlement | ArgonEntitlement.ManageServer }, ct),
+            Is.EqualTo(new FailedUpdateArchetype(ArchetypeError.NO_PERMISSION)));
 
         // Renaming a role that outranks them.
-        AssertUpdateRefused(() => Roles(moderator).UpdateArchetype(spaceId, admins with { name = "demoted" }, ct).Ok());
+        Assert.That(await Roles(moderator).UpdateArchetype(spaceId, admins with { name = "demoted" }, ct),
+            Is.EqualTo(new FailedUpdateArchetype(ArchetypeError.NO_PERMISSION)));
 
         // Granting a role that outranks them, and deleting one.
         var grantedAdmins = await Roles(moderator).SetArchetypeToMember(spaceId, moderatorId, admins.id, true, ct);

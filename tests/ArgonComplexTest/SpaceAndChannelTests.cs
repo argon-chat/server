@@ -57,11 +57,8 @@ public class SpaceAndChannelTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
 
-        Assert.DoesNotThrowAsync(async () =>
-        {
-            await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, true, ct).Ok();
-            await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, false, ct).Ok();
-        });
+        Assert.That(await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, true, ct), Is.InstanceOf<SuccessSpaceManage>());
+        Assert.That(await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, false, ct), Is.InstanceOf<SuccessSpaceManage>());
     }
 
     [Test, CancelAfter(120_000)]
@@ -231,7 +228,7 @@ public class SpaceAndChannelTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public async Task SendMessageWithReadback_ReturnsTheStoredMessage(CancellationToken ct = default)
+    public async Task SendMessage_ReturnsTheStoredMessage(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId   = await NewSpaceAsync(ct);
@@ -240,7 +237,7 @@ public class SpaceAndChannelTests : TestBase
         var randomId = Random.Shared.NextInt64();
 
         var readback = await GetChannelService(scope.ServiceProvider)
-           .SendMessageWithReadback(spaceId, channelId, "readback please", NoEntities, randomId, null, ct);
+           .SendMessage(spaceId, channelId, "readback please", NoEntities, randomId, null, ct).Readback();
 
         // The readback echoes the client's idempotency key back with the server-assigned id, which
         // is what lets a client reconcile an optimistic local message with the stored one.

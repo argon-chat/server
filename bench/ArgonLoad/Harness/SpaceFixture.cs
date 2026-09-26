@@ -45,11 +45,19 @@ public static class SpaceFixture
         var spaceId = success.space.spaceId;
 
         for (var i = 0; i < channels; i++)
-            await owner.Service<IChannelInteraction>().CreateChannel(spaceId, Guid.NewGuid(),
+        {
+            var channel = await owner.Service<IChannelInteraction>().CreateChannel(spaceId, Guid.NewGuid(),
                 new CreateChannelRequest(spaceId, $"channel-{i}", ChannelType.Text, "", null), ct);
 
-        var invite = await owner.Service<IServerInteraction>()
+            if (channel is FailedChannelLayout refused)
+                throw new InvalidOperationException($"could not create channel {i}: {refused.error}");
+        }
+
+        var minted = await owner.Service<IServerInteraction>()
            .CreateInviteCode(spaceId, expireMinutes: 120, maxUses: capacity + 1, ct);
+
+        if (minted is not SuccessCreateInviteCode { code: var invite })
+            throw new InvalidOperationException($"could not create an invite: {(minted as FailedCreateInviteCode)?.error}");
 
         Console.WriteLine($"seeded space {spaceId} with {channels} channel(s), invite {invite.inviteCode}");
         return invite;
