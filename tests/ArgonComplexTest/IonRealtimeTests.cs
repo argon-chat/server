@@ -310,7 +310,7 @@ public class IonRealtimeTests : TestBase
 
     private static async Task JoinAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(), $"Guest could not join the space: {(joined as FailedJoin)?.error}");
@@ -321,7 +321,7 @@ public class IonRealtimeTests : TestBase
         const string name = "ion-realtime";
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Ion realtime", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Ion realtime", null), ct).Ok();
 
         Orleans.Runtime.RequestContext.Set("$caller_user_id", owner.UserId);
 

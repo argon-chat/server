@@ -536,7 +536,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         var ghost = await CreateSessionAsync(ct);
 
         var spaceId = await CreateSpaceAsync(owner, "Counts Ghost", ct);
-        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         await using var watcher = await WatchSpaceAsync(owner, spaceId, ct);
 
@@ -621,7 +621,7 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         var spaceId = await CreateSpaceAsync(owner, "Counts Reconnect", ct);
         await JoinSpaceAsync(owner, member, spaceId, ct);
-        var code = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         await using var watcher = await WatchSpaceAsync(owner, spaceId, ct);
         await using var client  = await RealtimeClient.ConnectAsync(member, ct);
@@ -819,7 +819,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         var ghost = await CreateSessionAsync(ct);
 
         var spaceId = await CreateSpaceAsync(owner, "Presence Counts", ct);
-        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         foreach (var guest in new[] { away, dnd, ghost })
         {
@@ -937,7 +937,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Voice, "Presence voice channel", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Voice, "Presence voice channel", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created  = channels.Values.FirstOrDefault(c => c.channel.name == name);
@@ -953,7 +953,7 @@ public class PresenceVoiceAndCountsTests : TestBase
 
     private static async Task JoinSpaceAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(),

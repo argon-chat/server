@@ -122,7 +122,7 @@ public class ChannelWebhookTests : TestBase
 
         // A role with ManageChannels on this channel is enough.
         var archetypes = ArchetypesOf(owner);
-        var role       = await archetypes.CreateArchetype(spaceId, "integrations", ct);
+        var role       = await archetypes.CreateArchetype(spaceId, "integrations", ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, guest.UserId, ct), role.id, true, ct),
             Is.True);
         await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, role.id,
@@ -331,7 +331,7 @@ public class ChannelWebhookTests : TestBase
         using (var warm = await PostAsync(PathOf(kept), new { content = "warm" }, ct))
             Assert.That(warm.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
 
-        await owner.Channels.DeleteChannel(spaceId, channelId, ct);
+        await owner.Channels.DeleteChannel(spaceId, channelId, ct).Ok();
 
         using var afterChannel = await PostAsync(PathOf(kept), new { content = "into a deleted channel" }, ct);
         using var elsewhere    = await PostAsync(PathOf(other), new { content = "still here" }, ct);

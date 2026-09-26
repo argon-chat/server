@@ -144,7 +144,7 @@ public class ChannelLinkPreviewTests : TestBase
         var url  = UrlOn(ReadyHost);
         var text = $"read {url}";
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct).Ok();
         var card      = await StoredCardAsync(spaceId, channelId, messageId, ct);
 
         Assert.Multiple(() =>
@@ -166,7 +166,7 @@ public class ChannelLinkPreviewTests : TestBase
         await using var observer = await RealtimeClient.ConnectAsync(owner, ct);
         await observer.SubscribeToChannel(channelId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct).Ok();
 
         var update = await observer.WaitForAsync<MessageUpdated>(e => e.message.messageId == messageId, EventWait, ct: ct);
         var card   = update.message.entities.Values.OfType<MessageEntityLinkPreview>().SingleOrDefault();
@@ -190,7 +190,7 @@ public class ChannelLinkPreviewTests : TestBase
         await using var observer = await RealtimeClient.ConnectAsync(owner, ct);
         await observer.SubscribeToChannel(channelId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct).Ok();
 
         var pending = await StoredCardAsync(spaceId, channelId, messageId, ct);
         Assert.That(pending, Is.Not.Null.And.Property(nameof(MessageEntityLinkPreview.title)).Null,
@@ -223,7 +223,7 @@ public class ChannelLinkPreviewTests : TestBase
         await using var observer = await RealtimeClient.ConnectAsync(owner, ct);
         await observer.SubscribeToChannel(channelId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, text, WithStub(text, url), NextRandomId(), null, ct).Ok();
 
         Assert.That(await owner.Channels.DeleteMessage(spaceId, channelId, messageId, ct), Is.InstanceOf<SuccessDeleteMessage>());
         var mark = observer.Mark();

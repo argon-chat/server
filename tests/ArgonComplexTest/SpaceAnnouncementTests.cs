@@ -149,13 +149,13 @@ public class SpaceAnnouncementTests : TestBase
         await watcher.SubscribeToSpace(spaceId, ct);
 
         var mark = watcher.Mark();
-        await owner.Channels.DeleteChannel(spaceId, otherNews, ct);
+        await owner.Channels.DeleteChannel(spaceId, otherNews, ct).Ok();
         await watcher.AssertNoneWithinAsync<SpaceDetailsUpdated>(e => e.spaceId == spaceId, TimeSpan.FromSeconds(1),
             "deleting a channel that was not the main one announced a change", mark, ct);
         Assert.That(await MainOfAsync(member, spaceId, ct), Is.EqualTo(newsId));
 
         mark = watcher.Mark();
-        await owner.Channels.DeleteChannel(spaceId, newsId, ct);
+        await owner.Channels.DeleteChannel(spaceId, newsId, ct).Ok();
         var cleared = await watcher.WaitForAsync<SpaceDetailsUpdated>(e => e.spaceId == spaceId, EventWait, mark, ct);
 
         Assert.Multiple(async () =>
@@ -175,7 +175,7 @@ public class SpaceAnnouncementTests : TestBase
         var newsId  = await SpaceGroupSupport.CreateChannelAsync(owner, spaceId, "news", ChannelType.Announcement, groupId, ct);
 
         await SetAsync(owner, spaceId, newsId, ct);
-        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: true, ct);
+        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: true, ct).Ok();
 
         Assert.That(await MainOfAsync(owner, spaceId, ct), Is.Null);
     }
@@ -236,9 +236,9 @@ public class SpaceAnnouncementTests : TestBase
         var newsId  = await CreateChannelAsync(owner, spaceId, "news", ChannelType.Announcement, ct);
 
         await SetAsync(owner, spaceId, newsId, ct);
-        await owner.Channels.SendMessage(spaceId, newsId, "Welcome aboard", new IonArray<IMessageEntity>([]), NextRandomId(), null, ct);
+        await owner.Channels.SendMessage(spaceId, newsId, "Welcome aboard", new IonArray<IMessageEntity>([]), NextRandomId(), null, ct).Ok();
 
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await joiner.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>());

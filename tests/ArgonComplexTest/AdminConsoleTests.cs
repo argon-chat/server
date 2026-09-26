@@ -764,9 +764,9 @@ public class AdminConsoleTests : TestBase
         await JoinSpaceAsync(owner, subject, spaceB, ct);
 
         await subject.Channels.SendMessage(spaceA, channelA, "written in A", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(), null, ct);
+            Random.Shared.NextInt64(), null, ct).Ok();
         await subject.Channels.SendMessage(spaceB, channelB, "written in B", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(), null, ct);
+            Random.Shared.NextInt64(), null, ct).Ok();
 
         // Sending counts toward today's stats row, written on the stats grain's own schedule.
         await GetGrainFactory().GetGrain<IUserStatsGrain>(subject.UserId).FlushToDatabaseAsync();
@@ -2370,7 +2370,7 @@ public class AdminConsoleTests : TestBase
     private static async Task<Guid> CreateTextChannelAsync(TestUserSession owner, Guid spaceId, string name, CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Admin console fixture", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Admin console fixture", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
 
@@ -2380,7 +2380,7 @@ public class AdminConsoleTests : TestBase
 
     private static async Task JoinSpaceAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         if (joined is not SuccessJoin)

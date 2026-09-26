@@ -28,7 +28,7 @@ public class SpaceAndChannelTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
 
-        await GetServerService(scope.ServiceProvider).UpdateSpaceInfo(spaceId, "Renamed Space", "New description", ct);
+        await GetServerService(scope.ServiceProvider).UpdateSpaceInfo(spaceId, "Renamed Space", "New description", ct).Ok();
 
         var spaces = await GetUserService(scope.ServiceProvider).GetSpaces(ct);
         var space  = spaces.Values.First(s => s.spaceId == spaceId);
@@ -59,8 +59,8 @@ public class SpaceAndChannelTests : TestBase
 
         Assert.DoesNotThrowAsync(async () =>
         {
-            await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, true, ct);
-            await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, false, ct);
+            await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, true, ct).Ok();
+            await GetServerService(scope.ServiceProvider).SetBoostStripHidden(spaceId, false, ct).Ok();
         });
     }
 
@@ -91,12 +91,12 @@ public class SpaceAndChannelTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
 
-        var invite = await GetServerService(scope.ServiceProvider).CreateInviteCode(spaceId, 60, 10, ct);
+        var invite = await GetServerService(scope.ServiceProvider).CreateInviteCode(spaceId, 60, 10, ct).Ok();
         Assert.That(invite.inviteCode, Is.Not.Empty);
 
         // CreateInviteCode returns the raw nine characters; the listing hands back the dashed
         // display form users actually copy. Compare on the canonical, separator-free value.
-        var codes = await GetServerService(scope.ServiceProvider).GetInviteCodes(spaceId, ct);
+        var codes = await GetServerService(scope.ServiceProvider).GetInviteCodes(spaceId, ct).Ok();
         Assert.That(
             codes.invites.Values.Select(i => Argon.Entities.InviteCodeEntityData.RemoveSeparators(i.code.inviteCode)),
             Does.Contain(Argon.Entities.InviteCodeEntityData.RemoveSeparators(invite.inviteCode)));
@@ -104,9 +104,9 @@ public class SpaceAndChannelTests : TestBase
         var preview = await GetUserService(scope.ServiceProvider).PreviewInvite(invite, ct);
         Assert.That(preview, Is.InstanceOf<SuccessPreview>());
 
-        await GetServerService(scope.ServiceProvider).RevokeInviteCode(spaceId, invite, ct);
+        await GetServerService(scope.ServiceProvider).RevokeInviteCode(spaceId, invite, ct).Ok();
 
-        var afterRevoke = await GetServerService(scope.ServiceProvider).GetInviteCodes(spaceId, ct);
+        var afterRevoke = await GetServerService(scope.ServiceProvider).GetInviteCodes(spaceId, ct).Ok();
         Assert.That(
             afterRevoke.invites.Values.Select(i => Argon.Entities.InviteCodeEntityData.RemoveSeparators(i.code.inviteCode)),
             Does.Not.Contain(Argon.Entities.InviteCodeEntityData.RemoveSeparators(invite.inviteCode)));
@@ -128,8 +128,8 @@ public class SpaceAndChannelTests : TestBase
     {
         await using var ownerScope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
-        var invite  = await GetServerService(ownerScope.ServiceProvider).CreateInviteCode(spaceId, 60, 10, ct);
-        await GetServerService(ownerScope.ServiceProvider).RevokeInviteCode(spaceId, invite, ct);
+        var invite  = await GetServerService(ownerScope.ServiceProvider).CreateInviteCode(spaceId, 60, 10, ct).Ok();
+        await GetServerService(ownerScope.ServiceProvider).RevokeInviteCode(spaceId, invite, ct).Ok();
 
         var joiner = await CreateSessionAsync(ct);
         var result = await joiner.Users.JoinToSpace(invite, ct);
@@ -150,7 +150,7 @@ public class SpaceAndChannelTests : TestBase
         var channels = await GetServerService(scope.ServiceProvider).GetChannels(spaceId, ct);
         Assert.That(channels.Values.Select(c => c.channel.channelId), Does.Contain(channelId));
 
-        await GetChannelService(scope.ServiceProvider).DeleteChannel(spaceId, channelId, ct);
+        await GetChannelService(scope.ServiceProvider).DeleteChannel(spaceId, channelId, ct).Ok();
 
         var afterDelete = await GetServerService(scope.ServiceProvider).GetChannels(spaceId, ct);
         Assert.That(afterDelete.Values.Select(c => c.channel.channelId), Does.Not.Contain(channelId));
@@ -164,21 +164,21 @@ public class SpaceAndChannelTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"grouped-{Guid.NewGuid():N}"[..20], ct);
 
         var groupName = $"group-{Guid.NewGuid():N}"[..18];
-        await GetChannelService(scope.ServiceProvider).CreateChannelGroup(spaceId, channelId, groupName, "a group", ct);
+        await GetChannelService(scope.ServiceProvider).CreateChannelGroup(spaceId, channelId, groupName, "a group", ct).Ok();
 
         var groups = await GetServerService(scope.ServiceProvider).GetChannelGroups(spaceId, ct);
         var group  = groups.Values.FirstOrDefault(g => g.name == groupName);
         Assert.That(group, Is.Not.Null);
 
         await GetChannelService(scope.ServiceProvider)
-           .UpdateChannelGroup(spaceId, channelId, group!.groupId, "renamed-group", "updated", ct);
+           .UpdateChannelGroup(spaceId, channelId, group!.groupId, "renamed-group", "updated", ct).Ok();
 
         var afterUpdate = await GetServerService(scope.ServiceProvider).GetChannelGroups(spaceId, ct);
         Assert.That(afterUpdate.Values.Select(g => g.name), Does.Contain("renamed-group"));
 
         // deleteChannels: false must keep the channels and only drop the grouping.
         await GetChannelService(scope.ServiceProvider)
-           .DeleteChannelGroup(spaceId, channelId, group.groupId, deleteChannels: false, ct);
+           .DeleteChannelGroup(spaceId, channelId, group.groupId, deleteChannels: false, ct).Ok();
 
         var afterDelete = await GetServerService(scope.ServiceProvider).GetChannelGroups(spaceId, ct);
         Assert.Multiple(() =>
@@ -198,12 +198,12 @@ public class SpaceAndChannelTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"movable-{Guid.NewGuid():N}"[..20], ct);
 
         var groupName = $"target-{Guid.NewGuid():N}"[..18];
-        await GetChannelService(scope.ServiceProvider).CreateChannelGroup(spaceId, channelId, groupName, null, ct);
+        await GetChannelService(scope.ServiceProvider).CreateChannelGroup(spaceId, channelId, groupName, null, ct).Ok();
 
         var group = (await GetServerService(scope.ServiceProvider).GetChannelGroups(spaceId, ct))
            .Values.First(g => g.name == groupName);
 
-        await GetChannelService(scope.ServiceProvider).MoveChannel(spaceId, channelId, group.groupId, null, null, ct);
+        await GetChannelService(scope.ServiceProvider).MoveChannel(spaceId, channelId, group.groupId, null, null, ct).Ok();
 
         var channels = await GetServerService(scope.ServiceProvider).GetChannels(spaceId, ct);
         var moved    = channels.Values.First(c => c.channel.channelId == channelId);
@@ -221,7 +221,7 @@ public class SpaceAndChannelTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"msgs-{Guid.NewGuid():N}"[..20], ct);
 
         var messageId = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "hello channel", NoEntities, Random.Shared.NextInt64(), null, ct);
+           .SendMessage(spaceId, channelId, "hello channel", NoEntities, Random.Shared.NextInt64(), null, ct).Ok();
 
         Assert.That(messageId, Is.GreaterThan(0));
 
@@ -263,10 +263,10 @@ public class SpaceAndChannelTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"replies-{Guid.NewGuid():N}"[..20], ct);
 
         var original = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "original", NoEntities, Random.Shared.NextInt64(), null, ct);
+           .SendMessage(spaceId, channelId, "original", NoEntities, Random.Shared.NextInt64(), null, ct).Ok();
 
         var reply = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "the reply", NoEntities, Random.Shared.NextInt64(), original, ct);
+           .SendMessage(spaceId, channelId, "the reply", NoEntities, Random.Shared.NextInt64(), original, ct).Ok();
 
         var history = await GetChannelService(scope.ServiceProvider).QueryMessages(spaceId, channelId, null, 50, ct);
         var stored  = history.Values.First(m => m.messageId == reply);
@@ -286,9 +286,9 @@ public class SpaceAndChannelTests : TestBase
         var randomId = Random.Shared.NextInt64();
 
         var first  = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "only once", NoEntities, randomId, null, ct);
+           .SendMessage(spaceId, channelId, "only once", NoEntities, randomId, null, ct).Ok();
         var second = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "only once", NoEntities, randomId, null, ct);
+           .SendMessage(spaceId, channelId, "only once", NoEntities, randomId, null, ct).Ok();
 
         Assert.That(second, Is.EqualTo(first));
 
@@ -307,7 +307,7 @@ public class SpaceAndChannelTests : TestBase
         for (var i = 0; i < 5; i++)
         {
             ids.Add(await GetChannelService(scope.ServiceProvider)
-               .SendMessage(spaceId, channelId, $"message {i}", NoEntities, Random.Shared.NextInt64(), null, ct));
+               .SendMessage(spaceId, channelId, $"message {i}", NoEntities, Random.Shared.NextInt64(), null, ct).Ok());
         }
 
         var page = await GetChannelService(scope.ServiceProvider).QueryMessages(spaceId, channelId, ids[2], 10, ct);
@@ -338,7 +338,7 @@ public class SpaceAndChannelTests : TestBase
         var me        = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
         var messageId = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "react to me", NoEntities, Random.Shared.NextInt64(), null, ct);
+           .SendMessage(spaceId, channelId, "react to me", NoEntities, Random.Shared.NextInt64(), null, ct).Ok();
 
         var added = await GetChannelService(scope.ServiceProvider).AddReaction(spaceId, channelId, messageId, "👍", ct);
         Assert.That(added, Is.InstanceOf<SuccessAddReaction>());
@@ -372,7 +372,7 @@ public class SpaceAndChannelTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"noreact-{Guid.NewGuid():N}"[..20], ct);
 
         var messageId = await GetChannelService(scope.ServiceProvider)
-           .SendMessage(spaceId, channelId, "plain", NoEntities, Random.Shared.NextInt64(), null, ct);
+           .SendMessage(spaceId, channelId, "plain", NoEntities, Random.Shared.NextInt64(), null, ct).Ok();
 
         var batch = await GetChannelService(scope.ServiceProvider)
            .BatchGetReactions(spaceId, channelId, new IonArray<long>([messageId]), ct);
@@ -391,8 +391,8 @@ public class SpaceAndChannelTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"flush-{Guid.NewGuid():N}"[..20], ct);
         var channels  = GetChannelService(scope.ServiceProvider);
 
-        var first  = await channels.SendMessage(spaceId, channelId, "one", NoEntities, Random.Shared.NextInt64(), null, ct);
-        var second = await channels.SendMessage(spaceId, channelId, "two", NoEntities, Random.Shared.NextInt64(), null, ct);
+        var first  = await channels.SendMessage(spaceId, channelId, "one", NoEntities, Random.Shared.NextInt64(), null, ct).Ok();
+        var second = await channels.SendMessage(spaceId, channelId, "two", NoEntities, Random.Shared.NextInt64(), null, ct).Ok();
 
         await channels.AddReaction(spaceId, channelId, first, "👍", ct);
         await channels.AddReaction(spaceId, channelId, second, "🔥", ct);

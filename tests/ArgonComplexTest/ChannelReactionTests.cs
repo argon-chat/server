@@ -44,7 +44,7 @@ public class ChannelReactionTests : TestBase
         var guest = await CreateSessionAsync(ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "react to me", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "react to me", NoEntities, NextRandomId(), null, ct).Ok();
 
         Assert.That(await owner.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct), Is.InstanceOf<SuccessAddReaction>());
         Assert.That(await guest.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct), Is.InstanceOf<SuccessAddReaction>());
@@ -62,7 +62,7 @@ public class ChannelReactionTests : TestBase
     public async Task Reacting_twice_with_the_same_emoji_is_refused_and_counted_once(CancellationToken ct = default)
     {
         var (owner, spaceId, channelId) = await RoomAsync(ct);
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "once", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "once", NoEntities, NextRandomId(), null, ct).Ok();
 
         await owner.Channels.AddReaction(spaceId, channelId, messageId, "🔥", ct);
         var again = await owner.Channels.AddReaction(spaceId, channelId, messageId, "🔥", ct);
@@ -79,7 +79,7 @@ public class ChannelReactionTests : TestBase
         var guest = await CreateSessionAsync(ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "a wall of emoji", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "a wall of emoji", NoEntities, NextRandomId(), null, ct).Ok();
 
         for (var i = 0; i < 20; i++)
             Assert.That(await owner.Channels.AddReaction(spaceId, channelId, messageId, $"e{i}", ct), Is.InstanceOf<SuccessAddReaction>(),
@@ -108,7 +108,7 @@ public class ChannelReactionTests : TestBase
         var (owner, spaceId, channelId) = await RoomAsync(ct);
         var otherChannel = await CreateChannelAsync(owner, spaceId, "elsewhere", ChannelType.Text, ct);
 
-        var elsewhere = await owner.Channels.SendMessage(spaceId, otherChannel, "not here", NoEntities, NextRandomId(), null, ct);
+        var elsewhere = await owner.Channels.SendMessage(spaceId, otherChannel, "not here", NoEntities, NextRandomId(), null, ct).Ok();
 
         // A message id is only meaningful inside its channel: the grain for this one must not reach
         // into its neighbour's rows.
@@ -131,8 +131,8 @@ public class ChannelReactionTests : TestBase
     {
         var (owner, spaceId, channelId) = await RoomAsync(ct);
 
-        var warm = await owner.Channels.SendMessage(spaceId, channelId, "reacted, then deleted", NoEntities, NextRandomId(), null, ct);
-        var cold = await owner.Channels.SendMessage(spaceId, channelId, "deleted before anyone reacted", NoEntities, NextRandomId(), null, ct);
+        var warm = await owner.Channels.SendMessage(spaceId, channelId, "reacted, then deleted", NoEntities, NextRandomId(), null, ct).Ok();
+        var cold = await owner.Channels.SendMessage(spaceId, channelId, "deleted before anyone reacted", NoEntities, NextRandomId(), null, ct).Ok();
 
         // One whose reactions the grain already holds in memory, one it has never loaded: the delete
         // has to reach both the database read and the buffer.
@@ -165,7 +165,7 @@ public class ChannelReactionTests : TestBase
         var guest = await CreateSessionAsync(ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "mine", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "mine", NoEntities, NextRandomId(), null, ct).Ok();
         await owner.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct);
 
         var notTheirs = await guest.Channels.RemoveReaction(spaceId, channelId, messageId, "👍", ct);
@@ -201,7 +201,7 @@ public class ChannelReactionTests : TestBase
         var guest = await CreateSessionAsync(ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "no reactions here", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "no reactions here", NoEntities, NextRandomId(), null, ct).Ok();
 
         await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.AddReactions, ct);
 
@@ -219,7 +219,7 @@ public class ChannelReactionTests : TestBase
         var stranger = await CreateSessionAsync(ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "who reacted is not public", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "who reacted is not public", NoEntities, NextRandomId(), null, ct).Ok();
         await owner.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct);
 
         Assert.That(await ReactionsOnAsync(guest, spaceId, channelId, messageId, ct), Is.Not.Empty,
@@ -257,7 +257,7 @@ public class ChannelReactionTests : TestBase
 
         var ids = new List<long>();
         for (var i = 0; i < 104; i++)
-            ids.Add(await owner.Channels.SendMessage(spaceId, channelId, $"m{i}", NoEntities, NextRandomId(), null, ct));
+            ids.Add(await owner.Channels.SendMessage(spaceId, channelId, $"m{i}", NoEntities, NextRandomId(), null, ct).Ok());
 
         Assert.That(await owner.Channels.AddReaction(spaceId, channelId, ids[0], "👍", ct), Is.InstanceOf<SuccessAddReaction>());
 

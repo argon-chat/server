@@ -152,7 +152,7 @@ public class GrainMigrationTests : TestBase
         var connected = await gateway.IsConnectedAsync();
 
         await admin.Channels.SendMessage(spaceId, channelId, "after the move",
-            new ion.runtime.IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+            new ion.runtime.IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct).Ok();
 
         var delivered = false;
         var deadline  = DateTime.UtcNow + TimeSpan.FromSeconds(20);
@@ -325,7 +325,7 @@ public class GrainMigrationTests : TestBase
     private async Task<Guid> CreateVoiceChannelAsync(TestUserSession owner, Guid spaceId, string name, CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Voice, "Migration channel", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Voice, "Migration channel", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created   = channels.Values.FirstOrDefault(c => c.channel.name == name);

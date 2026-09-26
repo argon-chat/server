@@ -58,7 +58,7 @@ public class InviteCardEndpointTests : TestBase
     private async Task<Guid> CreateVoiceChannelAsync(TestUserSession owner, Guid spaceId, string name, CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Voice, "Test channel", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Voice, "Test channel", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created  = channels.Values.FirstOrDefault(c => c.channel.name == name);
@@ -87,7 +87,7 @@ public class InviteCardEndpointTests : TestBase
     {
         var owner   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Card Space", ct);
-        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         var (status, card, error) = await ReadCardAsync(code.inviteCode, ct);
 
@@ -158,12 +158,12 @@ public class InviteCardEndpointTests : TestBase
     {
         var owner   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Card Space To Revoke", ct);
-        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code    = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         var (before, _, error) = await ReadCardAsync(code.inviteCode, ct);
         Assert.That(before, Is.EqualTo(HttpStatusCode.OK), $"card refused before revocation: {error?.Error}");
 
-        await owner.Servers.RevokeInviteCode(spaceId, code, ct);
+        await owner.Servers.RevokeInviteCode(spaceId, code, ct).Ok();
 
         // The read above put the card in the cache for an hour. Revocation has to take it back out,
         // or a link the owner has just killed keeps advertising the space for the rest of that hour.

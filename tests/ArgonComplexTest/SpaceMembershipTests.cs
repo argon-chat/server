@@ -49,13 +49,13 @@ public class SpaceMembershipTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var guest   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Twice", ct);
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         var first  = await guest.Users.JoinToSpace(invite, ct);
         var second = await guest.Users.JoinToSpace(invite, ct);
 
         var roster = await RosterAsync(owner, spaceId, ct);
-        var used   = (await owner.Servers.GetInviteCodes(spaceId, ct)).invites.Values.Single().used;
+        var used   = (await owner.Servers.GetInviteCodes(spaceId, ct).Ok()).invites.Values.Single().used;
 
         Assert.Multiple(() =>
         {
@@ -171,13 +171,13 @@ public class SpaceMembershipTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var guest   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Unreadable", ct);
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         var joined = await guest.Users.JoinToSpace(new ArgonContracts.InviteCode("!!!!!!!!!"), ct);
 
         // Revoking garbage is not an error and does not touch the codes that are there.
-        await owner.Servers.RevokeInviteCode(spaceId, new ArgonContracts.InviteCode("!!!!!!!!!"), ct);
-        var codes = await owner.Servers.GetInviteCodes(spaceId, ct);
+        await owner.Servers.RevokeInviteCode(spaceId, new ArgonContracts.InviteCode("!!!!!!!!!"), ct).Ok();
+        var codes = await owner.Servers.GetInviteCodes(spaceId, ct).Ok();
 
         Assert.Multiple(() =>
         {
@@ -193,7 +193,7 @@ public class SpaceMembershipTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var guest   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Expired", ct);
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         await SetInviteAsync(spaceId, expireAt: DateTimeOffset.UtcNow.AddMinutes(-1), ct: ct);
 
@@ -210,7 +210,7 @@ public class SpaceMembershipTests : TestBase
         var first   = await CreateSessionAsync(ct);
         var second  = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "One use", ct);
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 1, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 1, ct).Ok();
 
         var firstJoin  = await first.Users.JoinToSpace(invite, ct);
         var preview    = await second.Users.PreviewInvite(invite, ct);
@@ -241,7 +241,7 @@ public class SpaceMembershipTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var guest   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Deleted", ct);
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         await Grains.GetGrain<ISpaceDeletionGrain>(spaceId).DeleteNowAsync(owner.UserId);
 
@@ -281,16 +281,19 @@ public class SpaceMembershipTests : TestBase
         var spaceId  = await CreateSpaceAsync(owner, "Door keeping", ct);
         await JoinAsync(owner, member, spaceId, ct);
 
-        var ownersCode = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var ownersCode = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var before     = await CodesAsync(owner);
 
         foreach (var (who, name) in new[] { (outsider, "an outsider"), (member, "a plain member") })
         {
-            Assert.Multiple(() =>
+            await Assert.MultipleAsync(async () =>
             {
-                Assert.ThrowsAsync<IonRequestException>(() => who.Servers.CreateInviteCode(spaceId, 60, 0, ct), $"{name} minted a code");
-                Assert.ThrowsAsync<IonRequestException>(() => who.Servers.GetInviteCodes(spaceId, ct), $"{name} listed the codes");
-                Assert.ThrowsAsync<IonRequestException>(() => who.Servers.RevokeInviteCode(spaceId, ownersCode, ct), $"{name} revoked a code");
+                Assert.That(await who.Servers.CreateInviteCode(spaceId, 60, 0, ct),
+                    Is.EqualTo(new FailedCreateInviteCode(SpaceManageError.NO_PERMISSION)), $"{name} minted a code");
+                Assert.That(await who.Servers.GetInviteCodes(spaceId, ct),
+                    Is.EqualTo(new FailedGetInviteCodes(SpaceManageError.NO_PERMISSION)), $"{name} listed the codes");
+                Assert.That(await who.Servers.RevokeInviteCode(spaceId, ownersCode, ct),
+                    Is.EqualTo(new FailedSpaceManage(SpaceManageError.NO_PERMISSION)), $"{name} revoked a code");
             });
         }
 
@@ -298,8 +301,8 @@ public class SpaceMembershipTests : TestBase
 
         await GrantAsync(owner, spaceId, member.UserId, ArgonEntitlement.ManageServer, ct);
 
-        var membersCode = await member.Servers.CreateInviteCode(spaceId, 60, 0, ct);
-        await member.Servers.RevokeInviteCode(spaceId, ownersCode, ct);
+        var membersCode = await member.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
+        await member.Servers.RevokeInviteCode(spaceId, ownersCode, ct).Ok();
         var afterGrant = await CodesAsync(member);
 
         Assert.That(afterGrant, Is.EquivalentTo(before
@@ -307,7 +310,7 @@ public class SpaceMembershipTests : TestBase
            .Append(InviteCodeEntityData.RemoveSeparators(membersCode.inviteCode))));
 
         async Task<List<string>> CodesAsync(TestUserSession who)
-            => (await who.Servers.GetInviteCodes(spaceId, ct)).invites.Values
+            => (await who.Servers.GetInviteCodes(spaceId, ct).Ok()).invites.Values
                .Select(i => InviteCodeEntityData.RemoveSeparators(i.code.inviteCode))
                .ToList();
     }

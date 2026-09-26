@@ -164,7 +164,7 @@ public class LiveKitWebhookTests : TestBase
         var spaceId = ((SuccessCreateSpace)result).space.spaceId;
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "hooked", ChannelType.Voice, "", null), ct);
+            new CreateChannelRequest(spaceId, "hooked", ChannelType.Voice, "", null), ct).Ok();
         var channels = await owner.Servers.GetChannels(spaceId, ct);
 
         return (owner, spaceId, channels.Values.First(c => c.channel.name == "hooked").channel.channelId);

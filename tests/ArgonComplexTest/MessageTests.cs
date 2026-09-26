@@ -25,7 +25,7 @@ public class MessageTests : TestBase
             new IonArray<IMessageEntity>([]),
             1,
             null,
-            ct);
+            ct).Ok();
 
         Assert.That(messageId, Is.GreaterThan(0));
     }
@@ -46,13 +46,13 @@ public class MessageTests : TestBase
         var message3 = "Third message";
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, message1, new ion.runtime.IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, message1, new ion.runtime.IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, message2, new ion.runtime.IonArray<IMessageEntity>([]), 2, null, ct);
+            spaceId, channelId, message2, new ion.runtime.IonArray<IMessageEntity>([]), 2, null, ct).Ok();
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, message3, new ion.runtime.IonArray<IMessageEntity>([]), 3, null, ct);
+            spaceId, channelId, message3, new ion.runtime.IonArray<IMessageEntity>([]), 3, null, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -77,10 +77,10 @@ public class MessageTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, "replies", ct);
 
         var originalMessageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "Original message", new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, "Original message", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         var replyMessageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "Reply to original", new IonArray<IMessageEntity>([]), 2, originalMessageId, ct);
+            spaceId, channelId, "Reply to original", new IonArray<IMessageEntity>([]), 2, originalMessageId, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -106,7 +106,7 @@ public class MessageTests : TestBase
         for (int i = 1; i <= 5; i++)
         {
             await GetChannelService(scope.ServiceProvider).SendMessage(
-                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
@@ -130,7 +130,7 @@ public class MessageTests : TestBase
         var beforeSend = DateTimeOffset.UtcNow;
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "Test message", new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, "Test message", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         var afterSend = DateTimeOffset.UtcNow;
 
@@ -172,7 +172,7 @@ public class MessageTests : TestBase
         var entities = new IonArray<IMessageEntity>([mentionEntity]);
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, messageText, entities, randomId: 1, replyTo: null, ct);
+            spaceId, channelId, messageText, entities, randomId: 1, replyTo: null, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -211,7 +211,7 @@ public class MessageTests : TestBase
         ]);
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, messageText, entities, randomId: 1, replyTo: null, ct);
+            spaceId, channelId, messageText, entities, randomId: 1, replyTo: null, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -248,7 +248,7 @@ public class MessageTests : TestBase
         );
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, messageText, new IonArray<IMessageEntity>([urlEntity]), 1, null, ct);
+            spaceId, channelId, messageText, new IonArray<IMessageEntity>([urlEntity]), 1, null, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -277,7 +277,7 @@ public class MessageTests : TestBase
         for (int i = 1; i <= 10; i++)
         {
             var id = await GetChannelService(scope.ServiceProvider).SendMessage(
-                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
             messageIds.Add(id);
         }
 
@@ -311,13 +311,13 @@ public class MessageTests : TestBase
 
         // Создаём цепочку ответов
         var msg1 = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "Original message", new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, "Original message", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         var msg2 = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "Reply to original", new IonArray<IMessageEntity>([]), 2, msg1, ct);
+            spaceId, channelId, "Reply to original", new IonArray<IMessageEntity>([]), 2, msg1, ct).Ok();
 
         var msg3 = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "Reply to reply", new IonArray<IMessageEntity>([]), 3, msg2, ct);
+            spaceId, channelId, "Reply to reply", new IonArray<IMessageEntity>([]), 3, msg2, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -353,7 +353,7 @@ public class MessageTests : TestBase
         );
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, messageText, new IonArray<IMessageEntity>([emailEntity]), 1, null, ct);
+            spaceId, channelId, messageText, new IonArray<IMessageEntity>([emailEntity]), 1, null, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -378,7 +378,7 @@ public class MessageTests : TestBase
 
         // Сообщение с пустым текстом (например, только вложения)
         var messageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "", new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, "", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         Assert.That(messageId, Is.GreaterThan(0));
 
@@ -405,7 +405,7 @@ public class MessageTests : TestBase
         for (int i = 0; i < 5; i++)
         {
             var id = await GetChannelService(scope.ServiceProvider).SendMessage(
-                spaceId, channelId, $"Msg {i}", new IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Msg {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
             ids.Add(id);
         }
 
@@ -435,7 +435,7 @@ public class MessageTests : TestBase
         ]);
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, messageText, entities, 1, null, ct);
+            spaceId, channelId, messageText, entities, 1, null, ct).Ok();
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);
@@ -482,7 +482,7 @@ public class MessageTests : TestBase
         var longText = string.Join(" ", Enumerable.Repeat("This is a test message.", 100));
 
         var messageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, longText, new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, longText, new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         Assert.That(messageId, Is.GreaterThan(0));
 
@@ -514,7 +514,7 @@ public class MessageTests : TestBase
             "https://example.com/page", "PHISHING", "client-written", "Evil", "https://evil.test/i.png", null);
 
         var messageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, text, new IonArray<IMessageEntity>([stub]), 1, null, ct);
+            spaceId, channelId, text, new IonArray<IMessageEntity>([stub]), 1, null, ct).Ok();
 
         Assert.That(messageId, Is.GreaterThan(0));
 

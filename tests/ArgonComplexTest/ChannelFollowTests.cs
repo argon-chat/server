@@ -177,7 +177,7 @@ public class ChannelFollowTests : TestBase
         Assert.That(ErrorOf(over), Is.EqualTo(FollowChannelError.TOO_MANY_FOLLOWS));
 
         // A deleted source frees its slot.
-        await owner.Channels.DeleteChannel(spaceId, sources[0], ct);
+        await owner.Channels.DeleteChannel(spaceId, sources[0], ct).Ok();
         await FollowAsync(owner, spaceId, sources[20], spaceId, digest, ct);
 
         var followed = await FollowsOf(owner).GetFollowedSources(spaceId, digest, ct);
@@ -200,8 +200,8 @@ public class ChannelFollowTests : TestBase
 
         // Ids that mean something in the TARGET space: the author could name them, and they must not ping.
         var archetypes = ArchetypesOf(p.Admin);
-        var raiders    = await archetypes.CreateArchetype(p.TargetSpaceId, "raiders", ct);
-        raiders = await archetypes.UpdateArchetype(p.TargetSpaceId, raiders with { isMentionable = true }, ct);
+        var raiders    = await archetypes.CreateArchetype(p.TargetSpaceId, "raiders", ct).Ok();
+        raiders = await archetypes.UpdateArchetype(p.TargetSpaceId, raiders with { isMentionable = true }, ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(p.TargetSpaceId, await MemberIdOfAsync(p.Admin, p.TargetSpaceId, reader.UserId, ct),
             raiders.id, true, ct), Is.True);
 
@@ -216,7 +216,7 @@ public class ChannelFollowTests : TestBase
             new MessageEntityMention(EntityType.Mention, 10, 7, 1, reader.UserId),
             new MessageEntityMentionRole(EntityType.MentionRole, 18, 8, 1, raiders.id),
             new MessageEntityBold(EntityType.Bold, 27, 3, 1),
-            Attachment(file)), NextRandomId(), null, ct);
+            Attachment(file)), NextRandomId(), null, ct).Ok();
 
         var published = await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, messageId, ct);
 
@@ -270,7 +270,7 @@ public class ChannelFollowTests : TestBase
         await JoinAsync(p.Publisher, reader, p.SourceSpaceId, ct);
 
         var archetypes = ArchetypesOf(p.Publisher);
-        var role       = await archetypes.CreateArchetype(p.SourceSpaceId, "herald", ct);
+        var role       = await archetypes.CreateArchetype(p.SourceSpaceId, "herald", ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(p.SourceSpaceId,
             await MemberIdOfAsync(p.Publisher, p.SourceSpaceId, herald.UserId, ct), role.id, true, ct), Is.True);
         await archetypes.UpsertArchetypeEntitlementForChannel(p.SourceSpaceId, p.SourceChannelId, role.id,
@@ -281,9 +281,9 @@ public class ChannelFollowTests : TestBase
         await using var observer = await RealtimeClient.ConnectAsync(reader, ct);
         await observer.SubscribeToChannel(p.SourceChannelId, ct);
 
-        var first  = await herald.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "patch notes", Entities(), NextRandomId(), null, ct);
-        var second = await herald.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "hotfix", Entities(), NextRandomId(), null, ct);
-        var rules  = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "rules", Entities(), NextRandomId(), null, ct);
+        var first  = await herald.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "patch notes", Entities(), NextRandomId(), null, ct).Ok();
+        var second = await herald.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "hotfix", Entities(), NextRandomId(), null, ct).Ok();
+        var rules  = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "rules", Entities(), NextRandomId(), null, ct).Ok();
 
         var byReader      = await FollowsOf(reader).PublishMessage(p.SourceSpaceId, p.SourceChannelId, first, ct);
         var ofSomeoneElse = await FollowsOf(herald).PublishMessage(p.SourceSpaceId, p.SourceChannelId, rules, ct);
@@ -331,9 +331,9 @@ public class ChannelFollowTests : TestBase
 
         await FollowAsync(owner, spaceId, news, spaceId, relay, ct);
 
-        var chat = await owner.Channels.SendMessage(spaceId, general, "hi", Entities(), NextRandomId(), null, ct);
-        var post = await owner.Channels.SendMessage(spaceId, news, "news", Entities(), NextRandomId(), null, ct);
-        var gone = await owner.Channels.SendMessage(spaceId, news, "oops", Entities(), NextRandomId(), null, ct);
+        var chat = await owner.Channels.SendMessage(spaceId, general, "hi", Entities(), NextRandomId(), null, ct).Ok();
+        var post = await owner.Channels.SendMessage(spaceId, news, "news", Entities(), NextRandomId(), null, ct).Ok();
+        var gone = await owner.Channels.SendMessage(spaceId, news, "oops", Entities(), NextRandomId(), null, ct).Ok();
         await owner.Channels.DeleteMessage(spaceId, news, gone, ct);
 
         await PublishAsync(owner, spaceId, news, post, ct);
@@ -360,12 +360,12 @@ public class ChannelFollowTests : TestBase
 
         for (var i = 0; i < 10; i++)
         {
-            var post      = await owner.Channels.SendMessage(spaceId, news, $"post {i}", Entities(), NextRandomId(), null, ct);
+            var post      = await owner.Channels.SendMessage(spaceId, news, $"post {i}", Entities(), NextRandomId(), null, ct).Ok();
             var published = await PublishAsync(owner, spaceId, news, post, ct);
             Assert.That(published.targetCount, Is.Zero, "a channel nobody follows has targets");
         }
 
-        var eleventh = await owner.Channels.SendMessage(spaceId, news, "one too many", Entities(), NextRandomId(), null, ct);
+        var eleventh = await owner.Channels.SendMessage(spaceId, news, "one too many", Entities(), NextRandomId(), null, ct).Ok();
         var refused  = await FollowsOf(owner).PublishMessage(spaceId, news, eleventh, ct);
 
         Assert.That(ErrorOf(refused), Is.EqualTo(PublishMessageError.PUBLISH_RATE_LIMITED));
@@ -389,11 +389,11 @@ public class ChannelFollowTests : TestBase
         await FollowAsync(owner, spaceId, b, spaceId, tb, ct);
         await FollowAsync(owner, spaceId, c, spaceId, tc, ct);
 
-        await owner.Channels.DeleteChannel(spaceId, a, ct);
-        await owner.Channels.DeleteChannel(spaceId, tb, ct);
+        await owner.Channels.DeleteChannel(spaceId, a, ct).Ok();
+        await owner.Channels.DeleteChannel(spaceId, tb, ct).Ok();
         Assert.That(await owner.Channels.SetChannelType(spaceId, c, ChannelType.Text, ct), Is.InstanceOf<SuccessUpdateChannel>());
 
-        var post      = await owner.Channels.SendMessage(spaceId, b, "anyone there?", Entities(), NextRandomId(), null, ct);
+        var post      = await owner.Channels.SendMessage(spaceId, b, "anyone there?", Entities(), NextRandomId(), null, ct).Ok();
         var published = await PublishAsync(owner, spaceId, b, post, ct);
 
         await Assert.MultipleAsync(async () =>
@@ -481,7 +481,7 @@ public class ChannelFollowTests : TestBase
 
         await FollowAsync(p, ct);
 
-        var post = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "Raid at 20:00", Entities(), NextRandomId(), null, ct);
+        var post = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "Raid at 20:00", Entities(), NextRandomId(), null, ct).Ok();
         await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
 
         var copy = (await CopiesAsync(reader, p.TargetSpaceId, p.TargetChannelId, 1, ct)).Single();
@@ -504,12 +504,12 @@ public class ChannelFollowTests : TestBase
         Assert.That(await reader.Channels.AddReaction(p.TargetSpaceId, p.TargetChannelId, copy.messageId, "👍", ct),
             Is.InstanceOf<SuccessAddReaction>());
         var reply = await reader.Channels.SendMessage(p.TargetSpaceId, p.TargetChannelId, "see you there", Entities(), NextRandomId(),
-            copy.messageId, ct);
+            copy.messageId, ct).Ok();
 
         // A reply to the copy does not reach its author, who is not in this space; a mention sent after it
         // shows the reply's fan-out has run.
         await reader.Channels.SendMessage(p.TargetSpaceId, p.TargetChannelId, "@admin", Entities(
-            new MessageEntityMention(EntityType.Mention, 0, 6, 1, p.Admin.UserId)), NextRandomId(), null, ct);
+            new MessageEntityMention(EntityType.Mention, 0, 6, 1, p.Admin.UserId)), NextRandomId(), null, ct).Ok();
         Assert.That(await PollAsync(() => MentionsAsync(p.Admin, p.TargetChannelId, ct), n => n >= 1, Window, ct), Is.EqualTo(1));
         await using (var db = await DbAsync(ct))
         {
@@ -553,8 +553,8 @@ public class ChannelFollowTests : TestBase
 
         await using var events = await bot.OpenEventsAsync(ct);
 
-        var plain = await p.Admin.Channels.SendMessage(p.TargetSpaceId, p.TargetChannelId, "hello", Entities(), NextRandomId(), null, ct);
-        var post  = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "Patch 1.2 is out", Entities(), NextRandomId(), null, ct);
+        var plain = await p.Admin.Channels.SendMessage(p.TargetSpaceId, p.TargetChannelId, "hello", Entities(), NextRandomId(), null, ct).Ok();
+        var post  = await p.Publisher.Channels.SendMessage(p.SourceSpaceId, p.SourceChannelId, "Patch 1.2 is out", Entities(), NextRandomId(), null, ct).Ok();
         await PublishAsync(p.Publisher, p.SourceSpaceId, p.SourceChannelId, post, ct);
 
         var copyFrame   = await events.WaitForAsync("messageCreate", d => d["message"]?["crosspost"] is JObject, Window, ct);

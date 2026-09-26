@@ -51,7 +51,7 @@ public class AppManagementTests : TestBase
         var team  = await CreateTeamAsync(owner, "names");
         var taken = BotUsername("taken");
 
-        await As(owner, c => c.Apps.CreateBotApp(team.teamId, "First", taken, ct));
+        await As(owner, c => c.Apps.CreateBotApp(team.teamId, "First", taken, ct).Ok());
 
         var noSuffix = await As(owner, c => c.Apps.CheckUsernameForBot(team.teamId, "helperbots", ct));
         var claimed  = await As(owner, c => c.Apps.CheckUsernameForBot(team.teamId, taken.ToUpperInvariant(), ct));
@@ -66,15 +66,15 @@ public class AppManagementTests : TestBase
             Assert.That(free, Is.EqualTo(CheckBotUsernameValid.OK));
         });
 
-        Assert.That(async () => await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Second", taken, ct)),
-            Throws.InstanceOf<IonRequestException>(), "the console created a second bot under a taken name");
+        Assert.That(await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Second", taken, ct)),
+            Is.EqualTo(new FailedAppDetails(AppManagementError.INVALID_USERNAME)), "the console created a second bot under a taken name");
 
         Assert.That(async () => await Teams.CreateBotAppAsync(team.teamId, "Second", taken.ToUpperInvariant(), ct),
             Throws.InstanceOf<InvalidOperationException>().With.Message.Contains("claimed"));
         Assert.That(async () => await Teams.CreateBotAppAsync(team.teamId, "Suffixless", "suffixless", ct),
             Throws.InstanceOf<InvalidOperationException>().With.Message.Contains("end in 'bot'"));
 
-        var details = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct));
+        var details = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct).Ok());
         Assert.That(details.apps, Has.Count.EqualTo(1), "a refused bot left an application behind");
     }
 
@@ -89,8 +89,8 @@ public class AppManagementTests : TestBase
         var team     = await CreateTeamAsync(owner, "newbot");
         var username = BotUsername("fresh");
 
-        var created = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Fresh Bot", username, ct));
-        var read    = await As(owner, c => c.Apps.GetAppDetails(team.teamId, created.appId, ct));
+        var created = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Fresh Bot", username, ct).Ok());
+        var read    = await As(owner, c => c.Apps.GetAppDetails(team.teamId, created.appId, ct).Ok());
         var status  = await BotGetMeAsync(created.botDetails!.botToken, ct);
 
         var scopes = read.requiredScopes.ToDictionary(s => s.key);
@@ -138,29 +138,33 @@ public class AppManagementTests : TestBase
         var victimTeam   = await CreateTeamAsync(victim, "victim");
         var attackerTeam = await CreateTeamAsync(attacker, "attacker");
 
-        var bot    = await As(victim, c => c.Apps.CreateBotApp(victimTeam.teamId, "Victim Bot", BotUsername("victim"), ct));
-        var client = await As(victim, c => c.Apps.CreateClientApp(victimTeam.teamId, "Victim App", ClientAppPlatform.WebBased, ct));
+        var bot    = await As(victim, c => c.Apps.CreateBotApp(victimTeam.teamId, "Victim Bot", BotUsername("victim"), ct).Ok());
+        var client = await As(victim, c => c.Apps.CreateClientApp(victimTeam.teamId, "Victim App", ClientAppPlatform.WebBased, ct).Ok());
 
-        var attempts = new Dictionary<string, Func<DevConsole, Task>>
+        var attempts = new Dictionary<string, Func<DevConsole, Task<object>>>
         {
-            ["GetAppDetails(bot)"]    = c => c.Apps.GetAppDetails(attackerTeam.teamId, bot.appId, ct),
-            ["GetAppDetails(client)"] = c => c.Apps.GetAppDetails(attackerTeam.teamId, client.appId, ct),
-            ["RegenerateBotToken"]    = c => c.Apps.RegenerateBotToken(attackerTeam.teamId, bot.appId, ct),
-            ["PublishBot"]            = c => c.Apps.PublishBot(attackerTeam.teamId, bot.appId, ct),
-            ["SuspendBot"]            = c => c.Apps.SuspendBot(attackerTeam.teamId, bot.appId, ct),
-            ["UpdateBotEntitlements"] = c => c.Apps.UpdateBotEntitlements(attackerTeam.teamId, bot.appId, ulong.MaxValue, ct),
-            ["SetBotOAuth"]           = c => c.Apps.SetBotOAuth(attackerTeam.teamId, bot.appId, false, ct),
-            ["UpdateScope"]           = c => c.Apps.UpdateScope(attackerTeam.teamId, client.appId, new ScopeKeyValue(true, "email", false), ct),
-            ["RemoveRedirect"]        = c => c.Apps.RemoveRedirect(attackerTeam.teamId, client.appId, "https://x.test.local/cb", ct)
+            ["GetAppDetails(bot)"]    = async c => await c.Apps.GetAppDetails(attackerTeam.teamId, bot.appId, ct),
+            ["GetAppDetails(client)"] = async c => await c.Apps.GetAppDetails(attackerTeam.teamId, client.appId, ct),
+            ["RegenerateBotToken"]    = async c => await c.Apps.RegenerateBotToken(attackerTeam.teamId, bot.appId, ct),
+            ["PublishBot"]            = async c => await c.Apps.PublishBot(attackerTeam.teamId, bot.appId, ct),
+            ["SuspendBot"]            = async c => await c.Apps.SuspendBot(attackerTeam.teamId, bot.appId, ct),
+            ["UpdateBotEntitlements"] = async c => await c.Apps.UpdateBotEntitlements(attackerTeam.teamId, bot.appId, ulong.MaxValue, ct),
+            ["SetBotOAuth"]           = async c => await c.Apps.SetBotOAuth(attackerTeam.teamId, bot.appId, false, ct),
+            ["UpdateScope"]           = async c => await c.Apps.UpdateScope(attackerTeam.teamId, client.appId, new ScopeKeyValue(true, "email", false), ct),
+            ["RemoveRedirect"]        = async c => await c.Apps.RemoveRedirect(attackerTeam.teamId, client.appId, "https://x.test.local/cb", ct)
+        };
+
+        var notFound = new object[]
+        {
+            new FailedAppDetails(AppManagementError.NOT_FOUND),
+            new FailedRegenerateBotToken(AppManagementError.NOT_FOUND),
+            new FailedAppManagement(AppManagementError.NOT_FOUND)
         };
 
         foreach (var (name, call) in attempts)
-        {
-            Assert.That(async () => await As(attacker, call), Throws.InstanceOf<InvalidOperationException>(),
-                $"{name} reached another team's application");
-        }
+            Assert.That(await As(attacker, call), Is.AnyOf(notFound), $"{name} reached another team's application");
 
-        var after = await As(victim, c => c.Apps.GetAppDetails(victimTeam.teamId, bot.appId, ct));
+        var after = await As(victim, c => c.Apps.GetAppDetails(victimTeam.teamId, bot.appId, ct).Ok());
 
         Assert.Multiple(() =>
         {
@@ -181,13 +185,13 @@ public class AppManagementTests : TestBase
     {
         var owner = await CreateSessionAsync(ct);
         var team  = await CreateTeamAsync(owner, "scopes");
-        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Scoped", BotUsername("scoped"), ct));
+        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Scoped", BotUsername("scoped"), ct).Ok());
 
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "user.read", false), ct));
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "user.read", false), ct));
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "offline_access", true), ct));
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "user.read", false), ct).Ok());
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "user.read", false), ct).Ok());
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "offline_access", true), ct).Ok());
 
-        var granted     = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var granted     = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
         var credentials = await Policy.GetCredentialsForBotAsync(bot.clientId, ct);
 
         Assert.Multiple(() =>
@@ -202,8 +206,8 @@ public class AppManagementTests : TestBase
                 "an unverified bot was allowed refresh tokens");
         });
 
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(false, "user.read", false), ct));
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(false, "email", false), ct));
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(false, "user.read", false), ct).Ok());
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(false, "email", false), ct).Ok());
 
         var revoked = await Policy.GetCredentialsForBotAsync(bot.clientId, ct);
 
@@ -224,8 +228,8 @@ public class AppManagementTests : TestBase
     {
         var owner   = await CreateSessionAsync(ct);
         var team    = await CreateTeamAsync(owner, "redirects");
-        var desktop = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Desktop", ClientAppPlatform.WindowsDesktop, ct));
-        var bot     = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Web Bot", BotUsername("redir"), ct));
+        var desktop = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Desktop", ClientAppPlatform.WindowsDesktop, ct).Ok());
+        var bot     = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Web Bot", BotUsername("redir"), ct).Ok());
 
         const string native = "gl.argon.devteams://callback";
 
@@ -234,7 +238,7 @@ public class AppManagementTests : TestBase
         var plainHttp = await As(owner, c => c.Apps.AddRedirect(team.teamId, desktop.appId, "http://devteams.test.local/cb", ct));
         var botNative = await As(owner, c => c.Apps.AddRedirect(team.teamId, bot.appId, native, ct));
 
-        var stored = await As(owner, c => c.Apps.GetAppDetails(team.teamId, desktop.appId, ct));
+        var stored = await As(owner, c => c.Apps.GetAppDetails(team.teamId, desktop.appId, ct).Ok());
 
         Assert.Multiple(() =>
         {
@@ -249,10 +253,10 @@ public class AppManagementTests : TestBase
             Assert.That(stored.clientAppDetails.allowedDevelopmentRegenerateCoockies, Is.False);
         });
 
-        await As(owner, c => c.Apps.RemoveRedirect(team.teamId, desktop.appId, native, ct));
-        await As(owner, c => c.Apps.RemoveRedirect(team.teamId, desktop.appId, native, ct));
+        await As(owner, c => c.Apps.RemoveRedirect(team.teamId, desktop.appId, native, ct).Ok());
+        await As(owner, c => c.Apps.RemoveRedirect(team.teamId, desktop.appId, native, ct).Ok());
 
-        var removed = await As(owner, c => c.Apps.GetAppDetails(team.teamId, desktop.appId, ct));
+        var removed = await As(owner, c => c.Apps.GetAppDetails(team.teamId, desktop.appId, ct).Ok());
         Assert.That(removed.allowedRedirects, Is.Empty, "a removed redirect is still registered");
 
         var host   = $"devteams-{Guid.NewGuid():N}.test.local";
@@ -287,7 +291,7 @@ public class AppManagementTests : TestBase
         var admin    = await CreateSessionAsync(ct);
         var team     = await CreateTeamAsync(owner, "publish");
         var username = BotUsername("listed");
-        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Listed Bot", username, ct));
+        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Listed Bot", username, ct).Ok());
 
         var (spaceId, _) = await CreateSpaceWithChannelAsync(admin, "Bot shop", ct);
         var directory    = admin.Client.ForService<IBotManagementInteraction>(FactoryAsp.Services);
@@ -295,7 +299,7 @@ public class AppManagementTests : TestBase
         var hidden     = await directory.SearchBots(spaceId, username, ct);
         var refusedDev = await directory.InstallBot(spaceId, bot.appId, ct);
 
-        await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct).Ok());
 
         var found   = await directory.SearchBots(spaceId, $"  {username.ToUpperInvariant()} ", ct);
         var details = await directory.GetBotDetails(spaceId, bot.appId, ct);
@@ -304,10 +308,10 @@ public class AppManagementTests : TestBase
         await InstallAsync(admin, spaceId, bot.appId, ct);
         var twice = await directory.InstallBot(spaceId, bot.appId, ct);
 
-        await As(owner, c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct).Ok());
 
         var unlisted = await directory.SearchBots(spaceId, username, ct);
-        var lifecycle = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var lifecycle = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
         Assert.Multiple(() =>
         {
@@ -347,13 +351,13 @@ public class AppManagementTests : TestBase
     {
         var owner = await CreateSessionAsync(ct);
         var team  = await CreateTeamAsync(owner, "rotate");
-        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Rotating Bot", BotUsername("rotate"), ct));
+        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Rotating Bot", BotUsername("rotate"), ct).Ok());
         var old   = bot.botDetails!.botToken;
 
         Assert.That(await BotGetMeAsync(old, ct), Is.EqualTo(HttpStatusCode.OK), "premise: the first token works");
 
-        var fresh = await As(owner, c => c.Apps.RegenerateBotToken(team.teamId, bot.appId, ct));
-        var shown = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var fresh = await As(owner, c => c.Apps.RegenerateBotToken(team.teamId, bot.appId, ct).Ok());
+        var shown = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
         var oldStatus   = await BotGetMeAsync(old, ct);
         var freshStatus = await BotGetMeAsync(fresh, ct);
@@ -382,10 +386,10 @@ public class AppManagementTests : TestBase
 
         Assert.That(await BotGetMeAsync(token, ct), Is.EqualTo(HttpStatusCode.OK), "premise: the bot is running");
 
-        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct).Ok());
 
         var suspended = await BotGetMeAsync(token, ct);
-        var state     = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var state     = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
         Assert.Multiple(() =>
         {
@@ -413,10 +417,10 @@ public class AppManagementTests : TestBase
 
         var raised = (ulong)(before.requiredEntitlements | ArgonEntitlement.ManageChannels);
 
-        await As(owner, c => c.Apps.UpdateBotEntitlements(team.teamId, bot.appId, raised, ct));
-        await As(owner, c => c.Apps.SetBotOAuth(team.teamId, bot.appId, false, ct));
+        await As(owner, c => c.Apps.UpdateBotEntitlements(team.teamId, bot.appId, raised, ct).Ok());
+        await As(owner, c => c.Apps.SetBotOAuth(team.teamId, bot.appId, false, ct).Ok());
 
-        var saved   = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var saved   = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
         var pending = (await directory.GetInstalledBots(spaceId, ct)).Single(b => b.appId == bot.appId);
         var approve = await directory.ApproveBotEntitlements(spaceId, bot.appId, ct);
         var settled = (await directory.GetInstalledBots(spaceId, ct)).Single(b => b.appId == bot.appId);
@@ -448,18 +452,18 @@ public class AppManagementTests : TestBase
     {
         var owner = await CreateSessionAsync(ct);
         var team  = await CreateTeamAsync(owner, "staffbot");
-        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Staff Bot", BotUsername("staff"), ct));
+        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Staff Bot", BotUsername("staff"), ct).Ok());
 
         Assert.That((await Operators.SetBotVerifiedAsync(bot.appId, true, ct)).success, Is.True);
 
         await SetBadgesAsync(bot.appId, ["staff"], ct);
-        var staffOnly = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var staffOnly = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
         await SetBadgesAsync(bot.appId, ["staff", "early_supporter"], ct);
-        var staffAndMore = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var staffAndMore = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "internal.read", false), ct));
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "offline_access", false), ct));
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "internal.read", false), ct).Ok());
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, bot.appId, new ScopeKeyValue(true, "offline_access", false), ct).Ok());
         var credentials = await Policy.GetCredentialsForBotAsync(bot.clientId, ct);
 
         Assert.Multiple(() =>
@@ -490,11 +494,11 @@ public class AppManagementTests : TestBase
         await As(staffer, c => c.Teams.AcceptTeamInvite(team.teamId, ct));
         await SetEmailAsync(staffer.UserId, $"staff-{Guid.NewGuid():N}@argon.gl", ct);
 
-        var tool = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Internal Tool", ClientAppPlatform.WebBased, ct));
+        var tool = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Internal Tool", ClientAppPlatform.WebBased, ct).Ok());
         Assert.That((await Operators.SetAppInternalAsync(tool.appId, true, ct)).success, Is.True);
 
         var bot     = await CreatePublishedBotAsync(owner, team.teamId, "policy");
-        var unreviewed = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Unreviewed App", ClientAppPlatform.WebBased, ct));
+        var unreviewed = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Unreviewed App", ClientAppPlatform.WebBased, ct).Ok());
 
         var toolStranger = await Policy.CanBeLoginForAppAsync(tool.clientId, stranger.UserId, ct);
         var toolOwner    = await Policy.CanBeLoginForAppAsync(tool.clientId, owner.UserId, ct);
@@ -545,7 +549,7 @@ public class AppManagementTests : TestBase
     {
         var owner = await CreateSessionAsync(ct);
         var team  = await CreateTeamAsync(owner, "internal");
-        var tool  = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Verified Tool", ClientAppPlatform.WebBased, ct));
+        var tool  = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Verified Tool", ClientAppPlatform.WebBased, ct).Ok());
 
         Assert.That((await Operators.SetAppInternalAsync(tool.appId, true, ct)).success, Is.True);
 
@@ -556,9 +560,9 @@ public class AppManagementTests : TestBase
                .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsVerified, true), ct);
         }
 
-        await As(owner, c => c.Apps.UpdateScope(team.teamId, tool.appId, new ScopeKeyValue(true, "infrastructure.write", false), ct));
+        await As(owner, c => c.Apps.UpdateScope(team.teamId, tool.appId, new ScopeKeyValue(true, "infrastructure.write", false), ct).Ok());
 
-        var details     = await As(owner, c => c.Apps.GetAppDetails(team.teamId, tool.appId, ct));
+        var details     = await As(owner, c => c.Apps.GetAppDetails(team.teamId, tool.appId, ct).Ok());
         var credentials = await Policy.GetCredentialsForBotAsync(tool.clientId, ct);
 
         await using (var db = await AccountSeed.NewDbAsync(ct))
@@ -608,22 +612,19 @@ public class AppManagementTests : TestBase
 
         var stopped = await BotGetMeAsync(token, ct);
 
-        var refusals = new Dictionary<string, Func<DevConsole, Task>>
+        var refusals = new Dictionary<string, Func<DevConsole, Task<IAppManagementResult>>>
         {
             ["PublishBot"]   = c => c.Apps.PublishBot(team.teamId, bot.appId, ct),
             ["UnpublishBot"] = c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct)
         };
 
         foreach (var (name, call) in refusals)
-        {
-            var refused = Assert.ThrowsAsync<IonRequestException>(async () => await As(owner, call),
+            Assert.That(await As(owner, call), Is.EqualTo(new FailedAppManagement(AppManagementError.SUSPENDED_BY_OPERATOR)),
                 $"{name} was allowed on a bot an operator suspended");
-            Assert.That(refused!.Error.code, Is.EqualTo("SUSPENDED_BY_OPERATOR"));
-        }
 
-        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct).Ok());
 
-        var state = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        var state = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
         var who   = await SuspendedByAsync(bot.appId, ct);
 
         Assert.Multiple(() =>
@@ -640,8 +641,8 @@ public class AppManagementTests : TestBase
 
         var lifted = await BotGetMeAsync(token, ct);
 
-        await As(owner, c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct));
-        var afterLift = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.UnpublishBot(team.teamId, bot.appId, ct).Ok());
+        var afterLift = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
         Assert.Multiple(async () =>
         {
@@ -662,13 +663,13 @@ public class AppManagementTests : TestBase
         var team  = await CreateTeamAsync(owner, "selfsusp");
         var bot   = await CreatePublishedBotAsync(owner, team.teamId, "selfsusp");
 
-        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct).Ok());
         var ownSuspension = await SuspendedByAsync(bot.appId, ct);
 
-        await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct));
-        var republished = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct).Ok());
+        var republished = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
 
-        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct));
+        await As(owner, c => c.Apps.SuspendBot(team.teamId, bot.appId, ct).Ok());
         Assert.That((await Operators.SetBotLifecycleStateAsync(bot.appId, AdminBotLifecycleState.Suspended, ct)).success, Is.True);
 
         var takenOver = await SuspendedByAsync(bot.appId, ct);
@@ -681,8 +682,9 @@ public class AppManagementTests : TestBase
             Assert.That(takenOver, Is.EqualTo(BotSuspendedBy.Operator));
         });
 
-        Assert.That(async () => await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct)),
-            Throws.InstanceOf<IonRequestException>(), "the team lifted a suspension an operator had taken over");
+        Assert.That(await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct)),
+            Is.EqualTo(new FailedAppManagement(AppManagementError.SUSPENDED_BY_OPERATOR)),
+            "the team lifted a suspension an operator had taken over");
     }
 
     /// <summary>
@@ -709,8 +711,9 @@ public class AppManagementTests : TestBase
                    .SetProperty(b => b.SuspendedBy, BotSuspendedBy.None), ct);
         }
 
-        Assert.That(async () => await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct)),
-            Throws.InstanceOf<IonRequestException>(), "the team lifted a suspension nobody can say it imposed");
+        Assert.That(await As(owner, c => c.Apps.PublishBot(team.teamId, bot.appId, ct)),
+            Is.EqualTo(new FailedAppManagement(AppManagementError.SUSPENDED_BY_OPERATOR)),
+            "the team lifted a suspension nobody can say it imposed");
     }
 
     // ── what a bot may be called ─────────────────────────────────────────────────────────────
@@ -746,16 +749,16 @@ public class AppManagementTests : TestBase
             var verdict = await As(owner, c => c.Apps.CheckUsernameForBot(team.teamId, name, ct));
             Assert.That(verdict, Is.EqualTo(CheckBotUsernameValid.INVALID_FORMAT), $"'{name}' was not refused as badly formed");
 
-            Assert.That(async () => await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Malformed", name, ct)),
-                Throws.InstanceOf<IonRequestException>(), $"the console created a bot called '{name}'");
+            Assert.That(await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Malformed", name, ct)),
+                Is.EqualTo(new FailedAppDetails(AppManagementError.INVALID_USERNAME)), $"the console created a bot called '{name}'");
             Assert.That(async () => await Teams.CreateBotAppAsync(team.teamId, "Malformed", name, ct),
                 Throws.InstanceOf<InvalidOperationException>(), $"the grain created a bot called '{name}'");
         }
 
         var edge     = "Edge_" + Guid.NewGuid().ToString("N")[..24] + "Bot";
         var accepted = await As(owner, c => c.Apps.CheckUsernameForBot(team.teamId, edge, ct));
-        var created  = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Longest name", edge, ct));
-        var details  = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct));
+        var created  = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Longest name", edge, ct).Ok());
+        var details  = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct).Ok());
 
         Assert.Multiple(() =>
         {

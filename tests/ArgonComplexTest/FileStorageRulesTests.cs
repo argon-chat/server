@@ -59,7 +59,7 @@ public class FileStorageRulesTests : TestBase
         spaceId = ((SuccessCreateSpace)created).space.spaceId;
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "files", ChannelType.Text, "FileStorageRulesTests", null));
+            new CreateChannelRequest(spaceId, "files", ChannelType.Text, "FileStorageRulesTests", null)).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId);
 

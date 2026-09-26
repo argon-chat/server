@@ -74,7 +74,7 @@ public class SpaceTests : TestBase
             successSpace!.space.spaceId,
             expireMinutes: 60,
             maxUses: 10,
-            ct);
+            ct).Ok();
 
         Assert.That(inviteCode.inviteCode, Is.Not.Null.And.Not.Empty);
     }
@@ -97,7 +97,7 @@ public class SpaceTests : TestBase
             successSpace!.space.spaceId,
             expireMinutes: 60,
             maxUses: 10,
-            ct);
+            ct).Ok();
 
         var previewResult = await GetUserService(scope.ServiceProvider).PreviewInvite(invite, ct);
 
@@ -132,7 +132,7 @@ public class SpaceTests : TestBase
             successSpace!.space.spaceId,
             expireMinutes: 60,
             maxUses: 10,
-            ct);
+            ct).Ok();
 
         // The exact transform GetInviteCodes applies to what the client shares.
         var sharedCode = Argon.Entities.InviteCodeEntityData.DecodeFromUlong(
@@ -164,7 +164,7 @@ public class SpaceTests : TestBase
         var spaceId = (createSpaceResult as SuccessCreateSpace)!.space.spaceId;
 
         var invite = await GetServerService(scope1.ServiceProvider).CreateInviteCode(
-            spaceId, expireMinutes: 60, maxUses: 10, ct);
+            spaceId, expireMinutes: 60, maxUses: 10, ct).Ok();
         var sharedCode = Argon.Entities.InviteCodeEntityData.DecodeFromUlong(
             Argon.Entities.InviteCodeEntityData.EncodeToUlong(invite.inviteCode));
 
@@ -258,7 +258,7 @@ public class SpaceTests : TestBase
             $"could not create the space: {(created as FailedCreateSpace)?.error}");
 
         var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined  = await member.Users.JoinToSpace(invite, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(),
@@ -349,7 +349,7 @@ public class SpaceTests : TestBase
 
         var created = await owner.Users.CreateSpace(new CreateServerRequest("Grant Space", "", string.Empty), ct);
         var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         Assert.That(await member.Users.JoinToSpace(invite, ct), Is.InstanceOf<SuccessJoin>());
 

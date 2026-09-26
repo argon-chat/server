@@ -54,21 +54,21 @@ public class ChannelMessagingTests : TestBase
 
         var eleven = Enumerable.Range(0, 11).Select(_ => (IMessageEntity)Attachment(Guid.NewGuid())).ToArray();
 
-        Assert.That(async () => await owner.Channels.SendMessage(spaceId, channelId, "too many", Entities(eleven), NextRandomId(), null, ct),
-            Throws.Exception, "an eleventh attachment was accepted");
+        Assert.That(await owner.Channels.SendMessage(spaceId, channelId, "too many", Entities(eleven), NextRandomId(), null, ct),
+            Is.EqualTo(new FailedSendMessage(SendMessageError.TOO_MANY_ATTACHMENTS)), "an eleventh attachment was accepted");
 
-        var ten = await owner.Channels.SendMessage(spaceId, channelId, "just enough", Entities(eleven[..10]), NextRandomId(), null, ct);
+        var ten = await owner.Channels.SendMessage(spaceId, channelId, "just enough", Entities(eleven[..10]), NextRandomId(), null, ct).Ok();
         Assert.That((await ReadBackAsync(owner, spaceId, channelId, ten, ct)).entities.Values, Has.Count.EqualTo(10));
 
         await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.AttachFiles, ct);
 
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "sneaky", Entities(Attachment(Guid.NewGuid())),
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "sneaky", Entities(Attachment(Guid.NewGuid())),
                 NextRandomId(), null, ct),
-            Throws.Exception, "a member denied AttachFiles posted an attachment");
+            Is.EqualTo(new FailedSendMessage(SendMessageError.NO_ATTACH_PERMISSION)), "a member denied AttachFiles posted an attachment");
 
         // The deny is about files, not about talking.
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "words are fine", Entities(), NextRandomId(), null, ct),
-            Throws.Nothing);
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "words are fine", Entities(), NextRandomId(), null, ct),
+            Is.InstanceOf<SuccessSendMessage>());
 
         var messages = await owner.Channels.QueryMessages(spaceId, channelId, null, 50, ct);
         Assert.That(messages.Values.Select(m => m.text), Is.EquivalentTo(new[] { "just enough", "words are fine" }));
@@ -81,7 +81,7 @@ public class ChannelMessagingTests : TestBase
         var fileId = Guid.NewGuid();
 
         var messageId = await owner.Channels.SendMessage(spaceId, channelId, "look",
-            Entities(Attachment(fileId, "https://evil.example/steal?c=")), NextRandomId(), null, ct);
+            Entities(Attachment(fileId, "https://evil.example/steal?c=")), NextRandomId(), null, ct).Ok();
 
         var stored   = await StoredMessageAsync(spaceId, channelId, messageId, ct);
         var served   = (MessageEntityAttachment)(await ReadBackAsync(owner, spaceId, channelId, messageId, ct)).entities.Values.Single();
@@ -135,7 +135,7 @@ public class ChannelMessagingTests : TestBase
         var signed = new MessageEntityGif(EntityType.Gif, 0, 0, 1, slug, klipy.ComputeUserHmac(slug, owner.UserId), null, 100, 100,
             "https://evil.example/preview.webp");
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "", Entities(forged, signed), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "", Entities(forged, signed), NextRandomId(), null, ct).Ok();
 
         var gifs = (await ReadBackAsync(owner, spaceId, channelId, messageId, ct)).entities.Values.OfType<MessageEntityGif>().ToList();
 
@@ -152,7 +152,7 @@ public class ChannelMessagingTests : TestBase
         var guest = await CreateSessionAsync(ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var replayed = await guest.Channels.SendMessage(spaceId, channelId, "", Entities(signed), NextRandomId(), null, ct);
+        var replayed = await guest.Channels.SendMessage(spaceId, channelId, "", Entities(signed), NextRandomId(), null, ct).Ok();
         Assert.That((await ReadBackAsync(owner, spaceId, channelId, replayed, ct)).entities.Values.OfType<MessageEntityGif>(), Is.Empty,
             "a signature minted for one user was accepted from another");
     }
@@ -172,7 +172,7 @@ public class ChannelMessagingTests : TestBase
         var stub = new MessageEntityLinkPreview(EntityType.LinkPreview, 4, 28, 1, "https://example.com/embed-me", null, null, null, null, null);
         var url  = new MessageEntityUrl(EntityType.Url, 4, 28, 1, "example.com", "/embed-me");
 
-        var messageId = await guest.Channels.SendMessage(spaceId, channelId, text, Entities(url, stub), NextRandomId(), null, ct);
+        var messageId = await guest.Channels.SendMessage(spaceId, channelId, text, Entities(url, stub), NextRandomId(), null, ct).Ok();
         var served    = await ReadBackAsync(owner, spaceId, channelId, messageId, ct);
 
         Assert.Multiple(() =>
@@ -224,7 +224,7 @@ public class ChannelMessagingTests : TestBase
     public async Task UpdateChannel_WithNothingNew_AnswersTheChannelAndTellsNobody(CancellationToken ct = default)
     {
         var (owner, spaceId, channelId) = await RoomAsync("steady", ct);
-        var lastId = await owner.Channels.SendMessage(spaceId, channelId, "hi", Entities(), NextRandomId(), null, ct);
+        var lastId = await owner.Channels.SendMessage(spaceId, channelId, "hi", Entities(), NextRandomId(), null, ct).Ok();
 
         await using var observer = await RealtimeClient.ConnectAsync(owner, ct);
         var mark = observer.Mark();
@@ -258,8 +258,8 @@ public class ChannelMessagingTests : TestBase
         var (owner, spaceId, channelId) = await RoomAsync("doomed", ct);
 
         // Wake the grain first, so it is the live activation, holding the channel in memory, that is asked.
-        await owner.Channels.SendMessage(spaceId, channelId, "still here", Entities(), NextRandomId(), null, ct);
-        await owner.Channels.DeleteChannel(spaceId, channelId, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "still here", Entities(), NextRandomId(), null, ct).Ok();
+        await owner.Channels.DeleteChannel(spaceId, channelId, ct).Ok();
 
         var result = await owner.Channels.UpdateChannel(spaceId, channelId, "resurrected", null, null, null, ct);
 
@@ -277,7 +277,7 @@ public class ChannelMessagingTests : TestBase
     public async Task A_moderation_removal_of_a_message_already_gone_reports_false(CancellationToken ct = default)
     {
         var (owner, spaceId, channelId) = await RoomAsync("moderated", ct);
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "reported", Entities(), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "reported", Entities(), NextRandomId(), null, ct).Ok();
 
         var channel  = Grains.GetGrain<IChannelGrain>(channelId);
         var operator_ = Guid.NewGuid();
@@ -317,13 +317,13 @@ public class ChannelMessagingTests : TestBase
                .FirstOrDefaultAsync(ct);
         }
 
-        var first = await owner.Channels.SendMessage(spaceId, channelId, "first", Entities(), NextRandomId(), null, ct);
+        var first = await owner.Channels.SendMessage(spaceId, channelId, "first", Entities(), NextRandomId(), null, ct).Ok();
         await channel.ClearChannel();
 
         Assert.That(await PollAsync(StoredMarkAsync, id => id == first, TimeSpan.FromSeconds(30), ct), Is.EqualTo(first),
             "premise: the first id reached the row");
 
-        var second = await owner.Channels.SendMessage(spaceId, channelId, "second", Entities(), NextRandomId(), null, ct);
+        var second = await owner.Channels.SendMessage(spaceId, channelId, "second", Entities(), NextRandomId(), null, ct).Ok();
         var newer  = second + 1_000_000;
 
         await using (var db = await DbAsync(ct))

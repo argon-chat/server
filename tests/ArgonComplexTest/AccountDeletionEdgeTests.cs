@@ -883,7 +883,7 @@ public class AccountDeletionEdgeTests : TestBase
 
     private static async Task JoinSpaceAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         if (joined is not SuccessJoin)

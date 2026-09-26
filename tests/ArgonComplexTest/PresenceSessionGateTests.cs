@@ -359,7 +359,7 @@ public class PresenceSessionGateTests : TestBase
 
     private static async Task JoinAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(), $"the guest could not join: {(joined as FailedJoin)?.error}");
@@ -370,7 +370,7 @@ public class PresenceSessionGateTests : TestBase
         const string name = "session-gates";
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Text, "PresenceSessionGateTests", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Text, "PresenceSessionGateTests", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
 

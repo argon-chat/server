@@ -201,7 +201,7 @@ public class ReadStateCacheTests : TestBase
         Assert.That(created, Is.InstanceOf<SuccessCreateSpace>(), $"{(created as FailedCreateSpace)?.error}");
 
         var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         var members = new List<Guid>();
         for (var i = 0; i < 3; i++)

@@ -403,7 +403,7 @@ public class BotGatewayTests : TestBase
         var approved = bot.botDetails!.requiredEntitlements;
         var raised   = approved | (ulong)ArgonEntitlement.ManageChannels;
 
-        await As(developer, c => c.Apps.UpdateBotEntitlements(team.teamId, bot.appId, raised, ct));
+        await As(developer, c => c.Apps.UpdateBotEntitlements(team.teamId, bot.appId, raised, ct).Ok());
 
         var pending = (await gateway.ConnectAsync(BotIntent.Messages)).Single();
         var told    = await DrainUntilAsync(gateway, e => e.Type == BotEventType.BotEntitlementsUpdated, ct);
@@ -557,7 +557,7 @@ public class BotGatewayTests : TestBase
         => who.Client.ForService<IBotManagementInteraction>(FactoryAsp.Services);
 
     private Task SendAsync(Guid spaceId, Guid channelId, string text, CancellationToken ct)
-        => admin.Channels.SendMessage(spaceId, channelId, text, new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+        => admin.Channels.SendMessage(spaceId, channelId, text, new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct).Ok();
 
     /// <summary>
     /// Consumes until an event matching <paramref name="match"/> arrives, and fails the test if none

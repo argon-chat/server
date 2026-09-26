@@ -172,7 +172,7 @@ public class ChannelBotInteractionTests : TestBase
     public async Task A_click_on_a_missing_message_an_unknown_control_or_a_disabled_one_is_refused(CancellationToken ct = default)
     {
         var plain   = await owner.Channels.SendMessage(spaceId, channelId, "no controls", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(1, long.MaxValue), null, ct);
+            Random.Shared.NextInt64(1, long.MaxValue), null, ct).Ok();
         var withOne = await bot.SendAsync(spaceId, channelId, "one live, one off", Rows([Button("live"), Button("off", "Off", disabled: true)]), ct);
 
         var missing  = await guest.Channels.InteractWithControl(spaceId, channelId, long.MaxValue - 7, "live", ct);
@@ -196,7 +196,7 @@ public class ChannelBotInteractionTests : TestBase
         await JoinAsync(owner, member, spaceId, ct);
 
         var archetypes = ArchetypesOf(owner);
-        var staff      = await archetypes.CreateArchetype(spaceId, $"staff-{Guid.NewGuid():N}"[..20], ct);
+        var staff      = await archetypes.CreateArchetype(spaceId, $"staff-{Guid.NewGuid():N}"[..20], ct).Ok();
 
         var messageId = await bot.SendAsync(spaceId, channelId, "staff only", Rows(
             [Button("staff-button", requiredArchetypeId: staff.id)],
@@ -300,7 +300,7 @@ public class ChannelBotInteractionTests : TestBase
     public async Task A_select_is_refused_when_missing_unknown_or_disabled_and_a_user_select_takes_any_ids(CancellationToken ct = default)
     {
         var plain     = await owner.Channels.SendMessage(spaceId, channelId, "nothing to pick", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(1, long.MaxValue), null, ct);
+            Random.Shared.NextInt64(1, long.MaxValue), null, ct).Ok();
         var messageId = await bot.SendAsync(spaceId, channelId, "selects", Rows(
             [StringSelect("closed", null, null, disabled: true, values: ["a"])],
             [UserSelect("who")]), ct);
@@ -413,7 +413,7 @@ public class ChannelBotInteractionTests : TestBase
     public async Task A_bot_cannot_edit_a_message_it_did_not_send_or_one_that_was_deleted(CancellationToken ct = default)
     {
         var ownersMessage = await owner.Channels.SendMessage(spaceId, channelId, "the owner's words", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(1, long.MaxValue), null, ct);
+            Random.Shared.NextInt64(1, long.MaxValue), null, ct).Ok();
         var deleted = await bot.SendAsync(spaceId, channelId, "gone soon", null, ct);
 
         Assert.That(await owner.Channels.DeleteMessage(spaceId, channelId, deleted, ct), Is.InstanceOf<SuccessDeleteMessage>());

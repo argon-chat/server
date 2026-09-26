@@ -356,7 +356,7 @@ public class VoiceBroadcastTests : TestBase
         var hq    = await BroadcastChannelAsync(owner, spaceId, Settings(party), ct);
         await OnAirAsync(member, spaceId, hq, ct);
 
-        await owner.Channels.DeleteChannel(spaceId, hq, ct);
+        await owner.Channels.DeleteChannel(spaceId, hq, ct).Ok();
 
         var slot = await Poll.ForValueAsync(
             () => GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).GetUserVoiceSlotAsync(member.UserId),

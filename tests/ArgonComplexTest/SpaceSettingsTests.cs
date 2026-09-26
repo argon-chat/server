@@ -68,7 +68,7 @@ public class SpaceSettingsTests : TestBase
         await watcher.SubscribeToSpace(spaceId, ct);
         var mark = watcher.Mark();
 
-        await owner.Servers.UpdateSpaceInfo(spaceId, "After", "A new description", ct);
+        await owner.Servers.UpdateSpaceInfo(spaceId, "After", "A new description", ct).Ok();
 
         var announced = await watcher.WaitForAsync<SpaceDetailsUpdated>(e => e.spaceId == spaceId, EventWait, mark, ct);
         var seen      = await SpaceAsync(member, spaceId, ct);
@@ -81,7 +81,7 @@ public class SpaceSettingsTests : TestBase
         });
 
         // A blank name is "leave it", which is how the settings sheet sends a description-only edit.
-        await owner.Servers.UpdateSpaceInfo(spaceId, "  ", "Only the description", ct);
+        await owner.Servers.UpdateSpaceInfo(spaceId, "  ", "Only the description", ct).Ok();
         seen = await SpaceAsync(member, spaceId, ct);
 
         Assert.Multiple(() =>
@@ -96,11 +96,14 @@ public class SpaceSettingsTests : TestBase
     {
         var (owner, member, spaceId) = await OwnerAndMemberAsync(() => CreateSessionAsync(ct), "Guarded", ct);
 
-        Assert.Multiple(() =>
+        await Assert.MultipleAsync(async () =>
         {
-            Assert.ThrowsAsync<IonRequestException>(() => member.Servers.UpdateSpaceInfo(spaceId, "Hijacked", "x", ct));
-            Assert.ThrowsAsync<IonRequestException>(() => owner.Servers.UpdateSpaceInfo(spaceId, new string('s', 65), "x", ct));
-            Assert.ThrowsAsync<IonRequestException>(() => owner.Servers.UpdateSpaceInfo(spaceId, "Fine", new string('d', 1025), ct));
+            Assert.That(await member.Servers.UpdateSpaceInfo(spaceId, "Hijacked", "x", ct),
+                Is.EqualTo(new FailedSpaceManage(SpaceManageError.NO_PERMISSION)));
+            Assert.That(await owner.Servers.UpdateSpaceInfo(spaceId, new string('s', 65), "x", ct),
+                Is.EqualTo(new FailedSpaceManage(SpaceManageError.INVALID_DATA)));
+            Assert.That(await owner.Servers.UpdateSpaceInfo(spaceId, "Fine", new string('d', 1025), ct),
+                Is.EqualTo(new FailedSpaceManage(SpaceManageError.INVALID_DATA)));
         });
 
         var seen = await SpaceAsync(owner, spaceId, ct);
@@ -119,13 +122,14 @@ public class SpaceSettingsTests : TestBase
     {
         var (owner, member, spaceId) = await OwnerAndMemberAsync(() => CreateSessionAsync(ct), "Strip", ct);
 
-        await owner.Servers.SetBoostStripHidden(spaceId, true, ct);
+        await owner.Servers.SetBoostStripHidden(spaceId, true, ct).Ok();
         Assert.That((await SpaceAsync(member, spaceId, ct)).hideBoostStrip, Is.True);
 
-        Assert.ThrowsAsync<IonRequestException>(() => member.Servers.SetBoostStripHidden(spaceId, false, ct));
+        Assert.That(await member.Servers.SetBoostStripHidden(spaceId, false, ct),
+            Is.EqualTo(new FailedSpaceManage(SpaceManageError.NO_PERMISSION)));
         Assert.That((await SpaceAsync(member, spaceId, ct)).hideBoostStrip, Is.True, "a member without ManageServer changed it");
 
-        await owner.Servers.SetBoostStripHidden(spaceId, false, ct);
+        await owner.Servers.SetBoostStripHidden(spaceId, false, ct).Ok();
         Assert.That((await SpaceAsync(member, spaceId, ct)).hideBoostStrip, Is.False);
     }
 
@@ -176,7 +180,7 @@ public class SpaceSettingsTests : TestBase
         await CreateChannelAsync(owner, spaceId, "kept", ct: ct);
         var gone = await CreateChannelAsync(owner, spaceId, "gone", ct: ct);
         await CreateChannelAsync(owner, spaceId, "voice", ChannelType.Voice, ct: ct);
-        await owner.Channels.DeleteChannel(spaceId, gone, ct);
+        await owner.Channels.DeleteChannel(spaceId, gone, ct).Ok();
 
         var stats = await owner.Servers.GetSpaceStats(spaceId, ct);
 
@@ -230,14 +234,14 @@ public class SpaceSettingsTests : TestBase
     {
         var owner   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Avatar", ct);
-        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         var before = await owner.Users.PreviewInvite(invite, ct);
         Assert.That(((SuccessPreview)before).preview.avatarFileId, Is.Null.Or.Empty);
 
         var ticket = await BeginAsync(() => owner.Servers.BeginUploadSpaceAvatar(spaceId, ct));
         await UploadAsync(ticket, Png);
-        await owner.Servers.CompleteUploadSpaceAvatar(spaceId, ticket.blobId, ct);
+        await owner.Servers.CompleteUploadSpaceAvatar(spaceId, ticket.blobId, ct).Ok();
 
         var space   = await SpaceAsync(owner, spaceId, ct);
         var preview = ((SuccessPreview)await owner.Users.PreviewInvite(invite, ct)).preview;
@@ -257,7 +261,7 @@ public class SpaceSettingsTests : TestBase
 
         var ticket = await BeginAsync(() => owner.Servers.BeginUploadSpaceProfileHeader(spaceId, ct));
         await UploadAsync(ticket, Png);
-        await owner.Servers.CompleteUploadSpaceProfileHeader(spaceId, ticket.blobId, ct);
+        await owner.Servers.CompleteUploadSpaceProfileHeader(spaceId, ticket.blobId, ct).Ok();
 
         var space = await SpaceAsync(owner, spaceId, ct);
 
@@ -282,7 +286,7 @@ public class SpaceSettingsTests : TestBase
 
         var ticket = await BeginAsync(() => owner.Servers.BeginUploadInviteImage(spaceId, ct));
         await UploadAsync(ticket, Png);
-        await owner.Servers.CompleteUploadInviteImage(spaceId, ticket.blobId, ct);
+        await owner.Servers.CompleteUploadInviteImage(spaceId, ticket.blobId, ct).Ok();
 
         Assert.That((await SpaceAsync(owner, spaceId, ct)).inviteImageFileId, Is.Not.Null.And.Not.Empty);
     }
@@ -300,12 +304,13 @@ public class SpaceSettingsTests : TestBase
         Assert.That(own, Is.InstanceOf<SuccessUploadFile>());
         await UploadAsync((SuccessUploadFile)own, Png);
 
+        var completed = await member.Servers.CompleteUploadSpaceAvatar(spaceId, ((SuccessUploadFile)own).blobId, ct);
+
         Assert.Multiple(() =>
         {
             Assert.That((avatar as FailedUploadFile)?.error, Is.EqualTo(UploadFileError.NOT_AUTHORIZED));
             Assert.That((header as FailedUploadFile)?.error, Is.EqualTo(UploadFileError.NOT_AUTHORIZED));
-            Assert.ThrowsAsync<IonRequestException>(
-                () => member.Servers.CompleteUploadSpaceAvatar(spaceId, ((SuccessUploadFile)own).blobId, ct));
+            Assert.That(completed, Is.EqualTo(new FailedSpaceManage(SpaceManageError.NO_PERMISSION)));
         });
 
         Assert.That((await SpaceAsync(owner, spaceId, ct)).avatarFieldId, Is.Null.Or.Empty);

@@ -67,7 +67,7 @@ public class ChannelHighWaterMarkTests : TestBase
         var first  = await spaces.GetSpaceSnapshot(spaceId, null, ct);
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "moves the high-water mark", new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, "moves the high-water mark", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         await WaitForStoredHighWaterMarkAsync(channelId, ct);
 
@@ -113,7 +113,7 @@ public class ChannelHighWaterMarkTests : TestBase
         await spaces.GetSpaceSnapshot(spaceId, null, ct);
 
         var messageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "the freshest thing here", new IonArray<IMessageEntity>([]), 1, null, ct);
+            spaceId, channelId, "the freshest thing here", new IonArray<IMessageEntity>([]), 1, null, ct).Ok();
 
         // The grain writes the cell off the send path so delivery is not held up by it, so the value
         // can land a beat after SendMessage returns. Polling is the difference between proving the

@@ -222,7 +222,7 @@ public class SocialGraphTests : TestBase
         var channelId = await CreateTextChannelAsync(spaceId, $"acked-{Guid.NewGuid():N}"[..20], ct);
 
         var messageId = await GetChannelService(scope.ServiceProvider).SendMessage(
-            spaceId, channelId, "read me", new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+            spaceId, channelId, "read me", new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct).Ok();
 
         await GetUserService(scope.ServiceProvider).AckChannel(channelId, messageId, ct);
 

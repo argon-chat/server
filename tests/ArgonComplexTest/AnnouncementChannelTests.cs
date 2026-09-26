@@ -45,7 +45,7 @@ public class AnnouncementChannelTests : TestBase
         string name, CancellationToken ct)
     {
         var archetypes = ArchetypesOf(owner);
-        var role       = await archetypes.CreateArchetype(spaceId, name, ct);
+        var role       = await archetypes.CreateArchetype(spaceId, name, ct).Ok();
 
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, memberUserId, ct), role.id, true, ct),
             Is.True);
@@ -71,10 +71,10 @@ public class AnnouncementChannelTests : TestBase
             Assert.That(forAll.allow, Is.EqualTo(ArgonEntitlement.None));
         });
 
-        var posted = await owner.Channels.SendMessage(spaceId, channelId, "Raid tonight", Entities(), NextRandomId(), null, ct);
+        var posted = await owner.Channels.SendMessage(spaceId, channelId, "Raid tonight", Entities(), NextRandomId(), null, ct).Ok();
 
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "me too", Entities(), NextRandomId(), null, ct),
-            Throws.Exception, "a plain member posted in an announcement channel");
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "me too", Entities(), NextRandomId(), null, ct),
+            Is.EqualTo(new FailedSendMessage(SendMessageError.NO_PERMISSION)), "a plain member posted in an announcement channel");
 
         var read = await guest.Channels.QueryMessages(spaceId, channelId, null, 10, ct);
         Assert.That(read.Values.Select(m => m.messageId), Is.EqualTo(new[] { posted }), "a member could not read the announcement");
@@ -96,8 +96,8 @@ public class AnnouncementChannelTests : TestBase
         var overwrites = await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct);
 
         Assert.That(overwrites.Values, Is.Empty);
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "hi", Entities(), NextRandomId(), null, ct),
-            Throws.Nothing);
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "hi", Entities(), NextRandomId(), null, ct),
+            Is.InstanceOf<SuccessSendMessage>());
     }
 
     [Test, CancelAfter(120_000)]
@@ -107,8 +107,8 @@ public class AnnouncementChannelTests : TestBase
 
         await RoleWithPostingAsync(owner, spaceId, channelId, guest.UserId, "herald", ct);
 
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "patch notes", Entities(), NextRandomId(), null, ct),
-            Throws.Nothing, "a role allowed to post on the channel was still refused");
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "patch notes", Entities(), NextRandomId(), null, ct),
+            Is.InstanceOf<SuccessSendMessage>(), "a role allowed to post on the channel was still refused");
     }
 
     [Test, CancelAfter(120_000)]
@@ -146,7 +146,7 @@ public class AnnouncementChannelTests : TestBase
         await using var observer = await RealtimeClient.ConnectAsync(guest, ct);
         await observer.SubscribeToChannel(channelId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "Raid at 20:00", Entities(), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "Raid at 20:00", Entities(), NextRandomId(), null, ct).Ok();
 
         var result = await owner.Channels.EditMessage(spaceId, channelId, messageId, "Raid at 21:00", Entities(Bold(8, 5)), ct);
 
@@ -180,8 +180,8 @@ public class AnnouncementChannelTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var guestMessage = await guest.Channels.SendMessage(spaceId, channelId, "mine", Entities(), NextRandomId(), null, ct);
-        var deleted      = await guest.Channels.SendMessage(spaceId, channelId, "gone", Entities(), NextRandomId(), null, ct);
+        var guestMessage = await guest.Channels.SendMessage(spaceId, channelId, "mine", Entities(), NextRandomId(), null, ct).Ok();
+        var deleted      = await guest.Channels.SendMessage(spaceId, channelId, "gone", Entities(), NextRandomId(), null, ct).Ok();
         await guest.Channels.DeleteMessage(spaceId, channelId, deleted, ct);
 
         var byOwner  = await owner.Channels.EditMessage(spaceId, channelId, guestMessage, "not yours", Entities(), ct);
@@ -211,7 +211,7 @@ public class AnnouncementChannelTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "files", ChannelType.Text, ct);
 
         var original  = Guid.NewGuid();
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "photo", Entities(Attachment(original)), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "photo", Entities(Attachment(original)), NextRandomId(), null, ct).Ok();
 
         var result = await owner.Channels.EditMessage(spaceId, channelId, messageId, "",
             Entities(Attachment(Guid.NewGuid())), ct);
@@ -234,12 +234,12 @@ public class AnnouncementChannelTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "general", ChannelType.Text, ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "hello", Entities(), NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "hello", Entities(), NextRandomId(), null, ct).Ok();
         Assert.That(await owner.Channels.EditMessage(spaceId, channelId, messageId, "@everyone hello", Entities(Everyone()), ct),
             Is.InstanceOf<SuccessEditMessage>());
 
         // The edit fans nothing out, so one direct mention after it must leave the count at exactly one.
-        await owner.Channels.SendMessage(spaceId, channelId, "@guest", Entities(Mention(guest.UserId)), NextRandomId(), null, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "@guest", Entities(Mention(guest.UserId)), NextRandomId(), null, ct).Ok();
 
         Assert.That(await PollAsync(() => MentionsAsync(guest, channelId, ct), n => n >= 1, Window, ct), Is.EqualTo(1),
             "editing @everyone into a message pinged the space");
@@ -260,13 +260,13 @@ public class AnnouncementChannelTests : TestBase
 
         var sent = new List<long>();
         for (var i = 1; i <= 4; i++)
-            sent.Add(await owner.Channels.SendMessage(spaceId, channelId, $"@everyone {i}", Entities(Everyone()), NextRandomId(), null, ct));
+            sent.Add(await owner.Channels.SendMessage(spaceId, channelId, $"@everyone {i}", Entities(Everyone()), NextRandomId(), null, ct).Ok());
 
         await PollAsync(() => Task.FromResult(observer.EventsOfType<BatchMentionOccurred>().Count(IsPing)), n => n >= 3, Window, ct);
         var mark = observer.Mark();
 
         await owner.Channels.DeleteMessage(spaceId, channelId, sent[0], ct);
-        await owner.Channels.SendMessage(spaceId, channelId, "@everyone 5", Entities(Everyone()), NextRandomId(), null, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "@everyone 5", Entities(Everyone()), NextRandomId(), null, ct).Ok();
 
         await observer.AssertNoneWithinAsync<BatchMentionOccurred>(IsPing, TimeSpan.FromSeconds(3),
             "@everyone past the hourly limit pinged the channel's readers", from: mark, ct: ct);
@@ -292,7 +292,7 @@ public class AnnouncementChannelTests : TestBase
         await JoinAsync(owner, guest, spaceId, ct);
 
         Assert.That(await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 30, null, ct), Is.InstanceOf<SuccessUpdateChannel>());
-        await guest.Channels.SendMessage(spaceId, channelId, "before", Entities(), NextRandomId(), null, ct);
+        await guest.Channels.SendMessage(spaceId, channelId, "before", Entities(), NextRandomId(), null, ct).Ok();
 
         await using var observer = await RealtimeClient.ConnectAsync(guest, ct);
 
@@ -314,8 +314,8 @@ public class AnnouncementChannelTests : TestBase
         await observer.WaitForAsync<EntitlementsChanged>(e => e.spaceId == spaceId, Window, ct: ct);
 
         // The guest posted a moment ago, so a refusal now also proves the cached permission was dropped.
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "during", Entities(), NextRandomId(), null, ct),
-            Throws.Exception, "a plain member still posted after the channel became an announcement channel");
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "during", Entities(), NextRandomId(), null, ct),
+            Is.EqualTo(new FailedSendMessage(SendMessageError.NO_PERMISSION)), "a plain member still posted after the channel became an announcement channel");
 
         var toText = await owner.Channels.SetChannelType(spaceId, channelId, ChannelType.Text, ct);
         Assert.That(toText, Is.InstanceOf<SuccessUpdateChannel>(), $"refused: {(toText as FailedUpdateChannel)?.error}");
@@ -323,8 +323,8 @@ public class AnnouncementChannelTests : TestBase
 
         Assert.That((await ArchetypesOf(owner).GetChannelEntitlementOverwrites(spaceId, channelId, ct)).Values, Is.Empty,
             "the deny for everyone outlived the announcement channel");
-        Assert.That(async () => await guest.Channels.SendMessage(spaceId, channelId, "after", Entities(), NextRandomId(), null, ct),
-            Throws.Nothing);
+        Assert.That(await guest.Channels.SendMessage(spaceId, channelId, "after", Entities(), NextRandomId(), null, ct),
+            Is.InstanceOf<SuccessSendMessage>());
 
         var history = await owner.Channels.QueryMessages(spaceId, channelId, null, 10, ct);
         Assert.That(history.Values.Select(m => m.text), Is.EquivalentTo(new[] { "before", "after" }));
@@ -363,11 +363,11 @@ public class AnnouncementChannelTests : TestBase
         await JoinAsync(owner, mod, spaceId, ct);
 
         var archetypes = ArchetypesOf(owner);
-        var channels   = await archetypes.CreateArchetype(spaceId, "channel-keepers", ct);
+        var channels   = await archetypes.CreateArchetype(spaceId, "channel-keepers", ct).Ok();
         channels = await archetypes.UpdateArchetype(spaceId, channels with
         {
             entitlement = ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory | ArgonEntitlement.SendMessages | ArgonEntitlement.ManageChannels
-        }, ct);
+        }, ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, mod.UserId, ct), channels.id, true, ct),
             Is.True);
 
@@ -383,7 +383,7 @@ public class AnnouncementChannelTests : TestBase
                 "ManageChannels alone rewrote who may post");
         });
 
-        await archetypes.UpdateArchetype(spaceId, channels with { entitlement = channels.entitlement | ArgonEntitlement.ManageArchetype }, ct);
+        await archetypes.UpdateArchetype(spaceId, channels with { entitlement = channels.entitlement | ArgonEntitlement.ManageArchetype }, ct).Ok();
 
         Assert.That(await mod.Channels.SetChannelType(spaceId, textId, ChannelType.Announcement, ct), Is.InstanceOf<SuccessUpdateChannel>());
     }

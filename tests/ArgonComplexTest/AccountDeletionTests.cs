@@ -2091,9 +2091,9 @@ public class AccountDeletionTests : TestBase
         await JoinSpaceAsync(observer, victim, spaceB, ct);
 
         await victim.Channels.SendMessage(spaceA, channelA, "victim in A", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(), null, ct);
+            Random.Shared.NextInt64(), null, ct).Ok();
         await victim.Channels.SendMessage(spaceB, channelB, "victim in B", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(), null, ct);
+            Random.Shared.NextInt64(), null, ct).Ok();
 
         // Social graph: a friendship both ways, a pending request in each direction, an outgoing block.
         await victim.Friends.SendFriendRequest(peer.Credentials.username, ct);
@@ -2577,7 +2577,7 @@ public class AccountDeletionTests : TestBase
         TestUserSession owner, Guid spaceId, string name, ChannelType kind, CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, kind, "Account deletion fixture", null), ct);
+            new CreateChannelRequest(spaceId, name, kind, "Account deletion fixture", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created  = channels.Values.FirstOrDefault(c => c.channel.name == name);
@@ -2590,7 +2590,7 @@ public class AccountDeletionTests : TestBase
 
     private static async Task JoinSpaceAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         if (joined is not SuccessJoin)

@@ -94,7 +94,7 @@ public class ChannelComposerTests : TestBase
         CancellationToken ct)
     {
         var archetypes = ArchetypesOf(owner);
-        var role       = await archetypes.CreateArchetype(spaceId, "herald", ct);
+        var role       = await archetypes.CreateArchetype(spaceId, "herald", ct).Ok();
 
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, memberUserId, ct), role.id, true, ct),
             Is.True);
@@ -294,7 +294,7 @@ public class ChannelComposerTests : TestBase
 
         var post = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "hello?", Entities(), In(TimeSpan.FromMinutes(10)), ct));
 
-        await owner.Channels.DeleteChannel(spaceId, channelId, ct);
+        await owner.Channels.DeleteChannel(spaceId, channelId, ct).Ok();
         await BackdateAsync(post.postId, TimeSpan.FromSeconds(1), ct);
         await TickAsync(channelId);
 
@@ -312,7 +312,7 @@ public class ChannelComposerTests : TestBase
         var (owner, guest, spaceId, channelId) = await TextChannelAsync(ChannelType.Text, ct);
         Assert.That(await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 5, null, ct), Is.InstanceOf<SuccessUpdateChannel>());
 
-        await guest.Channels.SendMessage(spaceId, channelId, "live", Entities(), NextRandomId(), null, ct);
+        await guest.Channels.SendMessage(spaceId, channelId, "live", Entities(), NextRandomId(), null, ct).Ok();
 
         var held  = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "held", Entities(), In(TimeSpan.FromMinutes(10)), ct));
         var stale = Scheduled(await ComposerOf(guest).SchedulePost(spaceId, channelId, "stale", Entities(), In(TimeSpan.FromMinutes(10)), ct));

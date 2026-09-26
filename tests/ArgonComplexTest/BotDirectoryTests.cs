@@ -32,7 +32,7 @@ public class BotDirectoryTests : TestBase
     {
         var owner = await CreateSessionAsync(ct);
         var team  = await CreateTeamAsync(owner, "tokens");
-        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Token Bot", BotUsername("tok"), ct));
+        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Token Bot", BotUsername("tok"), ct).Ok());
         var token = bot.botDetails!.botToken;
         var hex   = token[..token.IndexOf(':')];
 
@@ -79,7 +79,7 @@ public class BotDirectoryTests : TestBase
     {
         var owner    = await CreateSessionAsync(ct);
         var team     = await CreateTeamAsync(owner, "cmdlimit");
-        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Busy Bot", BotUsername("busy"), ct));
+        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Busy Bot", BotUsername("busy"), ct).Ok());
         var commands = GetGrainFactory().GetGrain<IBotCommandsGrain>(bot.appId);
         var spaceId  = Guid.NewGuid();
 
@@ -127,7 +127,7 @@ public class BotDirectoryTests : TestBase
     {
         var owner    = await CreateSessionAsync(ct);
         var team     = await CreateTeamAsync(owner, "cmddup");
-        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Twice Bot", BotUsername("twice"), ct));
+        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Twice Bot", BotUsername("twice"), ct).Ok());
         var commands = GetGrainFactory().GetGrain<IBotCommandsGrain>(bot.appId);
         var spaceId  = Guid.NewGuid();
 
@@ -189,7 +189,7 @@ public class BotDirectoryTests : TestBase
     {
         var owner    = await CreateSessionAsync(ct);
         var team     = await CreateTeamAsync(owner, "cmdlegacy");
-        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Legacy Bot", BotUsername("legacy"), ct));
+        var bot      = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Legacy Bot", BotUsername("legacy"), ct).Ok());
         var commands = GetGrainFactory().GetGrain<IBotCommandsGrain>(bot.appId);
 
         var oldest = Guid.NewGuid();
@@ -229,7 +229,7 @@ public class BotDirectoryTests : TestBase
     {
         var owner   = await CreateSessionAsync(ct);
         var team    = await CreateTeamAsync(owner, "cmdhttp");
-        var bot     = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Http Bot", BotUsername("http"), ct));
+        var bot     = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Http Bot", BotUsername("http"), ct).Ok());
         var token   = bot.botDetails!.botToken;
         var spaceId = Guid.NewGuid();
 

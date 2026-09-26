@@ -64,7 +64,7 @@ public abstract class ReportTestBase : TestBase
         var spaceId = success.space.spaceId;
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "general", ChannelType.Text, "Test channel", null), ct);
+            new CreateChannelRequest(spaceId, "general", ChannelType.Text, "Test channel", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var channel  = channels.Values.FirstOrDefault(c => c.channel.name == "general");
@@ -77,14 +77,14 @@ public abstract class ReportTestBase : TestBase
     /// <summary>Puts <paramref name="guest"/> in the space as an ordinary member.</summary>
     protected async Task JoinAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(), $"Guest could not join: {(joined as FailedJoin)?.error}");
     }
 
     protected static Task<long> SayAsync(TestUserSession author, Guid spaceId, Guid channelId, string text, CancellationToken ct)
-        => author.Channels.SendMessage(spaceId, channelId, text, NoEntities, Random.Shared.NextInt64(1, long.MaxValue), null, ct);
+        => author.Channels.SendMessage(spaceId, channelId, text, NoEntities, Random.Shared.NextInt64(1, long.MaxValue), null, ct).Ok();
 
     protected static ReportTarget MessageTarget(Guid authorId, Guid channelId, long messageId)
         => new(ReportTargetKind.MESSAGE, authorId, channelId, (ulong)messageId);

@@ -43,11 +43,11 @@ public class ChannelMentionTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "replies", ChannelType.Text, ct);
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var question = await guest.Channels.SendMessage(spaceId, channelId, "anyone?", Entities(), NextRandomId(), null, ct);
-        var own      = await owner.Channels.SendMessage(spaceId, channelId, "a note", Entities(), NextRandomId(), null, ct);
+        var question = await guest.Channels.SendMessage(spaceId, channelId, "anyone?", Entities(), NextRandomId(), null, ct).Ok();
+        var own      = await owner.Channels.SendMessage(spaceId, channelId, "a note", Entities(), NextRandomId(), null, ct).Ok();
 
-        await owner.Channels.SendMessage(spaceId, channelId, "replying to myself", Entities(), NextRandomId(), own, ct);
-        await owner.Channels.SendMessage(spaceId, channelId, "yes", Entities(), NextRandomId(), question, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "replying to myself", Entities(), NextRandomId(), own, ct).Ok();
+        await owner.Channels.SendMessage(spaceId, channelId, "yes", Entities(), NextRandomId(), question, ct).Ok();
 
         Assert.That(await WaitForMentionsAsync(guest, channelId, 1, ct), Is.EqualTo(1),
             "a reply did not count as a mention for the author of the message it answers");
@@ -67,7 +67,7 @@ public class ChannelMentionTests : TestBase
         await JoinAsync(owner, guest, spaceId, ct);
 
         await owner.Channels.SendMessage(spaceId, channelId, "@guest @me", Entities(Mention(guest.UserId), Mention(owner.UserId)),
-            NextRandomId(), null, ct);
+            NextRandomId(), null, ct).Ok();
 
         Assert.That(await WaitForMentionsAsync(guest, channelId, 1, ct), Is.EqualTo(1));
         Assert.That(await MentionsAsync(owner, channelId, ct), Is.Zero, "mentioning yourself counted as a mention");
@@ -96,7 +96,7 @@ public class ChannelMentionTests : TestBase
 
         await using var observer = await RealtimeClient.ConnectAsync(listener, ct);
 
-        await owner.Channels.SendMessage(spaceId, channelId, "@everyone hello", Entities(Everyone()), NextRandomId(), null, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "@everyone hello", Entities(Everyone()), NextRandomId(), null, ct).Ok();
 
         await observer.WaitForAsync<BatchMentionOccurred>(
             e => e.channelId == channelId && e.mentionType == MentionTargetType.Everyone, Window, ct: ct);
@@ -128,7 +128,7 @@ public class ChannelMentionTests : TestBase
             await JoinAsync(owner, member, spaceId, ct);
 
         var archetypes = ArchetypesOf(owner);
-        var pinged     = await archetypes.CreateArchetype(spaceId, "pinged", ct);
+        var pinged     = await archetypes.CreateArchetype(spaceId, "pinged", ct).Ok();
 
         foreach (var member in new[] { holder, mutedOne })
             Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, member.UserId, ct), pinged.id, true, ct),
@@ -138,7 +138,7 @@ public class ChannelMentionTests : TestBase
 
         await using var observer = await RealtimeClient.ConnectAsync(holder, ct);
 
-        await owner.Channels.SendMessage(spaceId, channelId, "@pinged", Entities(Role(pinged.id)), NextRandomId(), null, ct);
+        await owner.Channels.SendMessage(spaceId, channelId, "@pinged", Entities(Role(pinged.id)), NextRandomId(), null, ct).Ok();
 
         await observer.WaitForAsync<BatchMentionOccurred>(
             e => e.channelId == channelId && e.mentionType == MentionTargetType.Role, Window, ct: ct);
@@ -174,8 +174,8 @@ public class ChannelMentionTests : TestBase
         await using var observer = await RealtimeClient.ConnectAsync(listener, ct);
         var mark = observer.Mark();
 
-        var messageId = await member.Channels.SendMessage(spaceId, channelId, "@everyone look", Entities(Everyone()), NextRandomId(), null, ct);
-        await member.Channels.SendMessage(spaceId, channelId, "@listener", Entities(Mention(listener.UserId)), NextRandomId(), null, ct);
+        var messageId = await member.Channels.SendMessage(spaceId, channelId, "@everyone look", Entities(Everyone()), NextRandomId(), null, ct).Ok();
+        await member.Channels.SendMessage(spaceId, channelId, "@listener", Entities(Mention(listener.UserId)), NextRandomId(), null, ct).Ok();
 
         Assert.That(await WaitForMentionsAsync(listener, channelId, 1, ct), Is.EqualTo(1), "premise: the direct mention lands");
 
@@ -209,7 +209,7 @@ public class ChannelMentionTests : TestBase
         await DenyOnChannelAsync(owner, spaceId, channelId, ArgonEntitlement.MentionEveryone, ct);
 
         var archetypes = ArchetypesOf(owner);
-        var raiders    = await archetypes.CreateArchetype(spaceId, "raiders", ct);
+        var raiders    = await archetypes.CreateArchetype(spaceId, "raiders", ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, holder.UserId, ct), raiders.id, true, ct),
             Is.True);
 
@@ -217,13 +217,13 @@ public class ChannelMentionTests : TestBase
 
         bool IsRolePing(BatchMentionOccurred e) => e.channelId == channelId && e.mentionType == MentionTargetType.Role;
 
-        await sender.Channels.SendMessage(spaceId, channelId, "@raiders", Entities(Role(raiders.id)), NextRandomId(), null, ct);
+        await sender.Channels.SendMessage(spaceId, channelId, "@raiders", Entities(Role(raiders.id)), NextRandomId(), null, ct).Ok();
 
         await observer.AssertNoneWithinAsync<BatchMentionOccurred>(IsRolePing, TimeSpan.FromSeconds(3),
             "a role that is not mentionable was pinged by a member who may not mention everyone", ct: ct);
 
-        await archetypes.UpdateArchetype(spaceId, raiders with { isMentionable = true }, ct);
-        await sender.Channels.SendMessage(spaceId, channelId, "@raiders", Entities(Role(raiders.id)), NextRandomId(), null, ct);
+        await archetypes.UpdateArchetype(spaceId, raiders with { isMentionable = true }, ct).Ok();
+        await sender.Channels.SendMessage(spaceId, channelId, "@raiders", Entities(Role(raiders.id)), NextRandomId(), null, ct).Ok();
 
         await observer.WaitForAsync<BatchMentionOccurred>(IsRolePing, Window, ct: ct);
         Assert.That(await WaitForMentionsAsync(holder, channelId, 1, ct), Is.EqualTo(1));
@@ -251,12 +251,12 @@ public class ChannelMentionTests : TestBase
         var otherSpace = await CreateSpaceAsync(otherOwner, ct);
         await JoinAsync(otherOwner, outsider, otherSpace, ct);
 
-        var foreign = await ArchetypesOf(otherOwner).CreateArchetype(otherSpace, "foreign", ct);
+        var foreign = await ArchetypesOf(otherOwner).CreateArchetype(otherSpace, "foreign", ct).Ok();
         Assert.That(await ArchetypesOf(otherOwner).SetArchetypeToMember(otherSpace,
             await MemberIdOfAsync(otherOwner, otherSpace, outsider.UserId, ct), foreign.id, true, ct), Is.True);
 
         var archetypes = ArchetypesOf(owner);
-        var fence      = await archetypes.CreateArchetype(spaceId, "fence", ct);
+        var fence      = await archetypes.CreateArchetype(spaceId, "fence", ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, holder.UserId, ct), fence.id, true, ct),
             Is.True);
         var everyone = await EveryoneAsync(owner, spaceId, ct);
@@ -267,7 +267,7 @@ public class ChannelMentionTests : TestBase
 
         // Every role that pings announces itself once, so one announcement means the other two were dropped.
         await owner.Channels.SendMessage(spaceId, channelId, "@foreign @everyone @fence",
-            Entities(Role(foreign.id), Role(everyone.id), Role(fence.id)), NextRandomId(), null, ct);
+            Entities(Role(foreign.id), Role(everyone.id), Role(fence.id)), NextRandomId(), null, ct).Ok();
 
         await observer.WaitForAsync<BatchMentionOccurred>(IsRolePing, Window, ct: ct);
         var mark = observer.Mark();

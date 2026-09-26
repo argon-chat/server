@@ -21,7 +21,7 @@ public class AnnouncementReadCountTests : TestBase
         => session.Client.ForService<IChannelInsightsInteraction>(Services);
 
     private Task<long> PostAsync(TestUserSession author, Guid spaceId, Guid channelId, string text, CancellationToken ct)
-        => author.Channels.SendMessage(spaceId, channelId, text, new IonArray<IMessageEntity>([]), NextRandomId(), null, ct);
+        => author.Channels.SendMessage(spaceId, channelId, text, new IonArray<IMessageEntity>([]), NextRandomId(), null, ct).Ok();
 
     private static async Task<SuccessReadCount> CountAsync(TestUserSession caller, Guid spaceId, Guid channelId, long messageId,
         Func<SuccessReadCount, bool> accept, CancellationToken ct)
@@ -83,12 +83,12 @@ public class AnnouncementReadCountTests : TestBase
 
         var archetypes = ArchetypesOf(owner);
 
-        var heralds = await archetypes.CreateArchetype(spaceId, "herald", ct);
+        var heralds = await archetypes.CreateArchetype(spaceId, "herald", ct).Ok();
         await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, herald.UserId, ct), heralds.id, true, ct);
         await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, heralds.id,
             deny: ArgonEntitlement.None, allow: ArgonEntitlement.SendMessages, ct);
 
-        var mods = await archetypes.CreateArchetype(spaceId, "mods", ct);
+        var mods = await archetypes.CreateArchetype(spaceId, "mods", ct).Ok();
         await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, mod.UserId, ct), mods.id, true, ct);
         await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, mods.id,
             deny: ArgonEntitlement.None, allow: ArgonEntitlement.ManageMessages, ct);

@@ -106,7 +106,7 @@ public class ProfileCardTests : TestBase
         Assert.That(created, Is.InstanceOf<SuccessCreateSpace>());
         var spaceId = ((SuccessCreateSpace)created).space.spaceId;
 
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
         Assert.That(joined, Is.InstanceOf<SuccessJoin>());
 

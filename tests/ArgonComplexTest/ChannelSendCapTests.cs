@@ -40,29 +40,24 @@ public class ChannelSendCapTests : TestBase
         try
         {
             // Sent together so all of them land inside one second however slow the box is.
-            var sends = Enumerable.Range(0, Cap * 2).Select(async i =>
+            var sends = Enumerable.Range(0, Cap * 2).Select(i =>
+                owner.Channels.SendMessage(spaceId, channelId, $"burst {i}", new IonArray<IMessageEntity>([]),
+                    Random.Shared.NextInt64(1, long.MaxValue), null, ct)).ToList();
+
+            var results = await Task.WhenAll(sends);
+
+            Assert.Multiple(() =>
             {
-                try
-                {
-                    await owner.Channels.SendMessage(spaceId, channelId, $"burst {i}", new IonArray<IMessageEntity>([]),
-                        Random.Shared.NextInt64(1, long.MaxValue), null, ct);
-                    return true;
-                }
-                catch (Exception)
-                {
-                    return false;
-                }
-            }).ToList();
-
-            var accepted = (await Task.WhenAll(sends)).Count(x => x);
-
-            Assert.That(accepted, Is.EqualTo(Cap), "the channel did not stop at its cap");
+                Assert.That(results.Count(r => r is SuccessSendMessage), Is.EqualTo(Cap), "the channel did not stop at its cap");
+                Assert.That(results.Where(r => r is not SuccessSendMessage),
+                    Is.All.EqualTo(new FailedSendMessage(SendMessageError.CHANNEL_CAP)));
+            });
 
             await Task.Delay(TimeSpan.FromSeconds(1.2), ct);
 
-            Assert.That(async () => await owner.Channels.SendMessage(spaceId, channelId, "a new second", new IonArray<IMessageEntity>([]),
+            Assert.That(await owner.Channels.SendMessage(spaceId, channelId, "a new second", new IonArray<IMessageEntity>([]),
                     Random.Shared.NextInt64(1, long.MaxValue), null, ct),
-                Throws.Nothing, "the cap did not open again once the second had passed");
+                Is.InstanceOf<SuccessSendMessage>(), "the cap did not open again once the second had passed");
         }
         finally
         {

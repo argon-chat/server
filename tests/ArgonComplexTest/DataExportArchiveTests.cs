@@ -1371,7 +1371,7 @@ public class DataExportArchiveTests : TestBase
         TestUserSession owner, Guid spaceId, string name, CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Text, "GDPR export fixture", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Text, "GDPR export fixture", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created  = channels.Values.FirstOrDefault(channel => channel.channel.name == name);
@@ -1386,7 +1386,7 @@ public class DataExportArchiveTests : TestBase
     private static async Task JoinAsync(
         TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(),
@@ -1396,7 +1396,7 @@ public class DataExportArchiveTests : TestBase
     private static Task<long> SayAsync(
         TestUserSession who, Guid spaceId, Guid channelId, string text, CancellationToken ct)
         => who.Channels.SendMessage(
-            spaceId, channelId, text, new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+            spaceId, channelId, text, new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct).Ok();
 
     private static async Task<Guid> ReadConversationIdAsync(Guid userId, Guid peerId, CancellationToken ct)
     {

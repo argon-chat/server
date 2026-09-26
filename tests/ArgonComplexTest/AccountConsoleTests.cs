@@ -1358,13 +1358,13 @@ public class AccountConsoleTests : TestBase
         // Through this account's own client rather than the fixture's helper: the helper calls as the
         // fixture's ambient session, which is not a member of a space this account just made.
         await wrote.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "written-in", ChannelType.Text, "for the message", null), ct);
+            new CreateChannelRequest(spaceId, "written-in", ChannelType.Text, "for the message", null), ct).Ok();
 
         var channels  = await wrote.Channels.GetChannels(spaceId, Guid.Empty, ct);
         var channelId = channels.First(c => c.channel.name == "written-in").channel.channelId;
 
         await wrote.Channels.SendMessage(spaceId, channelId, "still here",
-            new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+            new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct).Ok();
 
         // Both accounts predate the login history: old enough to be swept, and with nothing in
         // DeviceHistories to date them by.

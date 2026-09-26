@@ -40,7 +40,7 @@ public class ChannelPinTests : TestBase
     }
 
     private Task<long> SendAsync(TestUserSession author, Guid spaceId, Guid channelId, string text, CancellationToken ct)
-        => author.Channels.SendMessage(spaceId, channelId, text, Entities(), NextRandomId(), null, ct);
+        => author.Channels.SendMessage(spaceId, channelId, text, Entities(), NextRandomId(), null, ct).Ok();
 
     private static async Task<List<PinnedMessage>> PinsAsync(TestUserSession reader, Guid spaceId, Guid channelId, CancellationToken ct)
         => (await PinsOf(reader).GetPinnedMessages(spaceId, channelId, ct)).Values.ToList();
@@ -135,7 +135,7 @@ public class ChannelPinTests : TestBase
         Assert.That((await PinsAsync(owner, spaceId, channelId, ct)).Select(p => p.message.messageId), Is.EqualTo(new[] { pinned }));
 
         var archetypes = ArchetypesOf(owner);
-        var role       = await archetypes.CreateArchetype(spaceId, "pinner", ct);
+        var role       = await archetypes.CreateArchetype(spaceId, "pinner", ct).Ok();
         await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, guest.UserId, ct), role.id, true, ct);
         await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, channelId, role.id,
             deny: ArgonEntitlement.None, allow: ArgonEntitlement.ManageMessages, ct);

@@ -59,7 +59,7 @@ public class ChannelBadgeTests : TestBase
     private async Task<Guid> CreateTextChannelAsync(TestUserSession owner, Guid spaceId, string name, CancellationToken ct)
     {
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Badge channel", null), ct);
+            new CreateChannelRequest(spaceId, name, ChannelType.Text, "Badge channel", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created  = channels.Values.FirstOrDefault(c => c.channel.name == name);
@@ -75,7 +75,7 @@ public class ChannelBadgeTests : TestBase
 
     private async Task JoinAsync(TestUserSession owner, TestUserSession member, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await member.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(),
@@ -123,7 +123,7 @@ public class ChannelBadgeTests : TestBase
         for (var i = 1; i <= 5; i++)
         {
             await owner.Channels.SendMessage(
-                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
 
         await JoinAsync(owner, member, spaceId, ct);
@@ -162,7 +162,7 @@ public class ChannelBadgeTests : TestBase
         for (var i = 1; i <= 3; i++)
         {
             lastMessageId = await owner.Channels.SendMessage(
-                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
 
         await JoinAsync(owner, member, spaceId, ct);
@@ -219,7 +219,7 @@ public class ChannelBadgeTests : TestBase
         for (var i = 1; i <= 3; i++)
         {
             lastMessageId = await owner.Channels.SendMessage(
-                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Message {i}", new IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
 
         await JoinAsync(owner, member, spaceId, ct);

@@ -429,7 +429,7 @@ public class PresenceBotTests : TestBase
     private static async Task JoinAsync(TestUserSession host, TestUserSession guest, Guid space,
         CancellationToken ct)
     {
-        var code   = await host.Servers.CreateInviteCode(space, 60, 0, ct);
+        var code   = await host.Servers.CreateInviteCode(space, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(),

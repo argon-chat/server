@@ -46,13 +46,15 @@ public class VoiceBroadcastSettingsTests : TestBase
         var hq      = Guid.CreateVersion7();
 
         // The client's create dialog: mint the id, create under it, then address the channel by it at once.
-        await owner.Channels.CreateChannel(spaceId, hq, new CreateChannelRequest(spaceId, "hq", ChannelType.Voice, "", null), ct);
+        await owner.Channels.CreateChannel(spaceId, hq, new CreateChannelRequest(spaceId, "hq", ChannelType.Voice, "", null), ct).Ok();
         var enabled = await owner.Channels.SetBroadcastMode(spaceId, hq, true, ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, hq,
-            new CreateChannelRequest(spaceId, "again", ChannelType.Text, "", null), ct), "the id is taken");
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, Guid.NewGuid(),
-            new CreateChannelRequest(spaceId, "v4", ChannelType.Text, "", null), ct), "a v4 carries no timestamp and so no region");
+        Assert.That(await owner.Channels.CreateChannel(spaceId, hq,
+                new CreateChannelRequest(spaceId, "again", ChannelType.Text, "", null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)), "the id is taken");
+        Assert.That(await owner.Channels.CreateChannel(spaceId, Guid.NewGuid(),
+                new CreateChannelRequest(spaceId, "v4", ChannelType.Text, "", null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)), "a v4 carries no timestamp and so no region");
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         Assert.Multiple(() =>
@@ -372,7 +374,7 @@ public class VoiceBroadcastSettingsTests : TestBase
         await using var watcher = await WatchSpaceAsync(owner, spaceId, ct);
         var mark = watcher.Mark();
 
-        await owner.Channels.DeleteChannel(spaceId, alpha, ct);
+        await owner.Channels.DeleteChannel(spaceId, alpha, ct).Ok();
 
         // The space grain tells the channel grain one-way, so the change lands after the delete has returned.
         var modified = await WaitForBroadcastChangeAsync(watcher, hq, mark, ct);

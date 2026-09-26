@@ -16,14 +16,14 @@ public class AnnouncementDataLifecycleTests : TestBase
 {
     private static Task<long> PostAsync(TestUserSession author, Guid spaceId, Guid channelId, string text, CancellationToken ct)
         => author.Channels.SendMessage(spaceId, channelId, text, new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(1, long.MaxValue), null, ct);
+            Random.Shared.NextInt64(1, long.MaxValue), null, ct).Ok();
 
     /// <summary>Lets <paramref name="member"/> post in the announcement channel through a role.</summary>
     private static async Task GrantPostingAsync(TestUserSession owner, TestUserSession member, Guid spaceId, Guid channelId,
         CancellationToken ct)
     {
         var archetypes = ArchetypesOf(owner);
-        var role       = await archetypes.CreateArchetype(spaceId, "herald", ct);
+        var role       = await archetypes.CreateArchetype(spaceId, "herald", ct).Ok();
 
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, member.UserId, ct), role.id, true, ct),
             Is.True);

@@ -59,11 +59,12 @@ public class SpaceLayoutTests : TestBase
 
         var intoOwn = Unique("own");
         await bob.Channels.CreateChannel(bobsSpace, Guid.Empty,
-            new CreateChannelRequest(alicesSpace, intoOwn, ChannelType.Text, "", null), ct);
+            new CreateChannelRequest(alicesSpace, intoOwn, ChannelType.Text, "", null), ct).Ok();
 
         var intoForeign = Unique("foreign");
-        Assert.ThrowsAsync<IonRequestException>(() => bob.Channels.CreateChannel(alicesSpace, Guid.Empty,
-            new CreateChannelRequest(bobsSpace, intoForeign, ChannelType.Text, "", null), ct));
+        Assert.That(await bob.Channels.CreateChannel(alicesSpace, Guid.Empty,
+                new CreateChannelRequest(bobsSpace, intoForeign, ChannelType.Text, "", null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NO_PERMISSION)));
 
         var bobs   = (await ChannelsAsync(bob, bobsSpace, ct)).Select(c => c.name).ToList();
         var alices = (await ChannelsAsync(alice, alicesSpace, ct)).Select(c => c.name).ToList();
@@ -86,8 +87,9 @@ public class SpaceLayoutTests : TestBase
         var spaceId = await CreateSpaceAsync(owner, "Blank names", ct);
         var before  = await ChannelsAsync(owner, spaceId, ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, ChannelType.Text, "", null), ct));
+        Assert.That(await owner.Channels.CreateChannel(spaceId, Guid.Empty,
+                new CreateChannelRequest(spaceId, name, ChannelType.Text, "", null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
 
         Assert.That(await ChannelsAsync(owner, spaceId, ct), Has.Count.EqualTo(before.Count),
             "a channel with no name was created");
@@ -99,10 +101,12 @@ public class SpaceLayoutTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Long names", ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, new string('n', 129), ChannelType.Text, "", null), ct));
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "fine", ChannelType.Text, new string('d', 1025), null), ct));
+        Assert.That(await owner.Channels.CreateChannel(spaceId, Guid.Empty,
+                new CreateChannelRequest(spaceId, new string('n', 129), ChannelType.Text, "", null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
+        Assert.That(await owner.Channels.CreateChannel(spaceId, Guid.Empty,
+                new CreateChannelRequest(spaceId, "fine", ChannelType.Text, new string('d', 1025), null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
 
         Assert.That(await ChannelsAsync(owner, spaceId, ct), Is.Empty);
     }
@@ -114,8 +118,9 @@ public class SpaceLayoutTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Unknown kinds", ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, Unique("odd"), (ChannelType)42, "", null), ct));
+        Assert.That(await owner.Channels.CreateChannel(spaceId, Guid.Empty,
+                new CreateChannelRequest(spaceId, Unique("odd"), (ChannelType)42, "", null), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
 
         Assert.That(await ChannelsAsync(owner, spaceId, ct), Is.Empty, "a channel of an undefined kind was stored");
     }
@@ -129,7 +134,7 @@ public class SpaceLayoutTests : TestBase
         var name    = Unique("padded");
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, $"  {name}  ", ChannelType.Text, "", null), ct);
+            new CreateChannelRequest(spaceId, $"  {name}  ", ChannelType.Text, "", null), ct).Ok();
 
         Assert.That((await ChannelsAsync(owner, spaceId, ct)).Select(c => c.name), Is.EqualTo(new[] { name }));
     }
@@ -175,10 +180,12 @@ public class SpaceLayoutTests : TestBase
         var bobsSpace   = await CreateSpaceAsync(bob, "Bob", ct);
         var bobsGroup   = await CreateGroupAsync(bob, bobsSpace, Unique("bobs"), ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => alice.Channels.CreateChannel(alicesSpace, Guid.Empty,
-            new CreateChannelRequest(alicesSpace, Unique("stray"), ChannelType.Text, "", bobsGroup), ct));
-        Assert.ThrowsAsync<IonRequestException>(() => alice.Channels.CreateChannel(alicesSpace, Guid.Empty,
-            new CreateChannelRequest(alicesSpace, Unique("nowhere"), ChannelType.Text, "", Guid.NewGuid()), ct));
+        Assert.That(await alice.Channels.CreateChannel(alicesSpace, Guid.Empty,
+                new CreateChannelRequest(alicesSpace, Unique("stray"), ChannelType.Text, "", bobsGroup), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NOT_FOUND)));
+        Assert.That(await alice.Channels.CreateChannel(alicesSpace, Guid.Empty,
+                new CreateChannelRequest(alicesSpace, Unique("nowhere"), ChannelType.Text, "", Guid.NewGuid()), ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NOT_FOUND)));
 
         Assert.That(await ChannelsAsync(alice, alicesSpace, ct), Is.Empty);
     }
@@ -202,16 +209,18 @@ public class SpaceLayoutTests : TestBase
 
         var ch = member.Channels;
 
-        Assert.Multiple(() =>
+        var refused = new FailedChannelLayout(ChannelLayoutError.NO_PERMISSION);
+
+        await Assert.MultipleAsync(async () =>
         {
-            Assert.ThrowsAsync<IonRequestException>(() => ch.CreateChannel(spaceId, Guid.Empty,
-                new CreateChannelRequest(spaceId, Unique("sneaky"), ChannelType.Text, "", null), ct), "CreateChannel");
-            Assert.ThrowsAsync<IonRequestException>(() => ch.CreateChannelGroup(spaceId, Guid.Empty, "sneaky", null, ct), "CreateChannelGroup");
-            Assert.ThrowsAsync<IonRequestException>(() => ch.UpdateChannelGroup(spaceId, Guid.Empty, groupId, "renamed", null, ct), "UpdateChannelGroup");
-            Assert.ThrowsAsync<IonRequestException>(() => ch.MoveChannelGroup(spaceId, groupId, null, null, ct), "MoveChannelGroup");
-            Assert.ThrowsAsync<IonRequestException>(() => ch.DeleteChannelGroup(spaceId, Guid.Empty, groupId, true, ct), "DeleteChannelGroup");
-            Assert.ThrowsAsync<IonRequestException>(() => ch.MoveChannel(spaceId, other, null, null, channel, ct), "MoveChannel");
-            Assert.ThrowsAsync<IonRequestException>(() => ch.DeleteChannel(spaceId, channel, ct), "DeleteChannel");
+            Assert.That(await ch.CreateChannel(spaceId, Guid.Empty,
+                new CreateChannelRequest(spaceId, Unique("sneaky"), ChannelType.Text, "", null), ct), Is.EqualTo(refused), "CreateChannel");
+            Assert.That(await ch.CreateChannelGroup(spaceId, Guid.Empty, "sneaky", null, ct), Is.EqualTo(refused), "CreateChannelGroup");
+            Assert.That(await ch.UpdateChannelGroup(spaceId, Guid.Empty, groupId, "renamed", null, ct), Is.EqualTo(refused), "UpdateChannelGroup");
+            Assert.That(await ch.MoveChannelGroup(spaceId, groupId, null, null, ct), Is.EqualTo(refused), "MoveChannelGroup");
+            Assert.That(await ch.DeleteChannelGroup(spaceId, Guid.Empty, groupId, true, ct), Is.EqualTo(refused), "DeleteChannelGroup");
+            Assert.That(await ch.MoveChannel(spaceId, other, null, null, channel, ct), Is.EqualTo(refused), "MoveChannel");
+            Assert.That(await ch.DeleteChannel(spaceId, channel, ct), Is.EqualTo(refused), "DeleteChannel");
         });
 
         var duplicate = await ch.DuplicateChannel(spaceId, channel, ct);
@@ -242,13 +251,13 @@ public class SpaceLayoutTests : TestBase
         var groupId = await CreateGroupAsync(member, spaceId, Unique("by-member"), ct);
         var channel = await CreateChannelAsync(member, spaceId, Unique("by-member"), ct: ct);
 
-        await member.Channels.MoveChannel(spaceId, channel, groupId, null, null, ct);
+        await member.Channels.MoveChannel(spaceId, channel, groupId, null, null, ct).Ok();
         var copy = await member.Channels.DuplicateChannel(spaceId, channel, ct);
 
         Assert.That(copy, Is.InstanceOf<SuccessDuplicateChannel>());
 
         var copyId = ((SuccessDuplicateChannel)copy).channel.channelId;
-        await member.Channels.DeleteChannel(spaceId, copyId, ct);
+        await member.Channels.DeleteChannel(spaceId, copyId, ct).Ok();
 
         var channels = await ChannelsAsync(owner, spaceId, ct);
 
@@ -270,7 +279,7 @@ public class SpaceLayoutTests : TestBase
         var b       = await CreateChannelAsync(owner, spaceId, "b", ct: ct);
         var c       = await CreateChannelAsync(owner, spaceId, "c", ct: ct);
 
-        await owner.Channels.MoveChannel(spaceId, c, null, a, b, ct);
+        await owner.Channels.MoveChannel(spaceId, c, null, a, b, ct).Ok();
 
         Assert.That(Order(await ChannelsAsync(owner, spaceId, ct), a, b, c), Is.EqualTo(new[] { a, c, b }));
     }
@@ -292,14 +301,14 @@ public class SpaceLayoutTests : TestBase
         var b       = await CreateChannelAsync(owner, spaceId, "b", ct: ct);
         var c       = await CreateChannelAsync(owner, spaceId, "c", ct: ct);
 
-        await owner.Channels.MoveChannel(spaceId, c, null, null, a, ct);
+        await owner.Channels.MoveChannel(spaceId, c, null, null, a, ct).Ok();
         Assert.That(Order(await ChannelsAsync(owner, spaceId, ct), a, b, c), Is.EqualTo(new[] { c, a, b }));
 
         var lone  = await CreateSpaceAsync(owner, "Two channels", ct);
         var first = await CreateChannelAsync(owner, lone, "first", ct: ct);
         var last  = await CreateChannelAsync(owner, lone, "last", ct: ct);
 
-        await owner.Channels.MoveChannel(lone, last, null, null, first, ct);
+        await owner.Channels.MoveChannel(lone, last, null, null, first, ct).Ok();
         Assert.That(Order(await ChannelsAsync(owner, lone, ct), first, last), Is.EqualTo(new[] { last, first }));
     }
 
@@ -322,10 +331,10 @@ public class SpaceLayoutTests : TestBase
         var b       = await CreateChannelAsync(owner, spaceId, "b", ct: ct);
         var c       = await CreateChannelAsync(owner, spaceId, "c", ct: ct);
 
-        await owner.Channels.MoveChannel(spaceId, a, null, c, null, ct);
+        await owner.Channels.MoveChannel(spaceId, a, null, c, null, ct).Ok();
         Assert.That(Order(await ChannelsAsync(owner, spaceId, ct), a, b, c), Is.EqualTo(new[] { b, c, a }));
 
-        await owner.Channels.MoveChannel(spaceId, c, null, null, b, ct);
+        await owner.Channels.MoveChannel(spaceId, c, null, null, b, ct).Ok();
         Assert.That(Order(await ChannelsAsync(owner, spaceId, ct), a, b, c), Is.EqualTo(new[] { c, b, a }));
     }
 
@@ -340,7 +349,7 @@ public class SpaceLayoutTests : TestBase
         var c       = await CreateChannelAsync(owner, spaceId, "c", ct: ct);
         var before  = await ChannelsAsync(owner, spaceId, ct);
 
-        await owner.Channels.MoveChannel(spaceId, a, null, c, b, ct);
+        await owner.Channels.MoveChannel(spaceId, a, null, c, b, ct).Ok();
 
         Assert.That((await ChannelsAsync(owner, spaceId, ct)).Select(x => (x.channelId, x.fractionalIndex)),
             Is.EqualTo(before.Select(x => (x.channelId, x.fractionalIndex))));
@@ -358,11 +367,14 @@ public class SpaceLayoutTests : TestBase
         var alicesB     = await CreateChannelAsync(alice, alicesSpace, "b", ct: ct);
         var before      = await ChannelsAsync(alice, alicesSpace, ct);
 
-        // Bob manages his own space, and names Alice's channel through it.
-        await bob.Channels.MoveChannel(bobsSpace, alicesA, null, alicesB, null, ct);
-        await bob.Channels.DeleteChannel(bobsSpace, alicesB, ct);
-        await bob.Channels.MoveChannel(bobsSpace, Guid.NewGuid(), null, null, null, ct);
-        await bob.Channels.DeleteChannel(bobsSpace, Guid.NewGuid(), ct);
+        // Bob manages his own space, and names Alice's channel through it. A move of a channel the
+        // space does not have is NOT_FOUND; a delete of one is already done.
+        var notFound = new FailedChannelLayout(ChannelLayoutError.NOT_FOUND);
+
+        Assert.That(await bob.Channels.MoveChannel(bobsSpace, alicesA, null, alicesB, null, ct), Is.EqualTo(notFound));
+        Assert.That(await bob.Channels.DeleteChannel(bobsSpace, alicesB, ct), Is.InstanceOf<SuccessChannelLayout>());
+        Assert.That(await bob.Channels.MoveChannel(bobsSpace, Guid.NewGuid(), null, null, null, ct), Is.EqualTo(notFound));
+        Assert.That(await bob.Channels.DeleteChannel(bobsSpace, Guid.NewGuid(), ct), Is.InstanceOf<SuccessChannelLayout>());
 
         Assert.That((await ChannelsAsync(alice, alicesSpace, ct)).Select(x => (x.channelId, x.fractionalIndex)),
             Is.EqualTo(before.Select(x => (x.channelId, x.fractionalIndex))));
@@ -379,7 +391,8 @@ public class SpaceLayoutTests : TestBase
         var channel     = await CreateChannelAsync(alice, alicesSpace, Unique("mine"), ct: ct);
         var bobsGroup   = await CreateGroupAsync(bob, bobsSpace, Unique("bobs"), ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => alice.Channels.MoveChannel(alicesSpace, channel, bobsGroup, null, null, ct));
+        Assert.That(await alice.Channels.MoveChannel(alicesSpace, channel, bobsGroup, null, null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NOT_FOUND)));
 
         Assert.That((await ChannelsAsync(alice, alicesSpace, ct)).Single(c => c.channelId == channel).groupId, Is.Null,
             "the channel was filed under a group its space does not have");
@@ -405,7 +418,7 @@ public class SpaceLayoutTests : TestBase
 
         for (var i = 0; i < 60; i++)
         {
-            await owner.Channels.MoveChannel(spaceId, moving, null, a, other, ct);
+            await owner.Channels.MoveChannel(spaceId, moving, null, a, other, ct).Ok();
             (moving, other) = moving == x ? (y, x) : (x, y);
         }
 
@@ -462,13 +475,13 @@ public class SpaceLayoutTests : TestBase
             if (other != b && next.Value.Length > 20)
                 break;
 
-            await owner.Channels.MoveChannel(spaceId, moving, target, a, other, ct);
+            await owner.Channels.MoveChannel(spaceId, moving, target, a, other, ct).Ok();
             (moving, other) = moving == x ? (y, x) : (x, y);
         }
 
         var below = other == x ? y : x;
 
-        await owner.Channels.MoveChannel(spaceId, visitor, target, a, other, ct);
+        await owner.Channels.MoveChannel(spaceId, visitor, target, a, other, ct).Ok();
 
         var after = await ChannelsAsync(owner, spaceId, ct);
 
@@ -492,20 +505,21 @@ public class SpaceLayoutTests : TestBase
         var g3      = await CreateGroupAsync(owner, spaceId, "g3", ct);
         var ch      = owner.Channels;
 
-        await ch.MoveChannelGroup(spaceId, g1, null, null, ct);
+        await ch.MoveChannelGroup(spaceId, g1, null, null, ct).Ok();
         Assert.That(GroupOrder(await GroupsAsync(owner, spaceId, ct), g1, g2, g3), Is.EqualTo(new[] { g2, g3, g1 }), "to the end");
 
         // g2 now heads the list holding "one past the minimum", so the only index below it is the
         // minimum itself — the drop the client sends as "before g2, after nothing".
-        await ch.MoveChannelGroup(spaceId, g3, null, g2, ct);
+        await ch.MoveChannelGroup(spaceId, g3, null, g2, ct).Ok();
         Assert.That(GroupOrder(await GroupsAsync(owner, spaceId, ct), g1, g2, g3), Is.EqualTo(new[] { g3, g2, g1 }), "to the top");
 
-        await ch.MoveChannelGroup(spaceId, g1, g3, g2, ct);
+        await ch.MoveChannelGroup(spaceId, g1, g3, g2, ct).Ok();
         Assert.That(GroupOrder(await GroupsAsync(owner, spaceId, ct), g1, g2, g3), Is.EqualTo(new[] { g3, g1, g2 }), "between");
 
         var before = await GroupsAsync(owner, spaceId, ct);
-        await ch.MoveChannelGroup(spaceId, g3, g2, g1, ct);
-        await ch.MoveChannelGroup(spaceId, Guid.NewGuid(), null, null, ct);
+        await ch.MoveChannelGroup(spaceId, g3, g2, g1, ct).Ok();
+        Assert.That(await ch.MoveChannelGroup(spaceId, Guid.NewGuid(), null, null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NOT_FOUND)));
         Assert.That((await GroupsAsync(owner, spaceId, ct)).Select(g => (g.groupId, g.fractionalIndex)),
             Is.EqualTo(before.Select(g => (g.groupId, g.fractionalIndex))), "contradictory neighbours or an unknown group");
     }
@@ -519,14 +533,14 @@ public class SpaceLayoutTests : TestBase
         var g2      = await CreateGroupAsync(owner, spaceId, "g2", ct);
         var g3      = await CreateGroupAsync(owner, spaceId, "g3", ct);
 
-        await owner.Channels.MoveChannelGroup(spaceId, g3, null, g1, ct);
+        await owner.Channels.MoveChannelGroup(spaceId, g3, null, g1, ct).Ok();
         Assert.That(GroupOrder(await GroupsAsync(owner, spaceId, ct), g1, g2, g3), Is.EqualTo(new[] { g3, g1, g2 }));
 
         var lone   = await CreateSpaceAsync(owner, "Two groups", ct);
         var first  = await CreateGroupAsync(owner, lone, "first", ct);
         var second = await CreateGroupAsync(owner, lone, "second", ct);
 
-        await owner.Channels.MoveChannelGroup(lone, second, null, first, ct);
+        await owner.Channels.MoveChannelGroup(lone, second, null, first, ct).Ok();
         Assert.That(GroupOrder(await GroupsAsync(owner, lone, ct), first, second), Is.EqualTo(new[] { second, first }));
     }
 
@@ -542,8 +556,9 @@ public class SpaceLayoutTests : TestBase
         var g2          = await CreateGroupAsync(alice, alicesSpace, "g2", ct);
         var before      = await GroupsAsync(alice, alicesSpace, ct);
 
-        await bob.Channels.MoveChannelGroup(bobsSpace, g1, g2, null, ct);
-        await bob.Channels.DeleteChannelGroup(bobsSpace, Guid.Empty, g2, true, ct);
+        Assert.That(await bob.Channels.MoveChannelGroup(bobsSpace, g1, g2, null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NOT_FOUND)));
+        await bob.Channels.DeleteChannelGroup(bobsSpace, Guid.Empty, g2, true, ct).Ok();
 
         Assert.That((await GroupsAsync(alice, alicesSpace, ct)).Select(g => (g.groupId, g.fractionalIndex)),
             Is.EqualTo(before.Select(g => (g.groupId, g.fractionalIndex))));
@@ -563,7 +578,7 @@ public class SpaceLayoutTests : TestBase
 
         for (var i = 0; i < 60; i++)
         {
-            await owner.Channels.MoveChannelGroup(spaceId, moving, a, other, ct);
+            await owner.Channels.MoveChannelGroup(spaceId, moving, a, other, ct).Ok();
             (moving, other) = moving == x ? (y, x) : (x, y);
         }
 
@@ -587,8 +602,10 @@ public class SpaceLayoutTests : TestBase
         var owner   = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(owner, "Blank groups", ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannelGroup(spaceId, Guid.Empty, name, null, ct));
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.CreateChannelGroup(spaceId, Guid.Empty, new string('g', 129), null, ct));
+        Assert.That(await owner.Channels.CreateChannelGroup(spaceId, Guid.Empty, name, null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
+        Assert.That(await owner.Channels.CreateChannelGroup(spaceId, Guid.Empty, new string('g', 129), null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
 
         Assert.That(await GroupsAsync(owner, spaceId, ct), Is.Empty);
     }
@@ -600,8 +617,10 @@ public class SpaceLayoutTests : TestBase
         var spaceId = await CreateSpaceAsync(owner, "Group updates", ct);
         var groupId = await CreateGroupAsync(owner, spaceId, "named", ct);
 
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.UpdateChannelGroup(spaceId, Guid.Empty, Guid.NewGuid(), "x", null, ct));
-        Assert.ThrowsAsync<IonRequestException>(() => owner.Channels.UpdateChannelGroup(spaceId, Guid.Empty, groupId, "  ", null, ct));
+        Assert.That(await owner.Channels.UpdateChannelGroup(spaceId, Guid.Empty, Guid.NewGuid(), "x", null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NOT_FOUND)));
+        Assert.That(await owner.Channels.UpdateChannelGroup(spaceId, Guid.Empty, groupId, "  ", null, ct),
+            Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.INVALID_DATA)));
 
         Assert.That((await GroupsAsync(owner, spaceId, ct)).Single().name, Is.EqualTo("named"));
     }
@@ -614,7 +633,8 @@ public class SpaceLayoutTests : TestBase
         var spaceId = await CreateSpaceAsync(owner, "Collapsing", ct);
         var groupId = await CreateGroupAsync(owner, spaceId, "folded", ct);
 
-        await AsCallerAsync(owner.UserId, () => SpaceGrain(spaceId).UpdateChannelGroup(groupId, isCollapsed: true));
+        Assert.That(await AsCallerAsync(owner.UserId, () => SpaceGrain(spaceId).UpdateChannelGroup(groupId, isCollapsed: true)),
+            Is.EqualTo(ChannelLayoutError.NONE));
 
         var group = (await GroupsAsync(owner, spaceId, ct)).Single();
 
@@ -639,7 +659,7 @@ public class SpaceLayoutTests : TestBase
         await watcher.SubscribeToSpace(spaceId, ct);
         var mark = watcher.Mark();
 
-        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: true, ct);
+        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: true, ct).Ok();
 
         await watcher.WaitForAsync<ChannelGroupRemoved>(e => e.groupId == groupId, EventWait, mark, ct);
         var removed = watcher.EventsOfType<ChannelRemoved>(mark).Select(e => e.channelId).ToList();
@@ -655,7 +675,7 @@ public class SpaceLayoutTests : TestBase
         });
 
         // A group that is already gone is not an error: the client may be a click behind.
-        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: true, ct);
+        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: true, ct).Ok();
         Assert.That((await ChannelsAsync(owner, spaceId, ct)).Select(c => c.channelId), Is.EqualTo(new[] { outside }));
     }
 
@@ -667,7 +687,7 @@ public class SpaceLayoutTests : TestBase
         var groupId = await CreateGroupAsync(owner, spaceId, "dissolved", ct);
         var inside  = await CreateChannelAsync(owner, spaceId, "inside", groupId: groupId, ct: ct);
 
-        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: false, ct);
+        await owner.Channels.DeleteChannelGroup(spaceId, Guid.Empty, groupId, deleteChannels: false, ct).Ok();
 
         var channels = await ChannelsAsync(owner, spaceId, ct);
         var groups   = await GroupsAsync(owner, spaceId, ct);
@@ -700,7 +720,7 @@ public class SpaceLayoutTests : TestBase
         Assert.That(tuned, Is.InstanceOf<SuccessUpdateChannel>());
 
         var archetypes = Archetypes(owner);
-        var role       = await archetypes.CreateArchetype(spaceId, "hidden-from", ct);
+        var role       = await archetypes.CreateArchetype(spaceId, "hidden-from", ct).Ok();
         await archetypes.UpsertArchetypeEntitlementForChannel(spaceId, source, role.id, ArgonEntitlement.ViewChannel, ArgonEntitlement.None, ct);
 
         var copied = await owner.Channels.DuplicateChannel(spaceId, source, ct);

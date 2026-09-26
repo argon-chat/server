@@ -44,7 +44,7 @@ internal static class SpaceGroupSupport
 
     public static async Task JoinAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct = default)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(), $"the guest could not join: {(joined as FailedJoin)?.error}");
@@ -56,8 +56,8 @@ internal static class SpaceGroupSupport
     {
         var archetypes = Archetypes(owner);
 
-        var role = await archetypes.CreateArchetype(spaceId, $"role-{Guid.NewGuid():N}"[..16], ct);
-        role = await archetypes.UpdateArchetype(spaceId, role with { entitlement = entitlements }, ct);
+        var role = await archetypes.CreateArchetype(spaceId, $"role-{Guid.NewGuid():N}"[..16], ct).Ok();
+        role = await archetypes.UpdateArchetype(spaceId, role with { entitlement = entitlements }, ct).Ok();
 
         var member  = await owner.Servers.GetMember(spaceId, userId, ct);
         var granted = await archetypes.SetArchetypeToMember(spaceId, member.member.memberId, role.id, true, ct);
@@ -89,7 +89,7 @@ internal static class SpaceGroupSupport
         CancellationToken ct = default)
     {
         await actor.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, name, kind, "space group fixture", groupId), ct);
+            new CreateChannelRequest(spaceId, name, kind, "space group fixture", groupId), ct).Ok();
 
         var created = (await ChannelsAsync(actor, spaceId, ct)).Where(c => c.name == name).ToList();
 
@@ -99,7 +99,7 @@ internal static class SpaceGroupSupport
 
     public static async Task<Guid> CreateGroupAsync(TestUserSession actor, Guid spaceId, string name, CancellationToken ct = default)
     {
-        await actor.Channels.CreateChannelGroup(spaceId, Guid.Empty, name, null, ct);
+        await actor.Channels.CreateChannelGroup(spaceId, Guid.Empty, name, null, ct).Ok();
 
         var created = (await GroupsAsync(actor, spaceId, ct)).Where(g => g.name == name).ToList();
 

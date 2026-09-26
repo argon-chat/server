@@ -96,7 +96,7 @@ public class CosmeticEquipTests : TestBase
         Assert.That(created, Is.InstanceOf<SuccessCreateSpace>());
 
         var spaceId = ((SuccessCreateSpace)created).space.spaceId;
-        var code    = await wearer.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code    = await wearer.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
 
         Assert.That(await onlooker.Users.JoinToSpace(code, ct), Is.InstanceOf<SuccessJoin>());
 

@@ -293,7 +293,7 @@ public abstract class TestBase
             spaceId,
             Guid.Empty, // не используется в реализации
             new CreateChannelRequest(spaceId, channelName, ChannelType.Text, "Test channel description", null),
-            ct);
+            ct).Ok();
 
         // Канал создан, нужно получить его ID из БД
         // Получаем текущего пользователя

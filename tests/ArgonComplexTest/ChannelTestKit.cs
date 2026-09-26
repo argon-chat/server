@@ -41,7 +41,7 @@ internal static class ChannelTestKit
     public static async Task<Guid> CreateChannelAsync(TestUserSession owner, Guid spaceId, string name, ChannelType kind,
         CancellationToken ct)
     {
-        await owner.Channels.CreateChannel(spaceId, Guid.Empty, new CreateChannelRequest(spaceId, name, kind, "Test channel", null), ct);
+        await owner.Channels.CreateChannel(spaceId, Guid.Empty, new CreateChannelRequest(spaceId, name, kind, "Test channel", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         var created  = channels.Values.FirstOrDefault(c => c.channel.name == name);
@@ -58,7 +58,7 @@ internal static class ChannelTestKit
     /// <summary>Puts <paramref name="guest"/> in the space as an ordinary member — "everyone" only.</summary>
     public static async Task JoinAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code   = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         var joined = await guest.Users.JoinToSpace(code, ct);
 
         Assert.That(joined, Is.InstanceOf<SuccessJoin>(), $"Guest could not join: {(joined as FailedJoin)?.error}");

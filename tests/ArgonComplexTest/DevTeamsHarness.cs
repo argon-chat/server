@@ -67,8 +67,8 @@ public static class DevTeamsHarness
     /// <summary>A bot app created through the console, published so a space can install it.</summary>
     public static async Task<AppDetails> CreatePublishedBotAsync(TestUserSession owner, Guid teamId, string prefix = "dt")
     {
-        var bot = await As(owner, c => c.Apps.CreateBotApp(teamId, "DevTeams Bot", BotUsername(prefix)));
-        await As(owner, c => c.Apps.PublishBot(teamId, bot.appId));
+        var bot = await As(owner, c => c.Apps.CreateBotApp(teamId, "DevTeams Bot", BotUsername(prefix)).Ok());
+        await As(owner, c => c.Apps.PublishBot(teamId, bot.appId).Ok());
         return bot;
     }
 
@@ -95,7 +95,7 @@ public static class DevTeamsHarness
         var spaceId = ((SuccessCreateSpace)created).space.spaceId;
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "bots", ChannelType.Text, "for the bot", null), ct);
+            new CreateChannelRequest(spaceId, "bots", ChannelType.Text, "for the bot", null), ct).Ok();
 
         var channels = await owner.Channels.GetChannels(spaceId, Guid.Empty, ct);
 

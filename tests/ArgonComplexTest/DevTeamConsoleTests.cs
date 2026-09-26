@@ -36,11 +36,11 @@ public class DevTeamConsoleTests : TestBase
 
         var empty = await As(owner, c => c.Teams.GetMyTeams(ct));
 
-        var client = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Console Client", ClientAppPlatform.LinuxDesktop, ct));
-        var bot    = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Console Bot", BotUsername("own"), ct));
+        var client = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Console Client", ClientAppPlatform.LinuxDesktop, ct).Ok());
+        var bot    = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Console Bot", BotUsername("own"), ct).Ok());
 
         var listed  = await As(owner, c => c.Teams.GetMyTeams(ct));
-        var details = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct));
+        var details = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct).Ok());
 
         var member = details.members.Single();
 
@@ -74,25 +74,34 @@ public class DevTeamConsoleTests : TestBase
         var owner    = await CreateSessionAsync(ct);
         var stranger = await CreateSessionAsync(ct);
         var team     = await CreateTeamAsync(owner, "closed");
-        var app      = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Closed", ClientAppPlatform.WebBased, ct));
+        var app      = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Closed", ClientAppPlatform.WebBased, ct).Ok());
 
-        var refused = new Dictionary<string, Func<DevConsole, Task>>
+        var refused = new Dictionary<string, Func<DevConsole, Task<object>>>
         {
-            ["GetTeamDetails"]   = c => c.Teams.GetTeamDetails(team.teamId, ct),
-            ["GetTeamInvites"]   = c => c.Teams.GetTeamInvites(team.teamId, ct),
-            ["InviteUserToTeam"] = c => c.Teams.InviteUserToTeam(team.teamId, stranger.Credentials.username, ct),
-            ["CreateClientApp"]  = c => c.Apps.CreateClientApp(team.teamId, "Mine now", ClientAppPlatform.WebBased, ct),
-            ["CreateBotApp"]     = c => c.Apps.CreateBotApp(team.teamId, "Mine now", BotUsername("steal"), ct),
-            ["GetAppDetails"]    = c => c.Apps.GetAppDetails(team.teamId, app.appId, ct),
-            ["UpdateScope"]      = c => c.Apps.UpdateScope(team.teamId, app.appId, new ScopeKeyValue(true, "email", false), ct),
-            ["RemoveRedirect"]   = c => c.Apps.RemoveRedirect(team.teamId, app.appId, "https://x.test.local/cb", ct)
+            ["GetTeamDetails"]   = async c => await c.Teams.GetTeamDetails(team.teamId, ct),
+            ["GetTeamInvites"]   = async c => await c.Teams.GetTeamInvites(team.teamId, ct),
+            ["InviteUserToTeam"] = async c => await c.Teams.InviteUserToTeam(team.teamId, stranger.Credentials.username, ct),
+            ["CreateClientApp"]  = async c => await c.Apps.CreateClientApp(team.teamId, "Mine now", ClientAppPlatform.WebBased, ct),
+            ["CreateBotApp"]     = async c => await c.Apps.CreateBotApp(team.teamId, "Mine now", BotUsername("steal"), ct),
+            ["GetAppDetails"]    = async c => await c.Apps.GetAppDetails(team.teamId, app.appId, ct),
+            ["UpdateScope"]      = async c => await c.Apps.UpdateScope(team.teamId, app.appId, new ScopeKeyValue(true, "email", false), ct),
+            ["RemoveRedirect"]   = async c => await c.Apps.RemoveRedirect(team.teamId, app.appId, "https://x.test.local/cb", ct)
+        };
+
+        var noPermission = new object[]
+        {
+            new FailedGetTeamDetails(TeamConsoleError.NO_PERMISSION),
+            new FailedGetTeamInvites(TeamConsoleError.NO_PERMISSION),
+            InviteUserError.NO_PERMISSION,
+            new FailedAppDetails(AppManagementError.NO_PERMISSION),
+            new FailedAppManagement(AppManagementError.NO_PERMISSION)
         };
 
         foreach (var (name, call) in refused)
-        {
-            Assert.That(async () => await As(stranger, call), Throws.InstanceOf<UnauthorizedAccessException>(),
-                $"{name} answered a caller who is not in the team");
-        }
+            Assert.That(await As(stranger, call), Is.AnyOf(noPermission), $"{name} answered a caller who is not in the team");
+
+        var redirect = await As(stranger, c => c.Apps.AddRedirect(team.teamId, app.appId, "https://x.test.local/cb", ct));
+        Assert.That(redirect.ok, Is.False, "AddRedirect answered a caller who is not in the team");
 
         var theirs = await As(stranger, c => c.Teams.GetMyTeams(ct));
         Assert.That(theirs.Select(t => t.teamId), Does.Not.Contain(team.teamId));
@@ -111,7 +120,7 @@ public class DevTeamConsoleTests : TestBase
 
         var sent = await As(owner, c => c.Teams.InviteUserToTeam(team.teamId, invitee.Credentials.username.ToUpperInvariant(), ct));
 
-        var teamSide    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct));
+        var teamSide    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct).Ok());
         var inviteeSide = await As(invitee, c => c.Teams.GetMyInvites(ct));
 
         var again   = await As(owner, c => c.Teams.InviteUserToTeam(team.teamId, invitee.Credentials.username, ct));
@@ -138,9 +147,9 @@ public class DevTeamConsoleTests : TestBase
 
         await As(invitee, c => c.Teams.AcceptTeamInvite(team.teamId, ct));
 
-        var afterTeam    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct));
+        var afterTeam    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct).Ok());
         var afterInvitee = await As(invitee, c => c.Teams.GetMyInvites(ct));
-        var details      = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct));
+        var details      = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct).Ok());
         var theirTeams   = await As(invitee, c => c.Teams.GetMyTeams(ct));
         var reinvite     = await As(owner, c => c.Teams.InviteUserToTeam(team.teamId, invitee.Credentials.username, ct));
 
@@ -175,7 +184,7 @@ public class DevTeamConsoleTests : TestBase
 
         await As(invitee, c => c.Teams.DeclineTeamInvite(team.teamId, ct));
 
-        var teamSide    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct));
+        var teamSide    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct).Ok());
         var inviteeSide = await As(invitee, c => c.Teams.GetMyInvites(ct));
         var joined      = await Teams.IsUserInTeamAsync(invitee.UserId, team.teamId, ct);
 
@@ -228,7 +237,7 @@ public class DevTeamConsoleTests : TestBase
 
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
 
-        var teamSide    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct));
+        var teamSide    = await As(owner, c => c.Teams.GetTeamInvites(team.teamId, ct).Ok());
         var inviteeSide = await As(invitee, c => c.Teams.GetMyInvites(ct));
 
         Assert.Multiple(() =>
@@ -268,12 +277,12 @@ public class DevTeamConsoleTests : TestBase
 
         await As(owner, c => c.Teams.InviteUserToTeam(team.teamId, invitee.Credentials.username, ct));
 
-        Assert.That(async () => await As(invitee, c => c.Teams.GetTeamDetails(team.teamId, ct)),
-            Throws.InstanceOf<UnauthorizedAccessException>(), "premise: an invitee is not yet a member");
+        Assert.That(await As(invitee, c => c.Teams.GetTeamDetails(team.teamId, ct)),
+            Is.EqualTo(new FailedGetTeamDetails(TeamConsoleError.NO_PERMISSION)), "premise: an invitee is not yet a member");
 
         await As(invitee, c => c.Teams.AcceptTeamInvite(team.teamId, ct));
 
-        var seen = await As(invitee, c => c.Teams.GetTeamDetails(team.teamId, ct));
+        var seen = await As(invitee, c => c.Teams.GetTeamDetails(team.teamId, ct).Ok());
 
         Assert.That(seen.members.Select(m => m.user.userId), Does.Contain(invitee.UserId));
     }
@@ -291,11 +300,16 @@ public class DevTeamConsoleTests : TestBase
         await As(owner, c => c.Teams.InviteUserToTeam(team.teamId, member.Credentials.username, ct));
         await As(member, c => c.Teams.AcceptTeamInvite(team.teamId, ct));
 
-        await As(owner, c => c.Access.EnsureTeamOwnerAsync(owner.UserId, team.teamId, ct));
-        await As(member, c => c.Access.EnsureTeamMemberAsync(member.UserId, team.teamId, ct));
+        var ownerIsOwner   = await As(owner, c => c.Access.IsTeamOwnerAsync(owner.UserId, team.teamId, ct));
+        var memberIsMember = await As(member, c => c.Access.IsTeamMemberAsync(member.UserId, team.teamId, ct));
+        var memberIsOwner  = await As(member, c => c.Access.IsTeamOwnerAsync(member.UserId, team.teamId, ct));
 
-        Assert.That(async () => await As(member, c => c.Access.EnsureTeamOwnerAsync(member.UserId, team.teamId, ct)),
-            Throws.InstanceOf<UnauthorizedAccessException>(), "a member who does not own the team passed the owner gate");
+        Assert.Multiple(() =>
+        {
+            Assert.That(ownerIsOwner, Is.True);
+            Assert.That(memberIsMember, Is.True);
+            Assert.That(memberIsOwner, Is.False, "a member who does not own the team passed the owner gate");
+        });
     }
 
     /// <summary>
@@ -330,7 +344,7 @@ public class DevTeamConsoleTests : TestBase
             await db.SaveChangesAsync(ct);
         }
 
-        var details = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct));
+        var details = await As(owner, c => c.Teams.GetTeamDetails(team.teamId, ct).Ok());
 
         Assert.That(details.apps.Single(a => a.appId == appId).kind, Is.EqualTo(AppKind.WebApp));
         Assert.That(async () => await As(owner, c => c.Apps.GetAppDetails(team.teamId, appId, ct)),

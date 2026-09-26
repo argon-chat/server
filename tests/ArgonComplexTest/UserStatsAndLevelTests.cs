@@ -52,7 +52,7 @@ public class UserStatsAndLevelTests : TestBase
         for (var i = 1; i <= 3; i++)
         {
             await GetChannelService(scope.ServiceProvider).SendMessage(
-                spaceId, channelId, $"Message {i}", new ion.runtime.IonArray<IMessageEntity>([]), i, null, ct);
+                spaceId, channelId, $"Message {i}", new ion.runtime.IonArray<IMessageEntity>([]), i, null, ct).Ok();
         }
 
         // Wait for async stats tracking to complete (OneWay methods)
@@ -690,7 +690,7 @@ public class UserStatsAndLevelTests : TestBase
             spaceId,
             Guid.Empty,
             new CreateChannelRequest(spaceId, channelName, ChannelType.Voice, "Test voice channel", null),
-            ct);
+            ct).Ok();
 
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
         Orleans.Runtime.RequestContext.Set("$caller_user_id", user.userId);

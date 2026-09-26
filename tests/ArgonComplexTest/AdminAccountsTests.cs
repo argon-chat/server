@@ -36,7 +36,7 @@ public class AdminAccountsTests : AdminTestBase
         var spaceId = ((SuccessCreateSpace)created).space.spaceId;
 
         await owner.Channels.CreateChannel(spaceId, Guid.Empty,
-            new CreateChannelRequest(spaceId, "talk", ChannelType.Text, "fixture", null), ct);
+            new CreateChannelRequest(spaceId, "talk", ChannelType.Text, "fixture", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
 
@@ -44,7 +44,7 @@ public class AdminAccountsTests : AdminTestBase
     }
 
     private static Task<long> SayAsync(TestUserSession who, (Guid SpaceId, Guid ChannelId) room, string text, CancellationToken ct)
-        => who.Channels.SendMessage(room.SpaceId, room.ChannelId, text, new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+        => who.Channels.SendMessage(room.SpaceId, room.ChannelId, text, new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct).Ok();
 
     // ── Finding and editing an account ──────────────────────────────────────────────────────────
 

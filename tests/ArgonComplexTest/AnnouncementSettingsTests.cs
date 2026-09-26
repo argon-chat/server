@@ -112,11 +112,11 @@ public class AnnouncementSettingsTests : TestBase
         var onText   = await owner.Channels.SetAnnouncementSettings(spaceId, textId, false, false, true, ct);
 
         var archetypes = ArchetypesOf(owner);
-        var keepers    = await archetypes.CreateArchetype(spaceId, "channel-keepers", ct);
+        var keepers    = await archetypes.CreateArchetype(spaceId, "channel-keepers", ct).Ok();
         keepers = await archetypes.UpdateArchetype(spaceId, keepers with
         {
             entitlement = ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory | ArgonEntitlement.ManageChannels
-        }, ct);
+        }, ct).Ok();
         Assert.That(await archetypes.SetArchetypeToMember(spaceId, await MemberIdOfAsync(owner, spaceId, mod.UserId, ct), keepers.id, true, ct),
             Is.True);
 
@@ -168,7 +168,7 @@ public class AnnouncementSettingsTests : TestBase
     {
         var (owner, guest, spaceId, channelId) = await NewsAsync(ct);
 
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "Patch 1.2 is out", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "Patch 1.2 is out", NoEntities, NextRandomId(), null, ct).Ok();
         Assert.That(await guest.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct), Is.InstanceOf<SuccessAddReaction>());
         Assert.That(await owner.Channels.AddReaction(spaceId, channelId, messageId, "🔥", ct), Is.InstanceOf<SuccessAddReaction>());
 
@@ -201,7 +201,7 @@ public class AnnouncementSettingsTests : TestBase
     public async Task A_bot_is_refused_a_reaction_with_its_own_error_when_reactions_are_off(CancellationToken ct = default)
     {
         var (owner, _, spaceId, channelId) = await NewsAsync(ct);
-        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "news", NoEntities, NextRandomId(), null, ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "news", NoEntities, NextRandomId(), null, ct).Ok();
 
         var bot = await ChannelTestBot.SeedAsync(owner.UserId, ct);
         await bot.JoinAsync(spaceId);
@@ -230,7 +230,7 @@ public class AnnouncementSettingsTests : TestBase
         var cleared = await watcher.WaitForAsync<ChannelModifiedV2>(
             e => e.channelId == channelId && e.patch.StateOf(nameof(ArgonChannel.type)) != PartialState.None, Settle, mark, ct);
 
-        var messageId = await guest.Channels.SendMessage(spaceId, channelId, "now we talk", NoEntities, NextRandomId(), null, ct);
+        var messageId = await guest.Channels.SendMessage(spaceId, channelId, "now we talk", NoEntities, NextRandomId(), null, ct).Ok();
         var reacted   = await guest.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct);
 
         mark = watcher.Mark();

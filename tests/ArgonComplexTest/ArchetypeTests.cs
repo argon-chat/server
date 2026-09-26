@@ -42,7 +42,7 @@ public class ArchetypeTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
 
-        var created = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "moderators", ct);
+        var created = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "moderators", ct).Ok();
 
         Assert.Multiple(() =>
         {
@@ -61,7 +61,7 @@ public class ArchetypeTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
 
-        var created = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "before", ct);
+        var created = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "before", ct).Ok();
 
         var updated = await Archetypes(scope.ServiceProvider).UpdateArchetype(
             spaceId,
@@ -71,7 +71,7 @@ public class ArchetypeTests : TestBase
                 description = "updated by tests",
                 entitlement = ArgonEntitlement.ViewChannel | ArgonEntitlement.SendMessages
             },
-            ct);
+            ct).Ok();
 
         Assert.Multiple(() =>
         {
@@ -106,7 +106,7 @@ public class ArchetypeTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
 
-        var role = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "granted-role", ct);
+        var role = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "granted-role", ct).Ok();
 
         // The space creator is its first member; find their membership id.
         var members = await GetServerService(scope.ServiceProvider).GetMembers(spaceId, ct);
@@ -136,7 +136,7 @@ public class ArchetypeTests : TestBase
         var spaceId   = await NewSpaceAsync(ct);
         var channelId = await CreateTextChannelAsync(spaceId, $"overwrites-{Guid.NewGuid():N}"[..20], ct);
 
-        var role = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "restricted", ct);
+        var role = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "restricted", ct).Ok();
 
         var upserted = await Archetypes(scope.ServiceProvider).UpsertArchetypeEntitlementForChannel(
             spaceId, channelId, role.id,
@@ -203,7 +203,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId   = await NewSpaceAsync(ct);
-        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "temps", ct);
+        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "temps", ct).Ok();
 
         var result = await Archetypes(scope.ServiceProvider).DeleteArchetype(spaceId, archetype.id, ct);
         Assert.That(result, Is.InstanceOf<SuccessDeleteArchetype>());
@@ -217,7 +217,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId   = await NewSpaceAsync(ct);
-        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "doomed", ct);
+        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "doomed", ct).Ok();
 
         var detailed = await Archetypes(scope.ServiceProvider).GetDetailedServerArchetypes(spaceId, ct);
         var me       = detailed.Values.SelectMany(g => g.members.Values).FirstOrDefault();
@@ -272,7 +272,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId   = await NewSpaceAsync(ct);
-        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "notyours", ct);
+        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "notyours", ct).Ok();
 
         // Someone who is not in the space at all. Anything but a refusal here is a way to dismantle
         // a stranger's permission model with nothing but a space id.
@@ -291,7 +291,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
-        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "mods", ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "mods", ct).Ok();
 
         var all     = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
         var ordered = all.Values.Select(a => a.id).Reverse().ToArray();
@@ -317,7 +317,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
-        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "keepers", ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "keepers", ct).Ok();
 
         var all     = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
         var ordered = all.Values.Select(a => a.id).Reverse().ToArray();
@@ -337,7 +337,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
-        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "partials", ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "partials", ct).Ok();
 
         var all   = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
         var short_ = all.Values.Select(a => a.id).Take(all.Size - 1).ToArray();
@@ -358,7 +358,7 @@ public class ArchetypeTests : TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var spaceId = await NewSpaceAsync(ct);
-        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "dupes", ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "dupes", ct).Ok();
 
         var all = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
 
@@ -383,7 +383,7 @@ public class ArchetypeTests : TestBase
         await Archetypes(scope.ServiceProvider)
            .ReorderArchetypes(spaceId, new IonArray<Guid>(all.Values.Select(a => a.id).ToArray()), ct);
 
-        var fresh = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "newcomer", ct);
+        var fresh = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "newcomer", ct).Ok();
 
         // A new role carries base entitlements, so ranking it above the existing ones would let it
         // out-rank roles that were deliberately placed.

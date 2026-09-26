@@ -597,7 +597,7 @@ public class VoiceModerationTests : TestBase
     private static async Task<Guid> CreateChannelAsync(TestUserSession owner, Guid spaceId, string name, ChannelType type,
         CancellationToken ct)
     {
-        await owner.Channels.CreateChannel(spaceId, Guid.Empty, new CreateChannelRequest(spaceId, name, type, "", null), ct);
+        await owner.Channels.CreateChannel(spaceId, Guid.Empty, new CreateChannelRequest(spaceId, name, type, "", null), ct).Ok();
 
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         return channels.Values.First(c => c.channel.name == name).channel.channelId;
@@ -605,7 +605,7 @@ public class VoiceModerationTests : TestBase
 
     private static async Task JoinSpaceAsync(TestUserSession owner, TestUserSession guest, Guid spaceId, CancellationToken ct)
     {
-        var code = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         Assert.That(await guest.Users.JoinToSpace(code, ct), Is.InstanceOf<SuccessJoin>());
     }
 
@@ -629,8 +629,8 @@ public class VoiceModerationTests : TestBase
         CancellationToken ct)
     {
         var archetypes = ArchetypesOf(owner);
-        var created    = await archetypes.CreateArchetype(spaceId, "moderator", ct);
-        await archetypes.UpdateArchetype(spaceId, created with { entitlement = entitlement }, ct);
+        var created    = await archetypes.CreateArchetype(spaceId, "moderator", ct).Ok();
+        await archetypes.UpdateArchetype(spaceId, created with { entitlement = entitlement }, ct).Ok();
 
         // The archetype call addresses the membership row, not the user.
         var members    = await owner.Servers.GetMembers(spaceId, ct);

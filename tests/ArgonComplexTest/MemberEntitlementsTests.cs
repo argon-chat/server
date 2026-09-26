@@ -74,12 +74,14 @@ public class MemberEntitlementsTests : TestBase
             deny: ArgonEntitlement.ViewChannel, allow: ArgonEntitlement.None, ct);
 
         var duplicated = await moderator.Channels.DuplicateChannel(spaceId, channelId, ct);
+        var deleted    = await moderator.Channels.DeleteChannel(spaceId, channelId, ct);
+        var moved      = await moderator.Channels.MoveChannel(spaceId, channelId, null, null, null, ct);
 
         Assert.Multiple(() =>
         {
             Assert.That((duplicated as FailedDuplicateChannel)?.error, Is.EqualTo(DuplicateChannelError.INSUFFICIENT_PERMISSIONS));
-            Assert.That(async () => await moderator.Channels.DeleteChannel(spaceId, channelId, ct), Throws.Exception);
-            Assert.That(async () => await moderator.Channels.MoveChannel(spaceId, channelId, null, null, null, ct), Throws.Exception);
+            Assert.That(deleted, Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NO_PERMISSION)));
+            Assert.That(moved, Is.EqualTo(new FailedChannelLayout(ChannelLayoutError.NO_PERMISSION)));
         });
 
         var visible = await CreateChannelAsync(owner, spaceId, "visible", ChannelType.Text, ct);
@@ -130,7 +132,7 @@ public class MemberEntitlementsTests : TestBase
         var created = await owner.Users.CreateSpace(new CreateServerRequest("Entitlements", "", string.Empty), ct);
         var spaceId = ((SuccessCreateSpace)created).space.spaceId;
 
-        var code = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var code = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct).Ok();
         Assert.That(await member.Users.JoinToSpace(code, ct), Is.InstanceOf<SuccessJoin>());
 
         return (owner, member, spaceId);
@@ -139,7 +141,7 @@ public class MemberEntitlementsTests : TestBase
     private static async Task<Guid> CreateChannelAsync(TestUserSession owner, Guid spaceId, string name, ChannelType type,
         CancellationToken ct)
     {
-        await owner.Channels.CreateChannel(spaceId, Guid.Empty, new CreateChannelRequest(spaceId, name, type, "", null), ct);
+        await owner.Channels.CreateChannel(spaceId, Guid.Empty, new CreateChannelRequest(spaceId, name, type, "", null), ct).Ok();
         var channels = await owner.Servers.GetChannels(spaceId, ct);
         return channels.Values.First(c => c.channel.name == name).channel.channelId;
     }
@@ -154,8 +156,8 @@ public class MemberEntitlementsTests : TestBase
         CancellationToken ct)
     {
         var archetypes = ArchetypesOf(owner);
-        var created    = await archetypes.CreateArchetype(spaceId, $"role-{Guid.NewGuid():N}"[..12], ct);
-        await archetypes.UpdateArchetype(spaceId, created with { entitlement = entitlement }, ct);
+        var created    = await archetypes.CreateArchetype(spaceId, $"role-{Guid.NewGuid():N}"[..12], ct).Ok();
+        await archetypes.UpdateArchetype(spaceId, created with { entitlement = entitlement }, ct).Ok();
 
         var members    = await owner.Servers.GetMembers(spaceId, ct);
         var membership = members.Values.First(m => m.member.userId == member.UserId).member.memberId;
