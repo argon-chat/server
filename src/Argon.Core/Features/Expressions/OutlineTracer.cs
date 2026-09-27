@@ -293,14 +293,17 @@ public static class OutlineTracer
         foreach (var ring in rings)
             longest = Math.Max(longest, ring.Count);
 
-        var keep  = ArrayPool<bool>.Shared.Rent(longest);
-        var stack = ArrayPool<Interval>.Shared.Rent(longest + 2);
-        var xs    = ArrayPool<int>.Shared.Rent(longest);
-        var ys    = ArrayPool<int>.Shared.Rent(longest);
+        // One rent for both coordinate rows: two same-bucket rents can miss the pool's per-core
+        // stack when the thread migrates and allocate a fresh array.
+        var keep   = ArrayPool<bool>.Shared.Rent(longest);
+        var stack  = ArrayPool<Interval>.Shared.Rent(longest + 2);
+        var coords = ArrayPool<int>.Shared.Rent(longest * 2);
 
         try
         {
             Span<byte> output    = stackalloc byte[OutputCapacity];
+            var        xs        = coords.AsSpan(0, longest);
+            var        ys        = coords.AsSpan(longest, longest);
             var        tolerance = BaseTolerance;
 
             for (var attempt = 0; attempt <= Retries; attempt++, tolerance *= 2)
@@ -317,8 +320,7 @@ public static class OutlineTracer
         {
             ArrayPool<bool>.Shared.Return(keep);
             ArrayPool<Interval>.Shared.Return(stack);
-            ArrayPool<int>.Shared.Return(xs);
-            ArrayPool<int>.Shared.Return(ys);
+            ArrayPool<int>.Shared.Return(coords);
         }
     }
 
