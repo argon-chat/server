@@ -154,12 +154,14 @@ public class FileLimitsOptions
     public long AttachmentBoostLevel3MaxBytes { get; set; } = 100 * 1024 * 1024;
 
     /// <summary>
-    ///     Emoji max size (default 1 MB)
+    ///     Not read: emoji uploads are capped by <c>ExpressionLimits</c>, per format. Kept so existing
+    ///     configuration still binds.
     /// </summary>
     public long EmojiMaxBytes { get; set; } = 1 * 1024 * 1024;
 
     /// <summary>
-    ///     Sticker max size (default 2 MB)
+    ///     Not read: sticker uploads are capped by <c>ExpressionLimits</c>, per format. Kept so existing
+    ///     configuration still binds.
     /// </summary>
     public long StickerMaxBytes { get; set; } = 2 * 1024 * 1024;
 

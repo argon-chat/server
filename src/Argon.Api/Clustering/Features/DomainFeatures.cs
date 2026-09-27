@@ -1,6 +1,7 @@
 namespace Argon.Api.Clustering;
 
 using Argon.Features.Cosmetics;
+using Argon.Features.Expressions;
 using Argon.Features.Integrations.Crawler;
 using Argon.HealthChecks;
 using Argon.Features.Integrations.Phones;
@@ -193,6 +194,16 @@ public sealed class ContentModerationFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddContentModeration();
+}
+
+public sealed class ExpressionsFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Describing("sticker and custom emoji quotas and file validation")
+            .Options<ExpressionsOptions>(ExpressionsOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddSingleton<IExpressionFileValidator, ExpressionFileValidator>();
 }
 
 public sealed class ReportSystemFeature : IArgonFeature

@@ -169,6 +169,13 @@ public class EntitlementEvaluatorTests
                 ArgonEntitlement.ViewChannel | ArgonEntitlement.AttachFiles, ArgonEntitlement.AttachFiles),
             Is.True);
 
+    /// <summary>Adding stickers and emoji is a space action, so it does not need SendMessages.</summary>
+    [Test]
+    public void IsEntitlementSatisfied_CreateExpressions_DoesNotRequireSendMessages()
+        => Assert.That(
+            EntitlementAnalyzer.IsEntitlementSatisfied(ArgonEntitlement.CreateExpressions, ArgonEntitlement.CreateExpressions),
+            Is.True);
+
     [Test]
     public void IsEntitlementSatisfied_JoinToVoice_RequiresViewChannel()
     {
@@ -247,6 +254,8 @@ public class EntitlementEvaluatorTests
             Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.DeafenMember), Is.True);
             Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.ManageChannels), Is.True);
             Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.ManageMessages), Is.True);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.ManageExpressions), Is.True);
+            Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.CreateExpressions), Is.False);
             Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.Connect), Is.False);
             Assert.That(EntitlementAnalyzer.IsManagementEntitlement(ArgonEntitlement.SendMessages), Is.False);
         });

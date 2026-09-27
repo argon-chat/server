@@ -206,3 +206,27 @@ public sealed class IonPartialConverter : JsonConverter
             => IonFormatterStorage<IonPartial<T>>.Read(new System.Formats.Cbor.CborReader(bytes));
     }
 }
+
+/// <summary>Carries Ion <c>bytes</c> through Newtonsoft as base64; left to itself Newtonsoft writes it as an empty object.</summary>
+public sealed class IonBytesConverter : JsonConverter
+{
+    public override bool CanConvert(Type objectType) => objectType == typeof(IonBytes) || objectType == typeof(IonBytes?);
+
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+    {
+        if (value is IonBytes bytes)
+            writer.WriteValue(Convert.ToBase64String(bytes.Span));
+        else
+            writer.WriteNull();
+    }
+
+    // Typed as object on purpose: a null IonBytes arm would go through IonBytes' implicit byte[] conversion.
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+        => reader.TokenType switch
+        {
+            JsonToken.Null   => (object?)null,
+            JsonToken.String => new IonBytes(Convert.FromBase64String((string)reader.Value!)),
+            JsonToken.Bytes  => new IonBytes((byte[])reader.Value!),
+            _                => throw new JsonSerializationException($"Ion bytes are expected as base64, and a {reader.TokenType} arrived")
+        };
+}

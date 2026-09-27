@@ -301,6 +301,12 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
     public async Task<IRemoveReactionResult> RemoveReaction(Guid spaceId, Guid channelId, long messageId, string emoji, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).RemoveReaction(messageId, emoji);
 
+    public async Task<IAddReactionResult> AddCustomReaction(Guid spaceId, Guid channelId, long messageId, Guid itemId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).AddCustomReaction(messageId, itemId);
+
+    public async Task<IRemoveReactionResult> RemoveCustomReaction(Guid spaceId, Guid channelId, long messageId, Guid itemId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).RemoveCustomReaction(messageId, itemId);
+
     public async Task<IonArray<MessageReactionsEntry>> BatchGetReactions(Guid spaceId, Guid channelId, IonArray<long> messageIds, CancellationToken ct = default)
     {
         var dict = await this.GetGrain<IChannelGrain>(channelId).BatchGetReactions(messageIds.Values.ToList());

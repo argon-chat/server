@@ -192,6 +192,13 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(RemoveReaction))]
     Task<IRemoveReactionResult> RemoveReaction(long messageId, string emoji);
 
+    /// <summary>Reacts with a live custom emoji of this channel's space; keyed as <c>:name:</c> plus the item id.</summary>
+    [Alias(nameof(AddCustomReaction))]
+    Task<IAddReactionResult> AddCustomReaction(long messageId, Guid itemId);
+
+    [Alias(nameof(RemoveCustomReaction))]
+    Task<IRemoveReactionResult> RemoveCustomReaction(long messageId, Guid itemId);
+
     [Alias(nameof(BatchGetReactions))]
     Task<Dictionary<long, List<ReactionInfo>>> BatchGetReactions(List<long> messageIds);
 

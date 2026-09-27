@@ -4,8 +4,10 @@ using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Argon.Core.Services;
+using Argon.Features.Expressions;
 using Argon.Features.Integrations.Crawler;
 using Argon.Features.Storage;
+using Argon.Services.L1L2;
 using Argon.Grains.Interfaces;
 using Orleans.Concurrency;
 using Core.Entities.Data;
@@ -18,7 +20,9 @@ public class UserChatGrain(
     IUserSessionNotifier notifier,
     IConversationService conversationService,
     ILinkPreviewService linkPreviews,
-    IOptions<CrawlerOptions> crawlerOptions) : Grain, IUserChatGrain
+    IOptions<CrawlerOptions> crawlerOptions,
+    IPermissionCache permissionCache,
+    IOptions<ExpressionsOptions> expressionsOptions) : Grain, IUserChatGrain
 {
     private Guid Me => this.GetUserId();
 
@@ -258,6 +262,36 @@ public class UserChatGrain(
             entities.Remove(stub);
     }
 
+    /// <summary>
+    /// Stickers and custom emoji from spaces the sender is a member of, rewritten from the live items.
+    /// Each is held to the space its entity names; anything else is dropped.
+    /// </summary>
+    private async Task<List<IMessageEntity>> ResolveExpressionsAsync(Guid senderId, string text, List<IMessageEntity> entities)
+    {
+        if (!ExpressionEntities.Any(entities))
+            return entities;
+
+        var items = new Dictionary<Guid, ExpressionItem>();
+
+        foreach (var (spaceId, ids) in ExpressionEntities.ClaimedItems(entities))
+        {
+            if (spaceId == Guid.Empty || await permissionCache.GetMemberWithArchetypesAsync(spaceId, senderId) is null)
+                continue;
+
+            try
+            {
+                foreach (var (id, item) in await GrainFactory.GetGrain<ISpaceExpressionsGrain>(spaceId).ResolveLiveItemsAsync(ids))
+                    items[id] = item;
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "could not resolve stickers and emoji of space {SpaceId} for a direct message", spaceId);
+            }
+        }
+
+        return ExpressionEntities.Resolve(text, entities, items, null, expressionsOptions.Value.MaxCustomEmojiPerMessage);
+    }
+
     public async Task<long> SendDirectMessageAsync(
         Guid receiverId,
         string text,
@@ -273,6 +307,14 @@ public class UserChatGrain(
             senderId, receiverId, text?.Length ?? 0, randomId);
 
         entities ??= [];
+
+        var expressions = ExpressionEntities.Any(entities);
+        entities = await ResolveExpressionsAsync(senderId, text ?? "", entities);
+
+        // A sticker that did not resolve would leave an empty message.
+        if (expressions && string.IsNullOrEmpty(text) && entities.Count == 0)
+            throw new InvalidOperationException("the sticker is not one the sender can use");
+
         await SettleLinkPreviewAsync(entities, text ?? "");
 
         // Get or create conversation

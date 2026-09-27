@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using Argon.Api.Grains.Interfaces;
 using Argon.Entities;
 using Argon.Features.EF;
+using Argon.Features.Expressions;
 using Argon.Features.Storage;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure;
@@ -191,6 +192,10 @@ public class FileStorageRulesTests : TestBase
     [TestCase(FilePurpose.Video, "video/mp4", true)]
     [TestCase(FilePurpose.Video, "image/png", false)]
     [TestCase(FilePurpose.Emoji, "text/html", false)]
+    [TestCase(FilePurpose.Sticker, "application/x-tgsticker", true)]
+    [TestCase(FilePurpose.Sticker, "video/webm", true)]
+    [TestCase(FilePurpose.Emoji, "application/json", true)]
+    [TestCase(FilePurpose.Sticker, "image/gif", false)]
     [CancelAfter(120_000)]
     public async Task A_purpose_accepts_only_the_content_it_is_for(FilePurpose purpose, string contentType, bool accepted, CancellationToken ct = default)
     {
@@ -326,7 +331,7 @@ public class FileStorageRulesTests : TestBase
         var grain  = Files(user.UserId);
         var ticket = await grain.RequestUploadAsync(new FileUploadRequest(FilePurpose.Emoji, "image/png", Png.Length, spaceId), ct);
 
-        var oversized = new byte[Limits.EmojiMaxBytes + 1];
+        var oversized = new byte[ExpressionUploads.MaxUploadBytes(ExpressionKind.Emoji) + 1];
         Png.CopyTo(oversized, 0);
 
         await UploadAsync(ticket, oversized, "image/png");
@@ -406,8 +411,8 @@ public class FileStorageRulesTests : TestBase
     private static long LimitFor(FilePurpose purpose) => purpose switch
     {
         FilePurpose.Avatar or FilePurpose.SpaceAvatar => Limits.AvatarMaxBytes,
-        FilePurpose.Emoji                             => Limits.EmojiMaxBytes,
-        FilePurpose.Sticker                           => Limits.StickerMaxBytes,
+        FilePurpose.Emoji                             => ExpressionUploads.MaxUploadBytes(ExpressionKind.Emoji),
+        FilePurpose.Sticker                           => ExpressionUploads.MaxUploadBytes(ExpressionKind.Sticker),
         FilePurpose.Banner                            => Limits.BannerMaxBytes,
         FilePurpose.Video                             => Limits.VideoMaxBytes,
         _                                             => Limits.AttachmentBaseMaxBytes

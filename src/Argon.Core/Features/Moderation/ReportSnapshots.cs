@@ -32,7 +32,8 @@ public static class ReportSnapshots
     // was, and a moderator reading the raw JSON sees the concrete kinds.
     private static readonly JsonSerializerSettings EntitySettings = new()
     {
-        TypeNameHandling = TypeNameHandling.All
+        TypeNameHandling = TypeNameHandling.All,
+        Converters       = [new Argon.Services.Ion.IonBytesConverter()]
     };
 
     public static string Serialize(ReportContentSnapshot snapshot)

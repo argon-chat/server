@@ -534,7 +534,8 @@ public class ChannelComposerGrain(
             return SchedulePostError.MESSAGE_TOO_LONG;
         if (entities.Count(IsFile) > MaxAttachments)
             return SchedulePostError.TOO_MANY_ATTACHMENTS;
-        if (string.IsNullOrWhiteSpace(text) && !HasFiles(entities))
+        // A sticker is checked against the space's items when the post goes out, like any send.
+        if (string.IsNullOrWhiteSpace(text) && !HasFiles(entities) && !entities.Any(e => e is MessageEntitySticker))
             return SchedulePostError.EMPTY_MESSAGE;
         return SchedulePostError.NONE;
     }
@@ -559,6 +560,8 @@ public class ChannelComposerGrain(
         {
             MessageEntityAttachment { downloadUrl: not null } a => a with { downloadUrl = null },
             MessageEntityGif { previewUrl: not null } g         => g with { previewUrl = null },
+            MessageEntitySticker s                              => s with { downloadUrl = null, thumbUrl = null },
+            MessageEntityCustomEmoji c                          => c with { downloadUrl = null },
             _                                                   => e
         }).ToList();
 

@@ -27,6 +27,16 @@ public sealed class IonArrayJsonConverter<T> : JsonConverter<IonArray<T>>
         => JsonSerializer.Serialize(writer, value.ToList(), options);
 }
 
+/// <summary>Ion <c>bytes</c> as base64; left to itself the serializer writes the struct's properties and reads back nothing.</summary>
+public sealed class IonBytesJsonConverter : JsonConverter<IonBytes>
+{
+    public override IonBytes Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        => new(reader.GetBytesFromBase64());
+
+    public override void Write(Utf8JsonWriter writer, IonBytes value, JsonSerializerOptions options)
+        => writer.WriteBase64StringValue(value.Span);
+}
+
 public sealed class IonArrayJsonConverterFactory : JsonConverterFactory
 {
     public override bool CanConvert(Type typeToConvert)
@@ -50,7 +60,7 @@ public static class IonJson
     /// <summary>JSON that can read back what it wrote, Ion contracts included.</summary>
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.General)
     {
-        Converters = { new IonArrayJsonConverterFactory() }
+        Converters = { new IonArrayJsonConverterFactory(), new IonBytesJsonConverter() }
     };
 }
 

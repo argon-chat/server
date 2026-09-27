@@ -37,6 +37,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ChannelWebhookEntity>               ChannelWebhooks              => Set<ChannelWebhookEntity>();
     public DbSet<ScheduledPostEntity>                ScheduledPosts               => Set<ScheduledPostEntity>();
     public DbSet<MessageDraftEntity>                 MessageDrafts                => Set<MessageDraftEntity>();
+    public DbSet<ExpressionPackEntity>               ExpressionPacks              => Set<ExpressionPackEntity>();
+    public DbSet<ExpressionItemEntity>               ExpressionItems              => Set<ExpressionItemEntity>();
 
 #region Feature Flags
 

@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Services.Ion;
 using Newtonsoft.Json.Linq;
 using ArgonContracts;
 
@@ -7,7 +8,8 @@ public class MessageEntityConverter : JsonConverter<IMessageEntity>
 {
     private readonly JsonSerializerSettings _internalSettings = new()
     {
-        TypeNameHandling = TypeNameHandling.All
+        TypeNameHandling = TypeNameHandling.All,
+        Converters       = [new IonBytesConverter()]
     };
 
     public override void WriteJson(JsonWriter writer, IMessageEntity? value, JsonSerializer serializer)

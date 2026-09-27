@@ -5,6 +5,7 @@ using Argon.Features.Cache;
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
 using Argon.Api.Grains.Interfaces;
+using Argon.Features.Expressions;
 using Argon.Features.Storage;
 using Core.Grains.Interfaces;
 using Core.Services;
@@ -52,6 +53,7 @@ public partial class ChannelGrain(
     [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections redisPool,
     IOptions<MessagesOptions> messageOptions,
     IOptions<CallKitOptions> callKit,
+    IOptions<ExpressionsOptions> expressionsOptions,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -1453,6 +1455,13 @@ public partial class ChannelGrain(
         }
         
         var sanitized = SanitizeEntities(entities ?? []);
+
+        // A sticker that did not resolve would leave nothing to send.
+        var expressions = ExpressionEntities.Any(sanitized);
+        sanitized = await ResolveExpressionsAsync(text ?? "", sanitized);
+        if (expressions && string.IsNullOrEmpty(text) && sanitized.Count == 0)
+            return (SendMessageError.INVALID_DATA, 0);
+
         await CacheGifEntitiesAsync(sanitized, senderId);
         await StripUnpingableMentionsAsync(sanitized, senderId);
         var pendingPreview = await PrepareLinkPreviewAsync(sanitized, text ?? "", senderId, channelId);
@@ -1843,6 +1852,14 @@ public partial class ChannelGrain(
                 message.Entities[i] = att with { downloadUrl = s3.GetFileDownloadUrl(att.fileId) };
             if (message.Entities[i] is MessageEntityGif { previewUrl: null, fileId: not null } gif)
                 message.Entities[i] = gif with { previewUrl = s3.GetFileDownloadUrl(gif.fileId.Value) };
+            if (message.Entities[i] is MessageEntitySticker { downloadUrl: null } sticker)
+                message.Entities[i] = sticker with
+                {
+                    downloadUrl = s3.GetFileDownloadUrl(sticker.fileId),
+                    thumbUrl    = sticker.thumbFileId is { } thumb ? s3.GetFileDownloadUrl(thumb) : null
+                };
+            if (message.Entities[i] is MessageEntityCustomEmoji { downloadUrl: null } emoji)
+                message.Entities[i] = emoji with { downloadUrl = s3.GetFileDownloadUrl(emoji.fileId) };
         }
     }
 
@@ -1968,6 +1985,10 @@ public partial class ChannelGrain(
                 entities[i] = att with { downloadUrl = null };
             if (entities[i] is MessageEntityGif gif && gif.previewUrl is not null)
                 entities[i] = gif with { previewUrl = null };
+            if (entities[i] is MessageEntitySticker sticker && (sticker.downloadUrl is not null || sticker.thumbUrl is not null))
+                entities[i] = sticker with { downloadUrl = null, thumbUrl = null };
+            if (entities[i] is MessageEntityCustomEmoji emoji && emoji.downloadUrl is not null)
+                entities[i] = emoji with { downloadUrl = null };
         }
         return entities;
     }
@@ -2567,18 +2588,26 @@ public partial class ChannelGrain(
 
         // Attachments and link cards are not the client's to rewrite: keep the stored ones, and a card
         // only while its link is still in the text.
-        var kept = (message.Entities ?? [])
+        // A sticker stays only while the text stays empty: an edit turns neither kind of message into the other.
+        var stored = message.Entities ?? [];
+        var kept = stored
            .Where(e => e is MessageEntityAttachment or MessageEntityGif
-                    || e is MessageEntityLinkPreview p && text.Contains(p.url, StringComparison.Ordinal))
+                    || e is MessageEntityLinkPreview p && text.Contains(p.url, StringComparison.Ordinal)
+                    || e is MessageEntitySticker && text.Length == 0)
            .ToList();
 
-        if (string.IsNullOrWhiteSpace(text) && !kept.Any(e => e is MessageEntityAttachment or MessageEntityGif))
+        if (string.IsNullOrWhiteSpace(text) && !kept.Any(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntitySticker))
             return new FailedEditMessage(EditMessageError.EMPTY_MESSAGE);
 
-        var edited = (entities ?? [])
+        var offered = (entities ?? [])
            .Where(e => e is not (MessageEntityAttachment or MessageEntityGif or MessageEntityLinkPreview
                                or MessageEntitySystemCallStarted or MessageEntitySystemCallEnded
-                               or MessageEntitySystemCallTimeout or MessageEntitySystemUserJoined))
+                               or MessageEntitySystemCallTimeout or MessageEntitySystemUserJoined
+                               or MessageEntitySticker))
+           .ToList();
+
+        // Custom emoji are resolved again; one the message already had stays valid after its item is deleted.
+        var edited = (await ResolveExpressionsAsync(text, offered, stored.OfType<MessageEntityCustomEmoji>()))
            .Concat(kept)
            .ToList();
 
@@ -2600,7 +2629,11 @@ public partial class ChannelGrain(
 
     // ── Reactions (buffered writes) ──────────────────────────
 
-    public async Task<IAddReactionResult> AddReaction(long messageId, string emoji)
+    public Task<IAddReactionResult> AddReaction(long messageId, string emoji)
+        => AddReactionAsync(messageId, emoji, null);
+
+    /// <summary>A unicode reaction is keyed by its emoji alone, a custom one by its item id.</summary>
+    private async Task<IAddReactionResult> AddReactionAsync(long messageId, string emoji, Guid? customEmojiId)
     {
         if (_self.ChannelType is not (ChannelType.Text or ChannelType.Announcement))
         {
@@ -2631,7 +2664,7 @@ public partial class ChannelGrain(
             return new FailedAddReaction(AddReactionError.MESSAGE_NOT_FOUND);
         }
 
-        var existing = reactions.FirstOrDefault(r => r.Emoji == emoji);
+        var existing = reactions.FirstOrDefault(r => r.CustomEmojiId == customEmojiId && (customEmojiId is not null || r.Emoji == emoji));
         if (existing is not null)
         {
             if (existing.UserIds.Contains(userId))
@@ -2652,7 +2685,7 @@ public partial class ChannelGrain(
                 return new FailedAddReaction(AddReactionError.REACTION_LIMIT_REACHED);
             }
 
-            reactions.Add(new MessageReactionData { Emoji = emoji, UserIds = [userId] });
+            reactions.Add(new MessageReactionData { Emoji = emoji, CustomEmojiId = customEmojiId, UserIds = [userId] });
         }
 
         _dirtyReactions.Add(messageId);
@@ -2660,12 +2693,15 @@ public partial class ChannelGrain(
         ChannelGrainInstrument.ReactionsAdded.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
 
-        await FireChannel(new ReactionAdded(SpaceId, channelId, messageId, userId, emoji, null));
+        await FireChannel(new ReactionAdded(SpaceId, channelId, messageId, userId, emoji, customEmojiId));
 
         return new SuccessAddReaction();
     }
 
-    public async Task<IRemoveReactionResult> RemoveReaction(long messageId, string emoji)
+    public Task<IRemoveReactionResult> RemoveReaction(long messageId, string emoji)
+        => RemoveReactionAsync(messageId, r => r.CustomEmojiId is null && r.Emoji == emoji);
+
+    private async Task<IRemoveReactionResult> RemoveReactionAsync(long messageId, Func<MessageReactionData, bool> match)
     {
         var userId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
@@ -2678,7 +2714,7 @@ public partial class ChannelGrain(
             return new FailedRemoveReaction(RemoveReactionError.MESSAGE_NOT_FOUND);
         }
 
-        var existing = reactions.FirstOrDefault(r => r.Emoji == emoji);
+        var existing = reactions.FirstOrDefault(match);
         if (existing is null || !existing.UserIds.Remove(userId))
         {
             ChannelGrainInstrument.ReactionsRemoved.Add(1,
@@ -2694,7 +2730,7 @@ public partial class ChannelGrain(
         ChannelGrainInstrument.ReactionsRemoved.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
 
-        await FireChannel(new ReactionRemoved(SpaceId, channelId, messageId, userId, emoji));
+        await FireChannel(new ReactionRemoved(SpaceId, channelId, messageId, userId, existing.Emoji, existing.CustomEmojiId));
 
         return new SuccessRemoveReaction();
     }

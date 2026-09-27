@@ -71,12 +71,14 @@ public sealed class CoreRole : IArgonRole
         features.Add<FileStorageFeature>();
         features.Add<OperatorAuthFeature>();
         features.Add<CosmeticsFeature>();
+        features.Add<ExpressionsFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
     {
         registry.AddToRef<SpaceGrain>();
         registry.AddToRef<SpaceReadGrain>();
+        registry.AddToRef<SpaceExpressionsGrain>();
 
         registry.AddToRef<ChannelGrain>();
         registry.AddToRef<ChannelFollowGrain>();

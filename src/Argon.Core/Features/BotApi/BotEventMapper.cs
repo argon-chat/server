@@ -19,7 +19,7 @@ public static class BotEventMapper
         => new(a.id, a.spaceId, a.name, a.colour, a.isMentionable, a.isDefault,
             includePermissions ? (long)a.entitlement : null);
 
-    public static BotMessageEntityV1 MapEntity(IMessageEntity entity) => entity switch
+    public static BotMessageEntityV1? MapEntity(IMessageEntity entity) => entity switch
     {
         MessageEntityBold e             => Base(e.type, e.offset, e.length),
         MessageEntityItalic e           => Base(e.type, e.offset, e.length),
@@ -44,14 +44,16 @@ public static class BotEventMapper
         MessageEntityAttachment e         => Base(e.type, e.offset, e.length) with { FileName = e.fileName, FileSize = e.fileSize, ContentType = e.contentType, Width = e.width, Height = e.height, ThumbHash = e.thumbHash },
         MessageEntityGif e               => Base(e.type, e.offset, e.length) with { Width = e.width, Height = e.height },
         MessageEntityLinkPreview e       => Base(e.type, e.offset, e.length) with { Url = e.url, Title = e.title, Description = e.description, SiteName = e.siteName, ImageUrl = e.imageUrl, CanonicalUrl = e.canonicalUrl },
-        _ => Base(EntityType.Bold, 0, 0) // unreachable — all 23 variants covered
+        // Stickers and custom emoji have no V1 shape; bots do not see them.
+        _ => null
     };
 
     public static async ValueTask<BotMessageV1> FromArgonMessageAsync(ArgonMessage msg, BotUserCache userCache, List<ControlRowV1>? controls = null)
     {
         var entities = msg.entities.Values
            .Where(e => e is not null)
-           .Select(MapEntity!)
+           .Select(e => MapEntity(e!))
+           .OfType<BotMessageEntityV1>()
            .ToList();
 
         var sender = await userCache.GetOrResolveAsync(msg.sender);

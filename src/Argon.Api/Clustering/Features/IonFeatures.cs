@@ -78,6 +78,7 @@ public sealed class IonProtocolFeature : IArgonFeature
             x.AddService<ISpaceAnnouncementInteraction, SpaceAnnouncementInteractionImpl>();
             x.AddService<IChannelPinsInteraction, ChannelPinsInteractionImpl>();
             x.AddService<IChannelComposerInteraction, ChannelComposerInteractionImpl>();
+            x.AddService<ISpaceExpressionInteraction, SpaceExpressionInteractionImpl>();
             x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
         });
     }

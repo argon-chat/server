@@ -83,6 +83,8 @@
         <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.18.0" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.18.0" />
+        <!-- Pinned like Argon.Api; do not bump. -->
+        <PackageReference Include="SixLabors.ImageSharp" Version="[3.1.12]" />
     </ItemGroup>
 
     <ItemGroup>

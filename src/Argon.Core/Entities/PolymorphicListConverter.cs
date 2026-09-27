@@ -1,12 +1,14 @@
 namespace Argon.Entities;
 
+using Argon.Services.Ion;
 using Newtonsoft.Json.Linq;
 
 public class PolymorphicListConverter<TBase> : JsonConverter<List<TBase>>
 {
     private readonly JsonSerializerSettings InternalSettings = new()
     {
-        TypeNameHandling = TypeNameHandling.All
+        TypeNameHandling = TypeNameHandling.All,
+        Converters       = [new IonBytesConverter()]
     };
 
     public override void WriteJson(JsonWriter writer, List<TBase>? value, JsonSerializer serializer)

@@ -713,8 +713,22 @@ public partial class SpaceGrain(
         ctx.Spaces.Remove(space);
         await ctx.SaveChangesAsync();
         await ForgetSpaceFollowsAsync(ctx, space.Id);
+        await ForgetSpaceExpressionsAsync(space.Id);
         await Invalidate();
         await DropSpaceWebhooksAsync(ctx);
+    }
+
+    // Not on a scheduled deletion: the packs and their files stay until the space is really gone.
+    private async Task ForgetSpaceExpressionsAsync(Guid spaceId)
+    {
+        try
+        {
+            await GrainFactory.GetGrain<ISpaceExpressionsGrain>(spaceId).OnSpaceDeletedAsync();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to release the stickers and emoji of deleted space {SpaceId}", spaceId);
+        }
     }
 
     public async Task AnnounceDeletionScheduled(SpaceDeletionState deletionState)

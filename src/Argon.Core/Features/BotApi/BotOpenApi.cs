@@ -372,8 +372,12 @@ public static class BotOpenApi
                 }
             })
            .Where(t => t is { IsClass: true, IsAbstract: false } && union.IsAssignableFrom(t))
+           .Where(t => !NotAcceptedFromBots.Contains(t))
            .OrderBy(t => t.Name, StringComparer.Ordinal)
            .ToList();
+
+    // MessageEntityStjConverter refuses these, so they are not part of what a bot may send.
+    private static readonly HashSet<Type> NotAcceptedFromBots = [typeof(MessageEntitySticker), typeof(MessageEntityCustomEmoji)];
 
     private static Type? ElementType(Type type)
     {

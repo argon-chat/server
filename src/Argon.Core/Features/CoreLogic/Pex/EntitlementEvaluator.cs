@@ -5,9 +5,9 @@ public static class EntitlementAnalyzer
     private const ulong CHAT_MASK  = 0b111111111000000 << 5;
     private const ulong VOICE_MASK = 0b1111UL << 20;
     private const ulong MOD_MASK   = 0b1111111111UL << 40;
-    // Seven bits, not six: ManageMessages (1 << 56) had to go above ManageServer because the
-    // moderation block at 1 << 4x is full, so the admin block now runs 50..56.
-    private const ulong ADMIN_MASK = 0b1111111UL << 50;
+    // Eight bits: ManageMessages (1 << 56) had to go above ManageServer because the moderation block
+    // at 1 << 4x is full, and ManageExpressions (1 << 57) followed, so the admin block runs 50..57.
+    private const ulong ADMIN_MASK = 0b11111111UL << 50;
 
     public static bool HasEntitlement(SpaceMemberEntity member, IArchetypeObject obj, ArgonEntitlement target)
     {
@@ -49,8 +49,10 @@ public static class EntitlementAnalyzer
         return true;
     }
 
+    // CreateExpressions sits in CHAT_MASK's range but is a space action: it does not need SendMessages.
     private static bool IsChatEntitlement(ArgonEntitlement target)
-        => ((ulong)target & CHAT_MASK) != 0 && target != ArgonEntitlement.SendMessages;
+        => ((ulong)target & CHAT_MASK) != 0 && target != ArgonEntitlement.SendMessages
+                                             && target != ArgonEntitlement.CreateExpressions;
 
     private static bool IsSendMessagesEntitlement(ArgonEntitlement target)
         => target == ArgonEntitlement.SendMessages;

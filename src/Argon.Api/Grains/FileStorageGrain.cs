@@ -3,6 +3,7 @@ namespace Argon.Api.Grains;
 using System.Diagnostics;
 using Argon.Api.Grains.Interfaces;
 using Argon.Entities;
+using Argon.Features.Expressions;
 using Argon.Features.Storage;
 using Argon.Grains.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -147,10 +148,7 @@ public class FileStorageGrain(
         // the signature because this is the first moment anyone knows: the server never sees the
         // bytes, and the content type the client declared when it asked for the URL is a claim it
         // was never held to.
-        var required = GetContentTypePrefix(file.Purpose);
-
-        if (required is not null &&
-            !(metadata.ContentType?.StartsWith(required, StringComparison.OrdinalIgnoreCase) ?? false))
+        if (!AcceptsContentType(file.Purpose, metadata.ContentType))
         {
             await s3.DeleteFileAsync(file.S3Key, ct);
             db.Files.Remove(file);
@@ -343,11 +341,12 @@ public class FileStorageGrain(
             case FilePurpose.SpaceAvatar:
                 return _limits.AvatarMaxBytes;
 
+            // The largest file of the kind; the exact cap for the format is checked when the item is added.
             case FilePurpose.Emoji:
-                return _limits.EmojiMaxBytes;
+                return ExpressionUploads.MaxUploadBytes(ExpressionKind.Emoji);
 
             case FilePurpose.Sticker:
-                return _limits.StickerMaxBytes;
+                return ExpressionUploads.MaxUploadBytes(ExpressionKind.Sticker);
 
             case FilePurpose.Banner:
                 return _limits.BannerMaxBytes;
@@ -408,14 +407,15 @@ public class FileStorageGrain(
         return $"u/{userId}/{category}/{fileId}";
     }
 
-    private static string? GetContentTypePrefix(FilePurpose purpose) => purpose switch
+    internal static bool AcceptsContentType(FilePurpose purpose, string? contentType) => purpose switch
     {
-        FilePurpose.Avatar      => "image/",
-        FilePurpose.SpaceAvatar => "image/",
-        FilePurpose.Emoji       => "image/",
-        FilePurpose.Sticker     => "image/",
-        FilePurpose.Banner      => "image/",
-        FilePurpose.Video       => "video/",
-        _                       => null // any content type for attachments
+        FilePurpose.Avatar or FilePurpose.SpaceAvatar or FilePurpose.Banner => HasPrefix(contentType, "image/"),
+        FilePurpose.Video                                                   => HasPrefix(contentType, "video/"),
+        // Lottie arrives as gzip or JSON and video as WEBM; AddItem checks the bytes themselves.
+        FilePurpose.Emoji or FilePurpose.Sticker => ExpressionUploads.IsExpressionContentType(contentType),
+        _                                        => true // any content type for attachments
     };
+
+    private static bool HasPrefix(string? contentType, string prefix)
+        => contentType?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ?? false;
 }

@@ -125,7 +125,11 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         var sw = Stopwatch.StartNew();
 
         var client = clientPool.GetClient();
-        var response = await client.PutObjectAsync(_opts.BucketName, objectKey, content, null, ct);
+        Action<Genbox.SimpleS3.Core.Network.Requests.Objects.PutObjectRequest>? config = null;
+        if (contentType is not null)
+            config = r => r.ContentType.Set(contentType);
+
+        var response = await client.PutObjectAsync(_opts.BucketName, objectKey, content, config, ct);
 
         sw.Stop();
         StorageInstruments.S3Operations.Add(1,

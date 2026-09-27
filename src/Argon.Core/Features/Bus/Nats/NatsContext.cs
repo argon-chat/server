@@ -184,7 +184,8 @@ public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsS
         [
             new MessageEntityConverter(),
             new IonArrayConverter(),
-            new IonMaybeConverter()
+            new IonMaybeConverter(),
+            new IonBytesConverter()
         ]
     };
 
