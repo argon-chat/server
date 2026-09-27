@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>Argon.Expressions.Bench</RootNamespace>
+        <!-- Argon.Core grants this name its internals, for OutlineTracer.KernelMode. -->
+        <AssemblyName>ArgonExpressionsBench</AssemblyName>
+
+        <!-- A benchmark, not a test project: nothing here is collected by `dotnet test` or gated in CI.
+             Run it with `dotnet run -c Release` and a BenchmarkDotNet filter of '*'. -->
+        <IsPackable>false</IsPackable>
+        <IsTestProject>false</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+        <!-- BenchmarkDotNet pins Roslyn 4.14; Orleans, through Argon.Core, needs 5.0. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Argon.Core\Argon.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+    </ItemGroup>
+
+</Project>
