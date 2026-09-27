@@ -232,6 +232,7 @@ public partial class SpaceExpressionsGrain(
         pack.Version++;
 
         await ctx.SaveChangesAsync();
+        await ForgetItemsAsync(pack.Items.Select(i => i.Id));
 
         var after = await RefreshAsync();
 
@@ -312,6 +313,20 @@ public partial class SpaceExpressionsGrain(
         generation++;
         Remember(value);
         return value.Version;
+    }
+
+    /// <summary>Drops the items' status emoji entries, see <see cref="ExpressionItemCache"/>.</summary>
+    private async Task ForgetItemsAsync(IEnumerable<Guid> itemIds)
+    {
+        try
+        {
+            await ExpressionItemCache.InvalidateAsync(cache, itemIds);
+        }
+        catch (Exception e)
+        {
+            // They expire on their own.
+            logger.LogWarning(e, "could not drop cached expression items of space {SpaceId}", SpaceId);
+        }
     }
 
     private void Remember(Versioned<IonArray<ExpressionPack>> value)

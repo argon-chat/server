@@ -1,10 +1,8 @@
 namespace ArgonSharedLogicTest.Cache;
 
-using System.Collections.Concurrent;
 using Argon.Services.L1L2;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
-using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// What <c>HybridCache</c> does with the options and tags the worn-cosmetics read uses, on two or
@@ -32,7 +30,7 @@ public class WornCacheLookupTests
     [Test]
     public async Task A_miss_is_written_nowhere()
     {
-        await using var cluster = new Cluster();
+        await using var cluster = new HybridCacheCluster();
         var silo = cluster.Silo();
 
         Assert.That(await LookUpAsync(silo), Is.Null);
@@ -52,7 +50,7 @@ public class WornCacheLookupTests
     [Test]
     public async Task A_hit_found_in_Redis_is_kept_in_memory()
     {
-        await using var cluster = new Cluster();
+        await using var cluster = new HybridCacheCluster();
         var writer = cluster.Silo();
         var reader = cluster.Silo();
 
@@ -70,7 +68,7 @@ public class WornCacheLookupTests
     [Test]
     public async Task The_copy_kept_in_memory_is_dropped_with_the_entry()
     {
-        await using var cluster = new Cluster();
+        await using var cluster = new HybridCacheCluster();
         var writer = cluster.Silo();
         var reader = cluster.Silo();
 
@@ -89,7 +87,7 @@ public class WornCacheLookupTests
     [Test]
     public async Task A_write_that_trails_the_drop_is_cleared_by_the_second_drop()
     {
-        await using var cluster = new Cluster();
+        await using var cluster = new HybridCacheCluster();
         var late     = cluster.Silo();
         var writer   = cluster.Silo();
         var onlooker = cluster.Silo();
@@ -134,73 +132,4 @@ public class WornCacheLookupTests
 
     /// <summary>Lets the clock move, so a drop and a write are never stamped with the same tick.</summary>
     private static Task Tick() => Task.Delay(5);
-
-    /// <summary>
-    /// Silos sharing one Redis. Per test rather than per fixture: the assembly runs every test in
-    /// parallel, and a fixture field would be one test's cluster disposed under another.
-    /// </summary>
-    private sealed class Cluster : IAsyncDisposable
-    {
-        private readonly List<ServiceProvider> silos = [];
-
-        public SharedRedis Redis { get; } = new();
-
-        public HybridCache Silo()
-        {
-            var services = new ServiceCollection();
-            services.AddSingleton<IDistributedCache>(Redis);
-            services.AddHybridCache();
-
-            var provider = services.BuildServiceProvider();
-            silos.Add(provider);
-
-            return provider.GetRequiredService<HybridCache>();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            foreach (var silo in silos)
-                await silo.DisposeAsync();
-        }
-    }
-
-    private sealed class SharedRedis : IDistributedCache
-    {
-        private readonly ConcurrentDictionary<string, byte[]> entries = new();
-        private int reads;
-
-        public int Reads => Volatile.Read(ref reads);
-
-        public bool Holds(string key) => entries.ContainsKey(key);
-
-        public void Forget(string key) => entries.TryRemove(key, out _);
-
-        public byte[]? Get(string key)
-        {
-            Interlocked.Increment(ref reads);
-            return entries.GetValueOrDefault(key);
-        }
-
-        public Task<byte[]?> GetAsync(string key, CancellationToken token = default) => Task.FromResult(Get(key));
-
-        public void Set(string key, byte[] value, DistributedCacheEntryOptions options) => entries[key] = value;
-
-        public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
-        {
-            Set(key, value, options);
-            return Task.CompletedTask;
-        }
-
-        public void Refresh(string key) { }
-
-        public Task RefreshAsync(string key, CancellationToken token = default) => Task.CompletedTask;
-
-        public void Remove(string key) => Forget(key);
-
-        public Task RemoveAsync(string key, CancellationToken token = default)
-        {
-            Forget(key);
-            return Task.CompletedTask;
-        }
-    }
 }

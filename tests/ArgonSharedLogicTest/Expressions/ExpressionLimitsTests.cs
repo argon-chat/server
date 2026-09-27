@@ -45,9 +45,11 @@ public class ExpressionLimitsTests
             Assert.That(ExpressionLimits.AreValidKeywords(Enumerable.Repeat("ab", 20).ToArray()), Is.True);
             Assert.That(ExpressionLimits.AreValidKeywords(Enumerable.Repeat("a", 21).ToArray()), Is.False);
             Assert.That(ExpressionLimits.AreValidKeywords([new string('k', 65)]), Is.False);
-            Assert.That(ExpressionLimits.AreValidAssociatedEmoji([]), Is.False);
+            Assert.That(ExpressionLimits.AreValidAssociatedEmoji([]), Is.True, "associated emoji are optional");
             Assert.That(ExpressionLimits.AreValidAssociatedEmoji(["👋"]), Is.True);
+            Assert.That(ExpressionLimits.AreValidAssociatedEmoji(Enumerable.Repeat("👋", 20).ToArray()), Is.True);
             Assert.That(ExpressionLimits.AreValidAssociatedEmoji(Enumerable.Repeat("👋", 21).ToArray()), Is.False);
+            Assert.That(ExpressionLimits.AreValidAssociatedEmoji([" "]), Is.False);
             Assert.That(ExpressionLimits.IsValidPackSlug("my_pack_1"), Is.True);
             Assert.That(ExpressionLimits.IsValidPackSlug(""), Is.False);
             Assert.That(ExpressionLimits.IsValidPackTitle(new string('t', 64)), Is.True);

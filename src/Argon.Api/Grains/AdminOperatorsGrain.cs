@@ -71,7 +71,7 @@ public sealed class AdminOperatorsGrain(
                 null,
                 0, 0, 0
             );
-            profile = user.Profile?.ToDto();
+            profile = user.Profile is { } row ? await GrainFactory.WithStatusEmojiAsync(row.ToDto()) : null;
         }
 
         var recentAudit = await db.OperatorAuditLog

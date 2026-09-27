@@ -268,7 +268,7 @@ public sealed class AdminUsersGrain(
 
         return new UserCardDetails(
             account,
-            head.Profile.ToDto(),
+            await GrainFactory.WithStatusEmojiAsync(head.Profile.ToDto()),
             head.Passkeys,
             !string.IsNullOrEmpty(user.TotpSecret),
             new IonArray<InventoryItemInfo>(items),

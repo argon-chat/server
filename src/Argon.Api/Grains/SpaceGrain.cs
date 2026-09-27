@@ -475,11 +475,11 @@ public partial class SpaceGrain(
 
         var worn = await GrainFactory.GetGrain<ICosmeticsReadGrain>(Guid.Empty).GetWornAsync([userId]);
 
-        return profile.ToDto() with
+        return await GrainFactory.WithStatusEmojiAsync(profile.ToDto() with
         {
             archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto())),
             cosmetics  = worn[userId]
-        };
+        });
     }
 
     /// <summary>
@@ -564,11 +564,14 @@ public partial class SpaceGrain(
             }
         }
 
-        return asked
+        var profiles = asked
            .Select(id => IsGuestUserId(id)
                 ? PlaceholderProfile(id, "Guest User")
                 : found.GetValueOrDefault(id) ?? PlaceholderProfile(id, "Deleted Account"))
            .ToList();
+
+        await GrainFactory.WithStatusEmojiAsync(profiles);
+        return profiles;
     }
 
     /// <summary>
@@ -578,7 +581,7 @@ public partial class SpaceGrain(
     private static ArgonUserProfile PlaceholderProfile(Guid userId, string bio)
         => new(userId, null, null, null, null, bio, IonArray<string>.Empty,
             IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null,
-            IonArray<IWornCosmetic>.Empty);
+            IonArray<IWornCosmetic>.Empty, null);
 
     public async Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default)
     {

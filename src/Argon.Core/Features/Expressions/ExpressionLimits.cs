@@ -30,7 +30,6 @@ public static class ExpressionLimits
     public const int StickerNameMinLength = 2;
     public const int StickerNameMaxLength = 30;
 
-    public const int MinAssociatedEmoji     = 1;
     public const int MaxAssociatedEmoji     = 20;
     public const int MaxKeywords            = 20;
     public const int MaxKeywordsTotalLength = 64;
@@ -83,7 +82,7 @@ public static class ExpressionLimits
         => IsSlugLike(slug, PackSlugMinLength, PackSlugMaxLength);
 
     public static bool AreValidAssociatedEmoji(IReadOnlyCollection<string>? emoji)
-        => emoji is { Count: >= MinAssociatedEmoji and <= MaxAssociatedEmoji }
+        => emoji is { Count: <= MaxAssociatedEmoji }
         && emoji.All(e => !string.IsNullOrWhiteSpace(e) && e.Length <= 32);
 
     public static bool AreValidKeywords(IReadOnlyCollection<string>? keywords)

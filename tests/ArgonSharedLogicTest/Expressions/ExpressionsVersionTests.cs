@@ -51,8 +51,8 @@ public class ExpressionsVersionTests
     {
         var packs = new[]
         {
-            new ExpressionPack(A, Guid.NewGuid(), ExpressionKind.Emoji, "a", "a", null, 0, 3, IonArray<ExpressionItem>.Empty),
-            new ExpressionPack(B, Guid.NewGuid(), ExpressionKind.Sticker, "b", "b", null, 0, 5, IonArray<ExpressionItem>.Empty)
+            new ExpressionPack(A, Guid.NewGuid(), ExpressionKind.Emoji, "a", "a", null, 0, 3, IonArray<ExpressionItem>.Empty, null),
+            new ExpressionPack(B, Guid.NewGuid(), ExpressionKind.Sticker, "b", "b", null, 0, 5, IonArray<ExpressionItem>.Empty, null)
         };
 
         Assert.That(ExpressionsVersion.Of(packs), Is.EqualTo(ExpressionsVersion.Of([(A, 3L), (B, 5L)])));

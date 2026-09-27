@@ -63,5 +63,7 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             (self.User is { } owner ? owner.CreatedAt : self.CreatedAt).UtcDateTime,
             // cosmetics: null is "this reader was not told". What is worn is merged in by whoever
             // serves the profile, from the cosmetics cache, and never read off this row.
+            null,
+            // customStatusEmoji: resolved from the item on every read, see StatusEmojiProfiles.
             null);
 }

@@ -148,13 +148,13 @@ public partial class SpaceExpressionsGrain
 
         if (name.IsRemoved || (name.HasValue && !ExpressionLimits.IsValidName(item.Kind, name.Value)))
             return new FailedItem(ExpressionError.INVALID_FORMAT);
-        if (emoji.IsRemoved || (emoji.HasValue && !ExpressionLimits.AreValidAssociatedEmoji(emoji.Value.Values)))
+        if (emoji.HasValue && !ExpressionLimits.AreValidAssociatedEmoji(emoji.Value.Values))
             return new FailedItem(ExpressionError.INVALID_FORMAT);
         if (keywords.HasValue && !ExpressionLimits.AreValidKeywords(keywords.Value.Values))
             return new FailedItem(ExpressionError.INVALID_FORMAT);
 
         var newName      = name.HasValue ? name.Value! : item.Name;
-        var newEmoji     = emoji.HasValue ? emoji.Value.ToList() : item.Emoji;
+        var newEmoji     = emoji.HasValue ? emoji.Value.ToList() : emoji.IsRemoved ? [] : item.Emoji;
         var newKeywords  = keywords.HasValue ? keywords.Value.ToList() : keywords.IsRemoved ? [] : item.Keywords;
         var newTextColor = textColor.HasValue ? textColor.Value : !textColor.IsRemoved && item.TextColor;
 
@@ -178,7 +178,8 @@ public partial class SpaceExpressionsGrain
         if (!await TakeMutationAsync())
             return new FailedItem(ExpressionError.RATE_LIMITED);
 
-        var before = (await SnapshotAsync()).Version;
+        var before  = (await SnapshotAsync()).Version;
+        var renamed = newName != item.Name;
 
         item.Name      = newName;
         item.Emoji     = newEmoji.ToList();
@@ -195,6 +196,9 @@ public partial class SpaceExpressionsGrain
         {
             return new FailedItem(ExpressionError.NAME_TAKEN);
         }
+
+        if (renamed)
+            await ForgetItemsAsync([itemId]);
 
         var after = await RefreshAsync();
         var dto   = item.ToDto(s3.GetFileDownloadUrl);
@@ -235,6 +239,7 @@ public partial class SpaceExpressionsGrain
             pack.CoverItemId = null;
 
         await ctx.SaveChangesAsync();
+        await ForgetItemsAsync([itemId]);
 
         var after = await RefreshAsync();
 
@@ -290,7 +295,7 @@ public partial class SpaceExpressionsGrain
            .IgnoreQueryFilters()
            .AsNoTracking()
            .Where(i => i.SpaceId == SpaceId)
-           .Select(i => new { i.FileId, i.ThumbFileId })
+           .Select(i => new { i.Id, i.FileId, i.ThumbFileId })
            .ToListAsync();
 
         await ctx.ExpressionItems
@@ -315,6 +320,7 @@ public partial class SpaceExpressionsGrain
         }
 
         await cache.RemoveAsync(CacheKey(SpaceId));
+        await ForgetItemsAsync(files.Select(f => f.Id));
 
         generation++;
         Remember(new Versioned<IonArray<ExpressionPack>>(ExpressionsVersion.Empty, IonArray<ExpressionPack>.Empty));
@@ -369,9 +375,10 @@ public partial class SpaceExpressionsGrain
             if (!file.Ok)
                 return await RefuseAsync(file.Error);
 
-            // PNG is stored as WEBP and JSON as TGS; everything is stored under the type it really is.
-            if (file.Reencoded is not null || ExpressionUploads.MediaType(main.ContentType) != file.StoredContentType)
-                await OverwriteAsync(main, file.Reencoded ?? data, file.StoredContentType);
+            // PNG is stored as WEBP and JSON as TGS; everything is stored under the type it really is. Unchanged
+            // bytes are written back too: the client's PUT does not set the Cache-Control.
+            await StoreAsync(main, file.Reencoded ?? data, file.StoredContentType,
+                file.Reencoded is not null || ExpressionUploads.MediaType(main.ContentType) != file.StoredContentType);
 
             FileInfoResponse? thumb = null;
 
@@ -387,12 +394,21 @@ public partial class SpaceExpressionsGrain
                 if (thumbBytes is null)
                     return await RefuseAsync(ExpressionError.INVALID_FORMAT);
 
+                byte[] thumbData;
                 await using (thumbBytes)
                 {
-                    var checkedThumb = await validator.ValidateThumbAsync(thumbBytes, file.Width, file.Height, CancellationToken.None);
-                    if (!checkedThumb.Ok)
-                        return await RefuseAsync(ExpressionError.INVALID_FORMAT);
+                    using var copy = new MemoryStream();
+                    await thumbBytes.CopyToAsync(copy);
+                    thumbData = copy.ToArray();
                 }
+
+                var checkedThumb = await validator.ValidateThumbAsync(new MemoryStream(thumbData, writable: false), file.Width, file.Height,
+                    CancellationToken.None);
+                if (!checkedThumb.Ok)
+                    return await RefuseAsync(ExpressionError.INVALID_FORMAT);
+
+                await StoreAsync(thumb, thumbData, checkedThumb.StoredContentType,
+                    ExpressionUploads.MediaType(thumb.ContentType) != checkedThumb.StoredContentType);
             }
 
             // Animated items are judged by their first frame.
@@ -439,11 +455,14 @@ public partial class SpaceExpressionsGrain
         }
     }
 
-    private async Task OverwriteAsync(FileInfoResponse file, byte[] data, string contentType)
+    private async Task StoreAsync(FileInfoResponse file, byte[] data, string contentType, bool changed)
     {
         using (var content = new MemoryStream(data, writable: false))
-            if (!await s3.PutObjectAsync(file.S3Key, content, contentType))
+            if (!await s3.PutObjectAsync(file.S3Key, content, contentType, ExpressionUploads.CacheControl))
                 throw new InvalidOperationException($"could not store expression file {file.FileId}");
+
+        if (!changed)
+            return;
 
         await using var ctx = await context.CreateDbContextAsync();
         await ctx.Files

@@ -1,13 +1,18 @@
 namespace ArgonComplexTest.Tests;
 
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Argon.Features.Storage;
 using Argon.Grains.Interfaces;
+using ArgonComplexTest.Infrastructure;
 using ArgonComplexTest.Infrastructure.Account;
 using ArgonContracts;
+using ion.runtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 /// <summary>
 /// What an account can change about itself and what the server records about it: the profile edit
@@ -126,6 +131,185 @@ public class ProfileEditTests : TestBase
             Assert.That((accepted.tosVersion, accepted.privacyVersion), Is.EqualTo(("tos-2026-09", "privacy-2026-10")));
             Assert.That((readBack.tosVersion, readBack.privacyVersion), Is.EqualTo(("tos-2026-09", "privacy-2026-10")));
         });
+    }
+
+    // ── Status emoji ────────────────────────────────────────────────────────────────────────────
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_unicode_status_icon_is_stored_as_sent_and_checked(CancellationToken ct = default)
+    {
+        var alice = await CreateSessionAsync(ct);
+        var bob   = await CreateSessionAsync(ct);
+        await AccountSeed.SetUltimaAsync(alice.UserId, true, ct);
+
+        var set     = await alice.Users.UpdateMe(Edit(customStatus: "on fire", customStatusIconId: "🔥"), ct);
+        var colon   = await alice.Users.UpdateMe(Edit(customStatusIconId: "a:b"), ct);
+        var tooLong = await alice.Users.UpdateMe(Edit(customStatusIconId: new string('x', 17)), ct);
+        var badId   = await alice.Users.UpdateMe(Edit(customStatusIconId: "ce:not-a-guid"), ct);
+        var free    = await bob.Users.UpdateMe(Edit(customStatusIconId: "🔥"), ct);
+
+        var profile = await alice.Users.GetMyProfile(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(set, Is.InstanceOf<SuccessUpdateMe>(), $"refused: {ErrorOf(set)}");
+            Assert.That(((SuccessUpdateMe)set).profile.customStatusIconId, Is.EqualTo("🔥"));
+            Assert.That(ErrorOf(colon), Is.EqualTo(UpdateMeError.INVALID_STATUS_EMOJI));
+            Assert.That(ErrorOf(tooLong), Is.EqualTo(UpdateMeError.INVALID_STATUS_EMOJI));
+            Assert.That(ErrorOf(badId), Is.EqualTo(UpdateMeError.INVALID_STATUS_EMOJI));
+            Assert.That(ErrorOf(free), Is.EqualTo(UpdateMeError.PREMIUM_REQUIRED));
+            Assert.That((profile.customStatus, profile.customStatusIconId), Is.EqualTo(("on fire", "🔥")));
+            Assert.That(profile.customStatusEmoji, Is.Null);
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_custom_emoji_status_is_resolved_from_the_item_on_every_read(CancellationToken ct = default)
+    {
+        var alice = await CreateSessionAsync(ct);
+        var carol = await CreateSessionAsync(ct);
+        await AccountSeed.SetUltimaAsync(alice.UserId, true, ct);
+
+        var (spaceId, item) = await SpaceWithEmojiAsync(alice, "party", ct);
+        await ChannelTestKit.JoinAsync(alice, carol, spaceId, ct);
+
+        var set    = await alice.Users.UpdateMe(Edit(customStatus: "partying", customStatusIconId: $"ce:{item.itemId}"), ct);
+        var own    = await alice.Users.GetMyProfile(ct);
+        var seen   = (await carol.Servers.PrefetchProfiles(spaceId, new IonArray<Guid>([alice.UserId]), ct)).Values.Single();
+        var stored = await StoredIconAsync(alice.UserId, ct);
+
+        Assert.That(await ExpressionsOf(alice).UpdateItem(spaceId, item.itemId,
+            new IonPartial<ExpressionItem>().Modify(x => x.name, "fiesta"), ct), Is.InstanceOf<SuccessItem>(), "setup: not renamed");
+
+        var renamed  = await alice.Users.GetMyProfile(ct);
+        var cleared  = await alice.Users.UpdateMe(Edit(customStatus: ""), ct);
+        var after    = await alice.Users.GetMyProfile(ct);
+        var expected = new StatusEmoji(item.itemId, spaceId, item.fileId, item.format, "party");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(set, Is.InstanceOf<SuccessUpdateMe>(), $"refused: {ErrorOf(set)}");
+            Assert.That(((SuccessUpdateMe)set).profile.customStatusEmoji, Is.EqualTo(expected));
+            Assert.That(own.customStatusEmoji, Is.EqualTo(expected));
+            Assert.That(own.customStatusIconId, Is.EqualTo($"ce:{item.itemId}"));
+            Assert.That(seen.customStatusEmoji, Is.EqualTo(expected), "a member list does not see the emoji");
+            Assert.That(stored, Is.EqualTo($"ce:{item.itemId}"), "the profile row keeps more than the reference");
+            Assert.That(renamed.customStatusEmoji?.name, Is.EqualTo("fiesta"), "a renamed item is still read under its old name");
+
+            Assert.That(cleared, Is.InstanceOf<SuccessUpdateMe>(), $"refused: {ErrorOf(cleared)}");
+            Assert.That((after.customStatusIconId, after.customStatusEmoji), Is.EqualTo(((string?)null, (StatusEmoji?)null)),
+                "clearing the status left its emoji behind");
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_custom_emoji_is_taken_only_live_and_from_a_space_the_caller_is_in(CancellationToken ct = default)
+    {
+        var alice = await CreateSessionAsync(ct);
+        var bob   = await CreateSessionAsync(ct);
+        await AccountSeed.SetUltimaAsync(bob.UserId, true, ct);
+
+        var (spaceId, item) = await SpaceWithEmojiAsync(alice, "wave", ct);
+
+        var outsider = await bob.Users.UpdateMe(Edit(customStatus: "hi", customStatusIconId: $"ce:{item.itemId}"), ct);
+        var unknown  = await bob.Users.UpdateMe(Edit(customStatus: "hi", customStatusIconId: $"ce:{Guid.NewGuid()}"), ct);
+        var before   = await bob.Users.GetMyProfile(ct);
+
+        await ChannelTestKit.JoinAsync(alice, bob, spaceId, ct);
+        var member = await bob.Users.UpdateMe(Edit(customStatus: "hi", customStatusIconId: $"ce:{item.itemId}"), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ErrorOf(outsider), Is.EqualTo(UpdateMeError.INVALID_STATUS_EMOJI), "an emoji from a space bob is not in was taken");
+            Assert.That(ErrorOf(unknown), Is.EqualTo(UpdateMeError.INVALID_STATUS_EMOJI));
+            Assert.That((before.customStatus, before.customStatusEmoji), Is.EqualTo(((string?)null, (StatusEmoji?)null)),
+                "a refused edit applied its status");
+            Assert.That(member, Is.InstanceOf<SuccessUpdateMe>(), $"a member was refused: {ErrorOf(member)}");
+            Assert.That((member as SuccessUpdateMe)?.profile.customStatusEmoji?.itemId, Is.EqualTo(item.itemId));
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_custom_emoji_status_goes_with_the_item(CancellationToken ct = default)
+    {
+        var alice = await CreateSessionAsync(ct);
+        var carol = await CreateSessionAsync(ct);
+        await AccountSeed.SetUltimaAsync(alice.UserId, true, ct);
+
+        var (spaceId, item) = await SpaceWithEmojiAsync(alice, "gone", ct);
+        await ChannelTestKit.JoinAsync(alice, carol, spaceId, ct);
+
+        // Read once first, so the item is cached when it is deleted.
+        var set = await alice.Users.UpdateMe(Edit(customStatus: "brb", customStatusIconId: $"ce:{item.itemId}"), ct);
+        Assert.That((set as SuccessUpdateMe)?.profile.customStatusEmoji?.itemId, Is.EqualTo(item.itemId), $"setup: refused: {ErrorOf(set)}");
+
+        Assert.That(await ExpressionsOf(alice).DeleteItem(spaceId, item.itemId, ct), Is.InstanceOf<SuccessItem>(), "setup: the item was not deleted");
+
+        var seen  = (await carol.Servers.PrefetchProfiles(spaceId, new IonArray<Guid>([alice.UserId]), ct)).Values.Single();
+        var own   = await alice.Users.GetMyProfile(ct);
+        var again = await alice.Users.UpdateMe(Edit(customStatus: "brb", customStatusIconId: $"ce:{item.itemId}"), ct);
+
+        var stored = await StoredIconAsync(alice.UserId, ct);
+        for (var i = 0; stored is not null && i < 50; i++)
+        {
+            await Task.Delay(100, ct);
+            stored = await StoredIconAsync(alice.UserId, ct);
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((seen.customStatusIconId, seen.customStatusEmoji), Is.EqualTo(((string?)null, (StatusEmoji?)null)),
+                "a member list still sees the deleted emoji");
+            Assert.That((own.customStatusIconId, own.customStatusEmoji), Is.EqualTo(((string?)null, (StatusEmoji?)null)),
+                "the status kept the deleted emoji");
+            Assert.That(own.customStatus, Is.EqualTo("brb"), "the text went with the emoji");
+            Assert.That(stored, Is.Null, "the reference to the deleted item was never forgotten");
+            Assert.That(ErrorOf(again), Is.EqualTo(UpdateMeError.INVALID_STATUS_EMOJI), "a deleted item was set as a status emoji");
+        });
+    }
+
+    private static async Task<string?> StoredIconAsync(Guid userId, CancellationToken ct)
+    {
+        await using var db = await SocialHarness.DbAsync(ct);
+        return await db.UserProfiles.AsNoTracking().Where(p => p.UserId == userId).Select(p => p.CustomStatusIconId).SingleAsync(ct);
+    }
+
+    private static ISpaceExpressionInteraction ExpressionsOf(TestUserSession session)
+        => session.Client.ForService<ISpaceExpressionInteraction>(ChannelTestKit.Services);
+
+    private static async Task<(Guid SpaceId, ExpressionItem Item)> SpaceWithEmojiAsync(TestUserSession owner, string name, CancellationToken ct)
+    {
+        var spaceId     = await ChannelTestKit.CreateSpaceAsync(owner, ct);
+        var expressions = ExpressionsOf(owner);
+
+        var pack = await expressions.CreatePack(spaceId, ExpressionKind.Emoji, "Status", "status", ct);
+        Assert.That(pack, Is.InstanceOf<SuccessPack>(), $"setup: no pack: {(pack as FailedPack)?.error}");
+
+        var png    = EmojiPng();
+        var begun  = await expressions.BeginUploadExpression(spaceId, ExpressionKind.Emoji, ExpressionFormat.Static, "image/png", png.Length, ct);
+        Assert.That(begun, Is.InstanceOf<SuccessUploadFile>(), $"setup: the upload was not signed: {(begun as FailedUploadFile)?.error}");
+        var ticket = (SuccessUploadFile)begun;
+
+        using (var response = await TestObjectStore.UploadAsync(ticket.uploadUrl, png, "image/png", ticket.formFields.Values.Select(f => (f.key, f.value))))
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), "setup: the object store refused the upload");
+
+        var added = await expressions.AddItem(spaceId, ((SuccessPack)pack).pack.packId, ticket.blobId, null, name,
+            new IonArray<string>(["🎉"]), IonArray<string>.Empty, null, ct);
+        Assert.That(added, Is.InstanceOf<SuccessItem>(), $"setup: no emoji: {(added as FailedItem)?.error}");
+
+        return (spaceId, ((SuccessItem)added).item);
+    }
+
+    private static byte[] EmojiPng()
+    {
+        using var image = new Image<Rgba32>(100, 100, new Rgba32(0, 0, 0, 0));
+        for (var y = 20; y < 80; y++)
+        for (var x = 20; x < 80; x++)
+            image[x, y] = new Rgba32(220, 40, 90, 255);
+
+        using var output = new MemoryStream();
+        image.SaveAsPng(output);
+        return output.ToArray();
     }
 
     // ── Avatar ──────────────────────────────────────────────────────────────────────────────────

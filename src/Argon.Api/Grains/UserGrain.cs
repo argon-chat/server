@@ -2,8 +2,10 @@ namespace Argon.Grains;
 
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Transport;
+using Argon.Features.Expressions;
 using Argon.Features.Storage;
 using Argon.Features.Moderation;
+using Argon.Services.L1L2;
 using Features.Logic;
 using ion.runtime;
 using Orleans;
@@ -17,6 +19,7 @@ public class UserGrain(
     ILogger<IUserGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IOptions<ClientAppsOptions> clientApps,
+    IPermissionCache permissionCache,
     AppHubServer appHubServer) : Grain, IUserGrain
 {
     private static readonly TimeSpan DisplayNameCooldown = TimeSpan.FromMinutes(10);
@@ -32,7 +35,8 @@ public class UserGrain(
         // Check if any premium-only field is being set
         var hasPremiumField = input.primaryColor.HasValue
                            || input.accentColor.HasValue
-                           || input.customStatus is not null;
+                           || input.customStatus is not null
+                           || input.customStatusIconId is not null;
 
         if (hasPremiumField && !user.HasActiveUltima)
             return UpdateMeError.PREMIUM_REQUIRED;
@@ -77,8 +81,29 @@ public class UserGrain(
             profile.AccentColor = input.accentColor.Value;
         if (input.customStatus is not null)
             profile.CustomStatus = input.customStatus.Length > 128 ? input.customStatus[..128] : input.customStatus;
-        if (input.customStatusIconId is not null)
-            profile.CustomStatusIconId = input.customStatusIconId;
+
+        // Clearing the status clears its icon too, unless the same edit sets one.
+        if (input.customStatusIconId is not null || input.customStatus is { Length: 0 })
+        {
+            var iconId = string.IsNullOrEmpty(input.customStatusIconId) ? null : input.customStatusIconId;
+
+            switch (StatusIcon.Parse(iconId))
+            {
+                case (StatusIconKind.None, _):
+                    profile.CustomStatusIconId = null;
+                    break;
+                case (StatusIconKind.Unicode, _):
+                    profile.CustomStatusIconId = iconId;
+                    break;
+                case (StatusIconKind.CustomEmoji, var itemId):
+                    if (!await MayUseStatusEmojiAsync(ctx, userId, itemId, ct))
+                        return UpdateMeError.INVALID_STATUS_EMOJI;
+                    profile.CustomStatusIconId = StatusIcon.CustomEmoji(itemId);
+                    break;
+                default:
+                    return UpdateMeError.INVALID_STATUS_EMOJI;
+            }
+        }
 
         // Bio is truncated nowhere: the column caps at 512 and silently cutting somebody's "about me"
         // mid-sentence is worse than telling them it did not fit.
@@ -138,6 +163,18 @@ public class UserGrain(
            .AnyAsync(f => f.Id == fileId && f.OwnerId == userId && f.Finalized, ct);
     }
 
+    /// <summary>Whether the item is a live custom emoji from a space the caller is a member of.</summary>
+    private async Task<bool> MayUseStatusEmojiAsync(ApplicationDbContext ctx, Guid userId, Guid itemId, CancellationToken ct)
+    {
+        var spaceId = await ctx.ExpressionItems
+           .AsNoTracking()
+           .Where(i => i.Id == itemId && !i.IsDeleted && i.Kind == ExpressionKind.Emoji)
+           .Select(i => (Guid?)i.SpaceId)
+           .FirstOrDefaultAsync(ct);
+
+        return spaceId is { } space && await permissionCache.GetMemberWithArchetypesAsync(space, userId, ct) is not null;
+    }
+
     public async ValueTask ResetPremiumProfileAsync(CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
@@ -152,7 +189,7 @@ public class UserGrain(
         var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId, ct);
 
         var userDto = UserEntity.Map(user);
-        var profileDto = UserProfileEntity.Map(profile) with { cosmetics = worn };
+        var profileDto = await GrainFactory.WithStatusEmojiAsync(UserProfileEntity.Map(profile) with { cosmetics = worn });
 
         var userServers = await GetMyServersIds(ct);
         await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
@@ -167,7 +204,7 @@ public class UserGrain(
         var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId);
 
         var userDto    = UserEntity.Map(user);
-        var profileDto = UserProfileEntity.Map(profile) with { cosmetics = worn };
+        var profileDto = await GrainFactory.WithStatusEmojiAsync(UserProfileEntity.Map(profile) with { cosmetics = worn });
 
         await BroadcastToSpacesAsync(await GetMyServersIds(), userDto, userId, profileDto);
 
@@ -175,7 +212,7 @@ public class UserGrain(
     }
 
     /// <summary>
-    /// The profile with what this person is wearing, from the shared cache.
+    /// The profile with what this person is wearing, from the shared cache, and its status emoji.
     /// </summary>
     /// <remarks>
     /// Every profile this grain hands out goes through here. One that did not would reach a client as
@@ -185,7 +222,7 @@ public class UserGrain(
     {
         var worn = await GrainFactory.GetGrain<ICosmeticsReadGrain>(Guid.Empty).GetWornAsync([profile.userId]);
 
-        return profile with { cosmetics = worn[profile.userId] };
+        return await GrainFactory.WithStatusEmojiAsync(profile with { cosmetics = worn[profile.userId] });
     }
 
     private async Task BroadcastToSpacesAsync(List<Guid> spaceIds, ArgonUser userDto, Guid userId, ArgonUserProfile profileDto, CancellationToken ct = default)

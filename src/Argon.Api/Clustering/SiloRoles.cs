@@ -112,6 +112,7 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<IdentityDirectoryGrain>();
         registry.AddToRef<DeviceIdentityGrain>();
         registry.AddToRef<FileDirectoryGrain>();
+        registry.AddToRef<ExpressionItemDirectoryGrain>();
         registry.AddToRef<DevTeamsGrain>();
         registry.AddToRef<BotCommandsGrain>();
         registry.AddToRef<BotDirectoryGrain>();
@@ -278,6 +279,7 @@ public sealed class JobsRole : IArgonRole
         registry.AddStartupCall<ITtlSweepGrain>();
 
         registry.AcceptRemote<IFileStorageGrain>("cleanup path only; media owns the storage stack");
+        registry.AcceptRemote<IExpressionItemDirectoryGrain>("the admin user card only");
         registry.AcceptRemote<IUserGrain>(
             "reached through the authorization stack the deletion path needs; co-hosting it would " +
             "put a second copy of core's busiest worker on a role that runs batch work");

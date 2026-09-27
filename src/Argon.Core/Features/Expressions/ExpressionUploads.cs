@@ -8,6 +8,9 @@ public static class ExpressionUploads
     public const string Gzip        = "application/gzip";
     public const string OctetStream = "application/octet-stream";
 
+    /// <summary>An expression file never changes once its item exists.</summary>
+    public const string CacheControl = "public, max-age=31536000, immutable";
+
     private static readonly ExpressionFormat[] Formats = [ExpressionFormat.Static, ExpressionFormat.Lottie, ExpressionFormat.Video];
 
     /// <summary>Every content type an emoji or sticker file may be stored as.</summary>

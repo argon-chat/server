@@ -17,6 +17,7 @@
   </Folder>
   <Folder Name="/bench/">
     <Project Path="bench/ArgonBus/ArgonBus.csproj" />
+    <Project Path="bench/ArgonExpressionsBench/ArgonExpressionsBench.csproj" />
     <Project Path="bench/ArgonLoad/ArgonLoad.csproj" />
   </Folder>
   <Folder Name="/tests/">

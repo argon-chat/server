@@ -112,7 +112,7 @@ public static class ExpressionEntities
     /// <summary>An emoji entity already stored on a message, as the item it was resolved from.</summary>
     public static ExpressionItem AsItem(MessageEntityCustomEmoji e)
         => new(e.itemId, Guid.Empty, e.spaceId, ExpressionKind.Emoji, e.format, e.name, e.fileId, null, 0, 0, 0,
-            ion.runtime.IonArray<string>.Empty, ion.runtime.IonArray<string>.Empty, null, e.textColor, 0, null, null);
+            ion.runtime.IonArray<string>.Empty, ion.runtime.IonArray<string>.Empty, null, e.textColor, 0, null, null, null);
 
     private static ExpressionItem? Find(IReadOnlyDictionary<Guid, ExpressionItem> items, Guid itemId, Guid spaceId, ExpressionKind kind)
         => items.TryGetValue(itemId, out var item) && item.kind == kind && item.spaceId == spaceId ? item : null;

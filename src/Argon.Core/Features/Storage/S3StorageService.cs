@@ -9,7 +9,7 @@ public interface IS3StorageService
     Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default);
     Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default);
     Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default);
-    Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, CancellationToken ct = default);
+    Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null, CancellationToken ct = default);
     // Region-agnostic URLs. Region is resolved later, per request, by the 302 endpoint in
     // CdnRedirectFeature — never baked in here.
     // GetFileDownloadUrl: by fileId (avatars/attachments/banners backed by a file record).
@@ -23,6 +23,7 @@ public class S3FileMetadata
     public long   ContentLength { get; init; }
     public string? ContentType  { get; init; }
     public string? ETag         { get; init; }
+    public string? CacheControl { get; init; }
 }
 
 public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions> options) : IS3StorageService
@@ -67,7 +68,8 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         {
             ContentLength = response.ContentLength,
             ContentType   = response.ContentType,
-            ETag          = response.ETag
+            ETag          = response.ETag,
+            CacheControl  = response.CacheControl
         };
     }
 
@@ -118,7 +120,8 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         return ms;
     }
 
-    public async Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, CancellationToken ct = default)
+    public async Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null,
+        CancellationToken ct = default)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("S3.PutObject");
         activity?.SetTag("s3.key", objectKey);
@@ -126,8 +129,15 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
 
         var client = clientPool.GetClient();
         Action<Genbox.SimpleS3.Core.Network.Requests.Objects.PutObjectRequest>? config = null;
-        if (contentType is not null)
-            config = r => r.ContentType.Set(contentType);
+        if (contentType is not null || cacheControl is not null)
+            config = r =>
+            {
+                if (contentType is not null)
+                    r.ContentType.Set(contentType);
+                // Verbatim: the library's builder writes its own spelling of the directives.
+                if (cacheControl is not null)
+                    r.SetHeader("Cache-Control", cacheControl);
+            };
 
         var response = await client.PutObjectAsync(_opts.BucketName, objectKey, content, config, ct);
 

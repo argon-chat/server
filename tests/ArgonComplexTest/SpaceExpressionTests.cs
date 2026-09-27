@@ -192,11 +192,11 @@ public class SpaceExpressionTests : TestBase
     private static async Task<ArgonMessage> ReadAsync(TestUserSession reader, Guid spaceId, Guid channelId, long messageId, CancellationToken ct)
         => (await reader.Channels.QueryMessages(spaceId, channelId, null, 50, ct)).Values.Single(m => m.messageId == messageId);
 
-    private static async Task<string?> StoredContentTypeAsync(Guid fileId, CancellationToken ct)
+    private static async Task<S3FileMetadata?> StoredAsync(Guid fileId, CancellationToken ct)
     {
         await using var db  = await DbAsync(ct);
         var             key = await db.Files.AsNoTracking().Where(f => f.Id == fileId).Select(f => f.S3Key).SingleAsync(ct);
-        return (await Services.GetRequiredService<IS3StorageService>().HeadFileAsync(key, ct))?.ContentType;
+        return await Services.GetRequiredService<IS3StorageService>().HeadFileAsync(key, ct);
     }
 
     // ── packs and uploads ───────────────────────────────────────────────────────────────────────
@@ -221,9 +221,14 @@ public class SpaceExpressionTests : TestBase
             Assert.That(item.thumbFileId, Is.Null);
             Assert.That(listed.itemId, Is.EqualTo(item.itemId));
             Assert.That(listed.downloadUrl, Does.Contain(item.fileId.ToString()));
+            Assert.That(listed.creatorId, Is.EqualTo(owner.UserId), "the item's creator");
+            Assert.That(snapshot.packs!.Value.Single().creatorId, Is.EqualTo(owner.UserId), "the pack's creator");
         });
 
-        Assert.That(await StoredContentTypeAsync(item.fileId, ct), Is.EqualTo("image/webp"));
+        var stored = await StoredAsync(item.fileId, ct);
+
+        Assert.That(stored?.ContentType, Is.EqualTo("image/webp"));
+        Assert.That(stored?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl), "a file kept as uploaded is not immutable");
     }
 
     [Test, CancelAfter(180_000)]
@@ -237,11 +242,12 @@ public class SpaceExpressionTests : TestBase
 
         await using var db = await DbAsync(ct);
         var file   = await db.Files.AsNoTracking().SingleAsync(f => f.Id == item.fileId, ct);
-        var stored = await StoredContentTypeAsync(item.fileId, ct);
+        var stored = await StoredAsync(item.fileId, ct);
 
         Assert.Multiple(() =>
         {
-            Assert.That(stored, Is.EqualTo("image/webp"), "the object in the store is still a PNG");
+            Assert.That(stored?.ContentType, Is.EqualTo("image/webp"), "the object in the store is still a PNG");
+            Assert.That(stored?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl), "a re-encoded file is not immutable");
             Assert.That(file.ContentType, Is.EqualTo("image/webp"));
             Assert.That(file.FileSize, Is.EqualTo(item.fileSize));
         });
@@ -262,7 +268,8 @@ public class SpaceExpressionTests : TestBase
         var thumb = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Static, StickerWebp, "image/webp", ct);
         var item  = Ok(await ExpressionsOf(owner).AddItem(spaceId, pack.packId, blob, thumb, "spin", Wave, NoKeywords, new IonBytes(outline), ct));
 
-        var stored = await StoredContentTypeAsync(item.fileId, ct);
+        var stored      = await StoredAsync(item.fileId, ct);
+        var storedThumb = await StoredAsync(item.thumbFileId!.Value, ct);
 
         Assert.Multiple(() =>
         {
@@ -272,7 +279,10 @@ public class SpaceExpressionTests : TestBase
             Assert.That(item.thumbFileId, Is.Not.Null);
             Assert.That(item.thumbUrl, Is.Not.Null);
             Assert.That(item.outline?.ToArray(), Is.EqualTo(outline));
-            Assert.That(stored, Is.EqualTo(ExpressionContentTypes.Tgs));
+            Assert.That(stored?.ContentType, Is.EqualTo(ExpressionContentTypes.Tgs));
+            Assert.That(stored?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl), "an animation is not immutable");
+            Assert.That(storedThumb?.ContentType, Is.EqualTo(ExpressionContentTypes.Webp));
+            Assert.That(storedThumb?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl), "a first frame is not immutable");
         });
     }
 
@@ -294,6 +304,32 @@ public class SpaceExpressionTests : TestBase
             Assert.That(ErrorOf(again), Is.EqualTo(ExpressionError.NAME_TAKEN));
             Assert.That(ErrorOf(bad), Is.EqualTo(ExpressionError.INVALID_FORMAT));
             Assert.That(ErrorOf(slug), Is.EqualTo(ExpressionError.NAME_TAKEN), "a pack slug is unique in the space");
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task Associated_emoji_are_optional(CancellationToken ct = default)
+    {
+        var (owner, spaceId, _) = await RoomAsync(ct);
+        var pack = await PackAsync(owner, spaceId, ExpressionKind.Emoji, "plain", ct);
+
+        var blob  = await UploadAsync(owner, spaceId, ExpressionKind.Emoji, ExpressionFormat.Static, EmojiPng, "image/png", ct);
+        var bare  = Ok(await ExpressionsOf(owner).AddItem(spaceId, pack.packId, blob, null, "bare", IonArray<string>.Empty, NoKeywords, null, ct));
+        var waved = Ok(await AddEmojiAsync(owner, spaceId, pack.packId, "waved", ct));
+
+        var cleared = Ok(await ExpressionsOf(owner).UpdateItem(spaceId, waved.itemId,
+            new IonPartial<ExpressionItem>().Modify(x => x.emoji, IonArray<string>.Empty), ct));
+        var tooMany = await ExpressionsOf(owner).UpdateItem(spaceId, bare.itemId,
+            new IonPartial<ExpressionItem>().Modify(x => x.emoji, new IonArray<string>(Enumerable.Repeat("👋", 21).ToList())), ct);
+
+        var listed = (await SnapshotAsync(owner, spaceId, null, ct)).packs!.Value.Single().items;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(bare.emoji.Values, Is.Empty);
+            Assert.That(listed.Single(i => i.itemId == bare.itemId).emoji.Values, Is.Empty);
+            Assert.That(cleared.emoji.Values, Is.Empty, "the associated emoji could not be emptied");
+            Assert.That(ErrorOf(tooMany), Is.EqualTo(ExpressionError.INVALID_FORMAT), "more than 20 associated emoji were taken");
         });
     }
 

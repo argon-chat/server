@@ -176,7 +176,7 @@ public class KlipyService(
 
             var mediaBytes = await DownloadMediaAsync(bestFile.Url, ct);
             using var stream = new MemoryStream(mediaBytes);
-            if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct))
+            if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct: ct))
                 return null;
 
             var fileId = ArgonId.New();

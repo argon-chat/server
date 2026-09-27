@@ -39,7 +39,7 @@ public class ExpressionSerializationTests
     private static ExpressionItem Item()
         => new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), ExpressionKind.Sticker, ExpressionFormat.Video, "wave",
             Guid.NewGuid(), Guid.NewGuid(), 512, 512, 40_000, new IonArray<string>(["👋"]), new IonArray<string>(["hello"]),
-            new IonBytes(OutlineBytes), false, 3, null, null);
+            new IonBytes(OutlineBytes), false, 3, null, null, Guid.NewGuid());
 
     private static void AssertSameSticker(IMessageEntity? actual, MessageEntitySticker expected)
     {
@@ -61,6 +61,7 @@ public class ExpressionSerializationTests
             Assert.That(actual.format, Is.EqualTo(ExpressionFormat.Video));
             Assert.That(actual.emoji.Values, Is.EqualTo(expected.emoji.Values));
             Assert.That(actual.outline?.Span.ToArray(), Is.EqualTo(OutlineBytes));
+            Assert.That(actual.creatorId, Is.EqualTo(expected.creatorId));
         });
 
     [Test]
@@ -138,7 +139,7 @@ public class ExpressionSerializationTests
         var serializer = new ArgonEventSerializer(NullLogger<ArgonEventSerializer>.Instance);
         var packId     = Guid.NewGuid();
         var ordered    = new[] { Guid.NewGuid(), Guid.NewGuid() };
-        var pack       = new ExpressionPack(packId, Guid.NewGuid(), ExpressionKind.Emoji, "Party", "party", null, 0, 4, IonArray<ExpressionItem>.Empty);
+        var pack       = new ExpressionPack(packId, Guid.NewGuid(), ExpressionKind.Emoji, "Party", "party", null, 0, 4, IonArray<ExpressionItem>.Empty, null);
 
         IExpressionDelta[] deltas =
         [
@@ -191,7 +192,7 @@ public class ExpressionSerializationTests
         var item     = Item();
         var bare     = item with { outline = null, itemId = Guid.NewGuid() };
         var pack     = new ExpressionPack(item.packId, item.spaceId, ExpressionKind.Sticker, "Pack", "pack", item.itemId, 1, 2,
-            new IonArray<ExpressionItem>([item, bare]));
+            new IonArray<ExpressionItem>([item, bare]), item.creatorId);
         var snapshot = new Versioned<IonArray<ExpressionPack>>("0123456789ABCDEF", new IonArray<ExpressionPack>([pack]));
 
         Assert.That(new IonHybridCacheSerializerFactory().TryCreateSerializer<Versioned<IonArray<ExpressionPack>>>(out var serializer), Is.True);

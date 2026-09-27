@@ -16,7 +16,7 @@ public class ExpressionEntitiesTests
     private static ExpressionItem Item(ExpressionKind kind, string name, Guid? spaceId = null, bool textColor = false)
         => new(Guid.NewGuid(), Guid.NewGuid(), spaceId ?? Space, kind, ExpressionFormat.Lottie, name, Guid.NewGuid(),
             kind == ExpressionKind.Sticker ? Guid.NewGuid() : null, 512, 512, 1000, new IonArray<string>(["🙂"]), IonArray<string>.Empty,
-            kind == ExpressionKind.Sticker ? new IonBytes(OutlineBytes) : null, textColor, 0, "https://cdn/x", "https://cdn/t");
+            kind == ExpressionKind.Sticker ? new IonBytes(OutlineBytes) : null, textColor, 0, "https://cdn/x", "https://cdn/t", Guid.NewGuid());
 
     // What a client might claim: everything but the item id is a guess, and wrong on purpose.
     private static MessageEntitySticker StickerFor(ExpressionItem item, Guid? claimedSpace = null)
