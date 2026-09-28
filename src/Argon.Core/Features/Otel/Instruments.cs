@@ -1055,6 +1055,27 @@ public static class InstrumentNames
     /// <summary>GC sweep duration (ms). Tags: sweep_type</summary>
     public const string StorageGcSweepDuration = "argon-storage-gc-sweep-duration";
 
+    /// <summary>Objects deleted once no file pointed at them.</summary>
+    public const string StorageGcObjectsSwept = "argon-storage-gc-objects-swept";
+
+    /// <summary>Objects queued to be read back and hashed.</summary>
+    public const string StorageDedupVerifyRequested = "argon-storage-dedup-verify-requested";
+
+    /// <summary>Objects hashed that became the canonical copy of their bytes.</summary>
+    public const string StorageDedupVerified = "argon-storage-dedup-verified";
+
+    /// <summary>Objects merged into an existing copy of the same bytes.</summary>
+    public const string StorageDedupMerged = "argon-storage-dedup-merged";
+
+    /// <summary>Cumulative bytes of merged-away objects.</summary>
+    public const string StorageDedupBytesSaved = "argon-storage-dedup-bytes-saved";
+
+    /// <summary>Merges decided by a client's hash claim agreeing with a verified copy.</summary>
+    public const string StorageDedupClaimsHonoured = "argon-storage-dedup-claims-honoured";
+
+    /// <summary>Files created over an existing object. Tags: purpose</summary>
+    public const string StorageDedupLinks = "argon-storage-dedup-links";
+
     /// <summary>S3 operations count. Tags: operation, status</summary>
     public const string StorageS3Operations = "argon-storage-s3-operations";
 

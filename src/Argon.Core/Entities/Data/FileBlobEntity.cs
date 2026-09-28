@@ -12,6 +12,9 @@ public record FileBlobEntity : ArgonEntity, IEntityTypeConfiguration<FileBlobEnt
     public required long        SizeLimit { get; set; }
     public required DateTimeOffset ExpiresAt { get; set; }
 
+    /// <summary>What the client says the bytes hash to. A hint for the dedup step at finalize, never stored as a fact.</summary>
+    public byte[]? ClaimedSha256 { get; set; }
+
     public void Configure(EntityTypeBuilder<FileBlobEntity> builder)
     {
         builder.HasHashShardedKey();

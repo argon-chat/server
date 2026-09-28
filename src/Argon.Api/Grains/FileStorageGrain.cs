@@ -18,6 +18,7 @@ public class FileStorageGrain(
     S3PresignedUrlGenerator presignedUrlGenerator,
     IS3StorageService s3,
     IReferenceCountService refCount,
+    IBlobDedupService dedup,
     IOptions<StorageOptions> storageOptions,
     IOptions<FileLimitsOptions> limitsOptions,
     ILogger<FileStorageGrain> logger) : Grain, IFileStorageGrain
@@ -52,6 +53,92 @@ public class FileStorageGrain(
         }
 
         return file;
+    }
+
+    public async Task<FileInfoResponse> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.Link");
+        activity?.SetTag("file.purpose", target.Purpose.ToString());
+
+        if (target.Purpose is not (FilePurpose.ChannelAttachment or FilePurpose.DirectAttachment))
+            throw new InvalidOperationException($"Files are not linked into purpose {target.Purpose}");
+
+        var userId = this.GetPrimaryKey();
+        activity?.SetTag("user.id", userId.ToString());
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var source = await db.Files.AsNoTracking().FirstOrDefaultAsync(f => f.Id == sourceFileId && f.Finalized, ct)
+            ?? throw new KeyNotFoundException("Source file not found");
+
+        if (source.BlobId is not { } blobId)
+            throw new InvalidOperationException("Source file has no shared object");
+
+        var blob = await ResolveBlobAsync(db, blobId, ct);
+        var now  = DateTimeOffset.UtcNow;
+
+        if (blob is null || !blob.Dedupable || blob.DeleteAfter <= now)
+            throw new InvalidOperationException("Source file cannot be shared");
+
+        var limit = await ResolveEffectiveSizeLimit(userId, target.Purpose, target.SpaceId, ct);
+        if (blob.Size > limit)
+            throw new InvalidOperationException($"File size {blob.Size} exceeds limit {limit} for purpose {target.Purpose}");
+
+        if (!AcceptsContentType(target.Purpose, source.ContentType))
+            throw new InvalidOperationException($"Content type '{source.ContentType}' is not allowed for purpose {target.Purpose}");
+
+        var file = new FileEntity
+        {
+            Id          = ArgonId.New(),
+            OwnerId     = userId,
+            Purpose     = target.Purpose,
+            S3Key       = blob.S3Key,
+            BucketName  = "link",
+            FileSize    = blob.Size,
+            ContentType = source.ContentType,
+            Checksum    = source.Checksum,
+            FileName    = fileName ?? source.FileName,
+            Finalized   = true,
+            SpaceId     = target.SpaceId,
+            ChannelId   = target.ChannelId,
+            BlobId      = blob.Id,
+            CreatedAt   = now,
+            UpdatedAt   = now
+        };
+
+        db.Files.Add(file);
+        db.FileCounters.Add(new FileCounterEntity { Id = file.Id, RefCount = 1, CreatedAt = now, UpdatedAt = now });
+        await db.SaveChangesAsync(ct);
+
+        await db.Blobs
+           .Where(b => b.Id == blob.Id)
+           .ExecuteUpdateAsync(s => s
+               .SetProperty(b => b.Links, b => b.Links + 1)
+               .SetProperty(b => b.DeleteAfter, (DateTimeOffset?)null)
+               .SetProperty(b => b.UpdatedAt, now), ct);
+
+        StorageInstruments.DedupLinks.Add(1, new KeyValuePair<string, object?>("purpose", target.Purpose.ToString()));
+        activity?.SetTag("file.id", file.Id.ToString());
+
+        logger.LogInformation("File linked: source={SourceId}, fileId={FileId}, purpose={Purpose}, userId={UserId}",
+            sourceFileId, file.Id, target.Purpose, userId);
+
+        return new FileInfoResponse(file.Id, file.FileName, file.FileSize, file.ContentType, file.Purpose,
+            s3.GetFileDownloadUrl(file.Id), file.S3Key);
+    }
+
+    private static async Task<BlobEntity?> ResolveBlobAsync(ApplicationDbContext db, Guid id, CancellationToken ct)
+    {
+        for (var hop = 0; hop < 8; hop++)
+        {
+            var blob = await db.Blobs.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
+            if (blob?.CanonicalId is not { } next)
+                return blob;
+
+            id = next;
+        }
+
+        return null;
     }
 
     private async Task<(FileUploadResponse Response, string S3Key)> CreateUploadAsync(FileUploadRequest request, CancellationToken ct)
@@ -116,6 +203,7 @@ public class FileStorageGrain(
             Purpose   = request.Purpose,
             SizeLimit = effectiveLimit,
             ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(_limits.BlobTtlSeconds),
+            ClaimedSha256 = request.ClaimedSha256,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -209,6 +297,21 @@ public class FileStorageGrain(
         file.Finalized   = true;
         file.UpdatedAt   = DateTimeOffset.UtcNow;
 
+        var stored = new BlobEntity
+        {
+            Id          = ArgonId.New(),
+            S3Key       = file.S3Key,
+            Size        = metadata.ContentLength,
+            ContentType = BlobHashes.NormalizeContentType(metadata.ContentType ?? file.ContentType),
+            Md5         = BlobHashes.ParseEtagMd5(metadata.ETag),
+            Links       = 1,
+            Dedupable   = file.Purpose.IsDedupable(),
+            CreatedAt   = DateTimeOffset.UtcNow,
+            UpdatedAt   = DateTimeOffset.UtcNow
+        };
+
+        file.BlobId = stored.Id;
+
         // Create ref counter
         var counter = new FileCounterEntity
         {
@@ -218,9 +321,20 @@ public class FileStorageGrain(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
+        db.Blobs.Add(stored);
         db.FileCounters.Add(counter);
         db.FileBlobs.Remove(blob);
         await db.SaveChangesAsync(ct);
+
+        try
+        {
+            await dedup.OnStoredAsync(stored.Id, blob.ClaimedSha256, ct);
+        }
+        catch (Exception e)
+        {
+            // The upload is done; sharing its object is an economy, not a condition.
+            logger.LogWarning(e, "Dedup step failed for file {FileId}; the object stays its own", file.Id);
+        }
 
         sw.Stop();
         StorageInstruments.UploadsFinalized.Add(1, new KeyValuePair<string, object?>("purpose", file.Purpose.ToString()));

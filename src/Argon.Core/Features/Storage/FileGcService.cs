@@ -8,7 +8,9 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 ///     Background service for garbage collecting expired blobs and orphaned files.
 ///     - Every 5 minutes: deletes expired upload blobs + their S3 objects
-///     - Every hour: deletes finalized files with ref_count ≤ 0 (1-hour grace period)
+///     - Every hour: releases finalized files with ref_count ≤ 0 (1-hour grace period) and deletes the
+///       objects nothing points at any more
+///     - Every minute: hashes the objects the dedup step queued and merges the duplicates
 /// </summary>
 /// <remarks>
 ///     Every media replica runs this loop, so each sweep first takes the <see cref="LockTable"/> lease — the
@@ -18,8 +20,10 @@ using Microsoft.Extensions.Logging;
 public class FileGcService(
     IServiceScopeFactory scopeFactory,
     IS3StorageService s3,
+    IBlobDedupService dedup,
     IOptions<FileLimitsOptions> limitsOptions,
     IOptions<Argon.Features.Logic.FileGcOptions> gcOptions,
+    IOptions<DedupOptions> dedupOptions,
     RoleDescriptor role,
     ILogger<FileGcService> logger) : BackgroundService
 {
@@ -29,20 +33,33 @@ public class FileGcService(
     /// <summary>Longer than a sweep of a full batch, S3 round trips included.</summary>
     private static readonly TimeSpan LeaseLifetime = TimeSpan.FromMinutes(5);
 
+    private const int VerifyBatch  = 50;
+    private const int ObjectsBatch = 50;
+
     private TimeSpan BlobSweepInterval   => gcOptions.Value.BlobSweepInterval;
     private TimeSpan OrphanSweepInterval => gcOptions.Value.OrphanSweepInterval;
     private TimeSpan OrphanGracePeriod   => gcOptions.Value.OrphanGracePeriod;
+    private TimeSpan VerifyInterval      => dedupOptions.Value.VerifyInterval;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var lastBlobSweep   = DateTimeOffset.MinValue;
         var lastOrphanSweep = DateTimeOffset.MinValue;
+        var lastVerify      = DateTimeOffset.MinValue;
+        var blobsBackfilled = false;
+        var backfilled      = !dedupOptions.Value.Backfill;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var now = DateTimeOffset.UtcNow;
+
+                if (!blobsBackfilled)
+                    blobsBackfilled = await BackfillBlobsAsync(stoppingToken);
+
+                if (blobsBackfilled && !backfilled)
+                    backfilled = await RequestBackfillAsync(stoppingToken);
 
                 if (now - lastBlobSweep >= BlobSweepInterval)
                 {
@@ -53,7 +70,14 @@ public class FileGcService(
                 if (now - lastOrphanSweep >= OrphanSweepInterval)
                 {
                     await SweepOrphanFilesAsync(stoppingToken);
+                    await SweepObjectsAsync(stoppingToken);
                     lastOrphanSweep = now;
+                }
+
+                if (now - lastVerify >= VerifyInterval)
+                {
+                    await VerifyBlobsAsync(stoppingToken);
+                    lastVerify = now;
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -120,6 +144,11 @@ public class FileGcService(
     }
 
     /// <summary>One pass over finalized files nothing references any more; nothing happens without the lease.</summary>
+    /// <remarks>
+    ///     A file over a shared object releases the object rather than deleting it; <see cref="SweepObjectsAsync"/>
+    ///     removes objects once no live file points at them. A file finalized before blobs still owns its
+    ///     object outright and is deleted here as before.
+    /// </remarks>
     public async Task SweepOrphanFilesAsync(CancellationToken ct)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileGC.SweepOrphanFiles");
@@ -147,13 +176,20 @@ public class FileGcService(
 
         foreach (var orphan in orphanFiles)
         {
-            try
+            if (orphan.File.BlobId is { } blobId)
             {
-                await s3.DeleteFileAsync(orphan.File.S3Key, ct);
+                await dedup.ReleaseAsync(blobId, ct);
             }
-            catch (Exception ex)
+            else
             {
-                logger.LogWarning(ex, "FileGC: failed to delete orphan S3 object {Key}", orphan.File.S3Key);
+                try
+                {
+                    await s3.DeleteFileAsync(orphan.File.S3Key, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "FileGC: failed to delete orphan S3 object {Key}", orphan.File.S3Key);
+                }
             }
 
             db.FileCounters.Remove(orphan.Counter);
@@ -167,6 +203,96 @@ public class FileGcService(
         StorageInstruments.GcOrphansSwept.Add(orphanFiles.Count);
         StorageInstruments.GcSweepDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("sweep_type", "orphans"));
         logger.LogInformation("FileGC: cleaned {Count} orphan files in {ElapsedMs}ms", orphanFiles.Count, sw.Elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>One pass over objects no live file points at and whose delay has passed; nothing happens without the lease.</summary>
+    public async Task SweepObjectsAsync(CancellationToken ct)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("FileGC.SweepObjects");
+        var sw = Stopwatch.StartNew();
+        using var scope = scopeFactory.CreateScope();
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+            .CreateDbContextAsync(ct);
+
+        await using var lease = await TryAcquireLeaseAsync(db, ct);
+        if (lease is null) return;
+
+        var removed = await dedup.SweepDeletableAsync(ObjectsBatch, ct);
+        if (removed == 0) return;
+
+        sw.Stop();
+        StorageInstruments.GcObjectsSwept.Add(removed);
+        StorageInstruments.GcSweepDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("sweep_type", "objects"));
+        logger.LogInformation("FileGC: deleted {Count} unreferenced objects in {ElapsedMs}ms", removed, sw.Elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>One pass of the verifier over the objects the dedup step queued; nothing happens without the lease.</summary>
+    public async Task VerifyBlobsAsync(CancellationToken ct)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("FileGC.VerifyBlobs");
+        var sw = Stopwatch.StartNew();
+        using var scope = scopeFactory.CreateScope();
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+            .CreateDbContextAsync(ct);
+
+        await using var lease = await TryAcquireLeaseAsync(db, ct);
+        if (lease is null) return;
+
+        var read = await dedup.VerifyQueuedAsync(VerifyBatch, ct);
+        if (read == 0) return;
+
+        sw.Stop();
+        StorageInstruments.GcSweepDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("sweep_type", "verify"));
+        logger.LogInformation("FileGC: hashed {Count} objects in {ElapsedMs}ms", read, sw.Elapsed.TotalMilliseconds);
+    }
+
+    /// <summary>
+    ///     Files finalized before blobs existed get one each, so links and the object sweep can find their
+    ///     objects. Batched under the lease; true once no such file is left, whichever replica did the work.
+    /// </summary>
+    /// <remarks>
+    ///     Here rather than in the migration: CockroachDB will not write a column added in the same
+    ///     transaction, and a table's worth of inserts does not belong in a schema change anyway.
+    /// </remarks>
+    private async Task<bool> BackfillBlobsAsync(CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+            .CreateDbContextAsync(ct);
+
+        await using var lease = await TryAcquireLeaseAsync(db, ct);
+        if (lease is null) return false;
+
+        var total = 0;
+        int done;
+
+        while ((done = await dedup.BackfillBlobsAsync(500, ct)) > 0)
+        {
+            total += done;
+
+            if (!await lease.TryRenewAsync(ct))
+                return false;
+        }
+
+        if (total > 0)
+            logger.LogInformation("FileGC: gave {Count} files finalized before blobs a blob each", total);
+
+        return true;
+    }
+
+    /// <summary>Queues the existing objects that have twins, once; true when done or when another replica did it.</summary>
+    private async Task<bool> RequestBackfillAsync(CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+            .CreateDbContextAsync(ct);
+
+        await using var lease = await TryAcquireLeaseAsync(db, ct);
+        if (lease is null) return false;
+
+        var queued = await dedup.RequestBackfillAsync(ct);
+        logger.LogInformation("FileGC: dedup backfill queued {Count} objects", queued);
+        return true;
     }
 
     /// <summary>The sweep lease, or null while another replica holds it.</summary>

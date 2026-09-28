@@ -163,7 +163,8 @@ public sealed class FileStorageFeature : IArgonFeature
         => d.Describing("S3 object storage")
             .Requires<VaultFeature>()
             .Requires<DatabaseFeature>()
-            .Requires<CdnFeature>();
+            .Requires<CdnFeature>()
+            .Options<DedupOptions>(DedupOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
     {

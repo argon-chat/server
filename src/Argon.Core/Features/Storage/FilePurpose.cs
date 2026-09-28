@@ -45,6 +45,24 @@ public static class FilePurposeExtensions
     };
 
     /// <summary>
+    /// Whether two files of this purpose may share one object.
+    /// </summary>
+    /// <remarks>
+    /// Not emoji and stickers: <c>SpaceExpressionsGrain</c> writes the re-encoded bytes back over the
+    /// key after finalize, which is only safe while one file owns the object. Not GIFs: the cache is
+    /// looked up by key. Not avatars: exports and the flat-key redirect address them by key too.
+    /// </remarks>
+    public static bool IsDedupable(this FilePurpose purpose) => purpose switch
+    {
+        FilePurpose.ChannelAttachment => true,
+        FilePurpose.DirectAttachment  => true,
+        FilePurpose.Video             => true,
+        FilePurpose.Banner            => true,
+        FilePurpose.InviteImage       => true,
+        _                             => false
+    };
+
+    /// <summary>
     /// Whether this purpose is scoped to a space (true) or to a user (false).
     /// </summary>
     public static bool IsSpaceScoped(this FilePurpose purpose) => purpose switch

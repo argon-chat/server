@@ -185,6 +185,9 @@ public class HashShardingTests
         "DeviceObservations", "FileBlobs", "FileCounters", "Files", "OperatorAuditLog", "Reports", "SystemNotifications"
     ];
 
+    /// <summary>Tables born sharded after the audit: a CREATE TABLE, not a rewrite, so not in the audit migration.</summary>
+    private static readonly string[] BornSharded = ["Blobs"];
+
     /// <summary>The audited set, exactly: a key added here is a table rewrite in production.</summary>
     [Test]
     public void Only_the_audited_insert_heavy_tables_have_sharded_keys()
@@ -196,7 +199,7 @@ public class HashShardingTests
            .Select(e => e.GetTableName())
            .OrderBy(t => t, StringComparer.Ordinal);
 
-        Assert.That(sharded, Is.EqualTo(ShardedKeys));
+        Assert.That(sharded, Is.EqualTo(ShardedKeys.Concat(BornSharded).OrderBy(t => t, StringComparer.Ordinal)));
     }
 
     private static (string Cockroach, string Postgres) MigrationSql()

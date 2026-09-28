@@ -120,6 +120,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FileEntity>        Files        => Set<FileEntity>();
     public DbSet<FileBlobEntity>    FileBlobs    => Set<FileBlobEntity>();
     public DbSet<FileCounterEntity> FileCounters => Set<FileCounterEntity>();
+    public DbSet<BlobEntity>        Blobs        => Set<BlobEntity>();
 
 #endregion
 

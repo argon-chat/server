@@ -72,6 +72,37 @@ public static class StorageInstruments
         unit: "ms",
         description: "Duration of GC sweep iterations. Tags: sweep_type");
 
+    public static readonly Counter<long> GcObjectsSwept = Meter.CreateCounter<long>(
+        InstrumentNames.StorageGcObjectsSwept,
+        description: "Total objects deleted once no file pointed at them");
+
+    // ── Dedup ───────────────────────────────────────────────────────────
+
+    public static readonly Counter<long> DedupVerifyRequested = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupVerifyRequested,
+        description: "Total objects queued to be read back and hashed");
+
+    public static readonly Counter<long> DedupVerified = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupVerified,
+        description: "Total objects hashed that became the canonical copy of their bytes");
+
+    public static readonly Counter<long> DedupMerged = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupMerged,
+        description: "Total objects merged into an existing copy of the same bytes");
+
+    public static readonly Counter<long> DedupBytesSaved = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupBytesSaved,
+        unit: "By",
+        description: "Cumulative bytes of merged-away objects");
+
+    public static readonly Counter<long> DedupClaimsHonoured = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupClaimsHonoured,
+        description: "Total merges decided by a client's hash claim agreeing with a verified copy, without a read back");
+
+    public static readonly Counter<long> DedupLinks = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupLinks,
+        description: "Total files created over an existing object. Tags: purpose");
+
     // ── S3 Operations ───────────────────────────────────────────────────
 
     public static readonly Counter<long> S3Operations = Meter.CreateCounter<long>(

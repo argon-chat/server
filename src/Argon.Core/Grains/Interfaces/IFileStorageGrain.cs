@@ -9,7 +9,8 @@ public record FileUploadRequest(
     [property: Id(2)] long FileSize,
     [property: Id(3)] Guid? SpaceId = null,
     [property: Id(4)] Guid? ChannelId = null,
-    [property: Id(5)] string? FileName = null);
+    [property: Id(5)] string? FileName = null,
+    [property: Id(6)] byte[]? ClaimedSha256 = null);
 
 [GenerateSerializer]
 public record FileUploadResponse(
@@ -52,6 +53,18 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     [Alias(nameof(StoreAsync)), ResponseTimeout("00:01:00")]
     Task<FileInfoResponse> StoreAsync(FileUploadRequest request, byte[] data, string? cacheControl, TimeSpan? unclaimedFor,
         CancellationToken ct = default);
+
+    /// <summary>
+    ///     A new file of the caller's over the object of an existing one: a copy without bytes.
+    /// </summary>
+    /// <remarks>
+    ///     The caller has checked that the account may read <paramref name="sourceFileId"/> — its
+    ///     owner, or somebody who can view the channel it was posted in — the way the grain that owns
+    ///     the target checks it can post there. This grain holds the copy to the target's size limit
+    ///     and content types, and refuses a source whose object is not shareable.
+    /// </remarks>
+    [Alias(nameof(LinkAsync))]
+    Task<FileInfoResponse> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName, CancellationToken ct = default);
 
     /// <summary>
     ///     Increment reference count for a file the caller owns (e.g. attached to a message).

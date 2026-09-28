@@ -9,6 +9,8 @@ public interface IS3StorageService
     Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default);
     Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default);
     Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default);
+    /// <summary>The object's body as the store sends it, not buffered; for reading once, front to back.</summary>
+    Task<Stream?> OpenReadAsync(string objectKey, CancellationToken ct = default);
     Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null, CancellationToken ct = default);
     // Region-agnostic URLs. Region is resolved later, per request, by the 302 endpoint in
     // CdnRedirectFeature — never baked in here.
@@ -118,6 +120,24 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         await response.Content.CopyToAsync(ms, ct);
         ms.Position = 0;
         return ms;
+    }
+
+    public async Task<Stream?> OpenReadAsync(string objectKey, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("S3.GetObject");
+        activity?.SetTag("s3.key", objectKey);
+        var sw = Stopwatch.StartNew();
+
+        var client = clientPool.GetClient();
+        var response = await client.GetObjectAsync(_opts.BucketName, objectKey, null, ct);
+
+        sw.Stop();
+        StorageInstruments.S3Operations.Add(1,
+            new KeyValuePair<string, object?>("operation", "get"),
+            new KeyValuePair<string, object?>("status", response.IsSuccess ? "success" : "failed"));
+        StorageInstruments.S3OperationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("operation", "get"));
+
+        return response.IsSuccess ? response.Content : null;
     }
 
     public async Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null,
