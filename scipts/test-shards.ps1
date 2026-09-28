@@ -180,6 +180,8 @@ $generalShards = @(
         'DataExportTests'
         'DevTeamConsoleTests'
         'FeatureFlagTests'
+        'AttachExistingFileTests'
+        'PrepareUploadTests'
         'FileDedupTests'
         'IdentityTests'
         'InviteCardEndpointTests'

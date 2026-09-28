@@ -1,5 +1,6 @@
 namespace Argon.Core.Grains.Interfaces;
 
+using Argon.Api.Grains.Interfaces;
 using Argon.Grains.Interfaces;
 using Entities.Data;
 
@@ -34,6 +35,19 @@ public interface IUserChatGrain : IGrainWithGuidKey
 
     [Alias(nameof(CompleteUploadAttachmentAsync)), ResponseTimeout("00:01:00")]
     ValueTask<AttachmentInfo> CompleteUploadAttachmentAsync(Guid blobId, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of an existing file into the chat with <paramref name="peerId"/>, without the bytes
+    /// moving. A block from the other side refuses it, as does a source the caller may not read.
+    /// </summary>
+    [Alias(nameof(AttachExistingFileAsync))]
+    ValueTask<Either<AttachmentInfo, AttachExistingFileError>> AttachExistingFileAsync(Guid peerId, Guid sourceFileId, string? fileName,
+        CancellationToken ct = default);
+
+    /// <summary>The channel grain's PrepareUploadAttachment, for the chat with <paramref name="peerId"/>.</summary>
+    [Alias(nameof(PrepareUploadAttachmentAsync))]
+    ValueTask<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAttachmentAsync(Guid peerId, byte[] sha256, long size, string contentType,
+        string fileName, CancellationToken ct = default);
 
     [Alias(nameof(UpdateChatForAsync))]
     Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);

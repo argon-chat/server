@@ -2265,6 +2265,62 @@ public partial class ChannelGrain(
             fileInfo.DownloadUrl);
     }
 
+    public async ValueTask<Either<AttachmentInfo, AttachExistingFileError>> AttachExistingFile(Guid sourceFileId, string? fileName,
+        CancellationToken ct = default)
+    {
+        var userId    = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        try
+        {
+            if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.AttachFiles, ct))
+                return AttachExistingFileError.NOT_AUTHORIZED;
+
+            await using var ctx = await context.CreateDbContextAsync(ct);
+
+            switch (await AttachmentSources.CheckAsync(ctx, entitlementChecker, userId, sourceFileId, ct))
+            {
+                case SourceAccess.NotFound: return AttachExistingFileError.SOURCE_NOT_FOUND;
+                case SourceAccess.Denied:   return AttachExistingFileError.NOT_AUTHORIZED;
+            }
+
+            var linked = await GrainFactory.GetGrain<IFileStorageGrain>(userId).LinkAsync(sourceFileId,
+                new FileUploadRequest(FilePurpose.ChannelAttachment, "", 0, SpaceId, channelId), fileName, ct);
+
+            if (!linked.IsSuccess)
+                return linked.Error;
+
+            var file = linked.Value;
+            return new AttachmentInfo(file.FileId, file.FileName ?? "", file.FileSize, file.ContentType ?? "", file.DownloadUrl);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to attach existing file {SourceId} into channel {ChannelId}", sourceFileId, channelId);
+            return AttachExistingFileError.INTERNAL_ERROR;
+        }
+    }
+
+    public async ValueTask<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAttachment(byte[] sha256, long size, string contentType,
+        string fileName, CancellationToken ct = default)
+    {
+        var userId    = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        try
+        {
+            if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.AttachFiles, ct))
+                return PrepareUploadError.NOT_AUTHORIZED;
+
+            return await GrainFactory.GetGrain<IFileStorageGrain>(userId).PrepareUploadAsync(
+                new FileUploadRequest(FilePurpose.ChannelAttachment, contentType, size, SpaceId, channelId, fileName, sha256), ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to prepare an upload into channel {ChannelId}", channelId);
+            return PrepareUploadError.INTERNAL_ERROR;
+        }
+    }
+
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options)
     {
         var sw = Stopwatch.StartNew();

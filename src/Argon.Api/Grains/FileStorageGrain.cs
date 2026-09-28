@@ -2,6 +2,7 @@ namespace Argon.Api.Grains;
 
 using System.Diagnostics;
 using Argon.Api.Grains.Interfaces;
+using Argon.Core.Services;
 using Argon.Entities;
 using Argon.Features.Expressions;
 using Argon.Features.Storage;
@@ -19,6 +20,7 @@ public class FileStorageGrain(
     IS3StorageService s3,
     IReferenceCountService refCount,
     IBlobDedupService dedup,
+    IEntitlementChecker entitlements,
     IOptions<StorageOptions> storageOptions,
     IOptions<FileLimitsOptions> limitsOptions,
     ILogger<FileStorageGrain> logger) : Grain, IFileStorageGrain
@@ -28,6 +30,86 @@ public class FileStorageGrain(
 
     public async Task<FileUploadResponse> RequestUploadAsync(FileUploadRequest request, CancellationToken ct = default)
         => (await CreateUploadAsync(request, ct)).Response;
+
+    public async Task<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAsync(FileUploadRequest request, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.PrepareUpload");
+        activity?.SetTag("file.purpose", request.Purpose.ToString());
+
+        var userId = this.GetPrimaryKey();
+        var limit  = await ResolveEffectiveSizeLimit(userId, request.Purpose, request.SpaceId, ct);
+
+        if (request.FileSize > limit)
+        {
+            StorageInstruments.UploadsFailed.Add(1,
+                new KeyValuePair<string, object?>("purpose", request.Purpose.ToString()),
+                new KeyValuePair<string, object?>("reason", "size_exceeded"));
+            return PrepareUploadError.TOO_LARGE;
+        }
+
+        if (request.ClaimedSha256 is { Length: 32 } claim && request.Purpose.IsDedupable())
+        {
+            var type   = BlobHashes.NormalizeContentType(request.ContentType);
+            var source = await FindReadableCopyAsync(userId, claim, type, request.SpaceId, ct);
+
+            if (source is { } sourceId)
+            {
+                var linked = await LinkAsync(sourceId, request, request.FileName, ct);
+                if (linked.IsSuccess)
+                {
+                    StorageInstruments.DedupPrepared.Add(1, new KeyValuePair<string, object?>("purpose", request.Purpose.ToString()));
+                    return new PreparedUpload(null, linked.Value);
+                }
+            }
+        }
+
+        var (ticket, _) = await CreateUploadAsync(request, ct, limit);
+        return new PreparedUpload(ticket, null);
+    }
+
+    /// <summary>
+    /// A file with these bytes the account may read, or null. Its own uploads count by the hash it
+    /// claimed for them — nobody else is harmed by an account misdescribing its own file — while what
+    /// others posted in the space counts only by a hash the server computed, and only where the
+    /// account can read the channel.
+    /// </summary>
+    private async Task<Guid?> FindReadableCopyAsync(Guid userId, byte[] claim, string contentType, Guid? spaceId, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var own = await (
+            from f in db.Files
+            join b in db.Blobs on f.BlobId equals b.Id
+            where f.OwnerId == userId && f.Finalized
+               && b.Dedupable && b.CanonicalId == null && b.DeleteAfter == null && b.ContentType == contentType
+               && (b.Sha256 == claim || b.ClaimedSha256 == claim)
+            orderby f.CreatedAt descending
+            select (Guid?)f.Id
+        ).FirstOrDefaultAsync(ct);
+
+        if (own is not null)
+            return own;
+
+        if (spaceId is not { } space)
+            return null;
+
+        var posted = await (
+            from f in db.Files
+            join b in db.Blobs on f.BlobId equals b.Id
+            where f.SpaceId == space && f.ChannelId != null && f.Purpose == FilePurpose.ChannelAttachment && f.Finalized
+               && b.Dedupable && b.CanonicalId == null && b.DeleteAfter == null && b.ContentType == contentType
+               && b.Sha256 == claim
+            orderby f.CreatedAt descending
+            select new { f.Id, ChannelId = f.ChannelId!.Value }
+        ).Take(5).ToListAsync(ct);
+
+        foreach (var candidate in posted)
+            if (await entitlements.HasChannelAccessAsync(space, candidate.ChannelId, userId,
+                    ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory, ct))
+                return candidate.Id;
+
+        return null;
+    }
 
     public async Task<FileInfoResponse> StoreAsync(FileUploadRequest request, byte[] data, string? cacheControl, TimeSpan? unclaimedFor,
         CancellationToken ct = default)
@@ -55,7 +137,8 @@ public class FileStorageGrain(
         return file;
     }
 
-    public async Task<FileInfoResponse> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName, CancellationToken ct = default)
+    public async Task<Either<FileInfoResponse, AttachExistingFileError>> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName,
+        CancellationToken ct = default)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.Link");
         activity?.SetTag("file.purpose", target.Purpose.ToString());
@@ -68,24 +151,27 @@ public class FileStorageGrain(
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        var source = await db.Files.AsNoTracking().FirstOrDefaultAsync(f => f.Id == sourceFileId && f.Finalized, ct)
-            ?? throw new KeyNotFoundException("Source file not found");
+        var source = await db.Files.AsNoTracking().FirstOrDefaultAsync(f => f.Id == sourceFileId && f.Finalized, ct);
+        if (source is null)
+            return AttachExistingFileError.SOURCE_NOT_FOUND;
 
-        if (source.BlobId is not { } blobId)
-            throw new InvalidOperationException("Source file has no shared object");
-
-        var blob = await ResolveBlobAsync(db, blobId, ct);
+        var blob = source.BlobId is { } blobId ? await ResolveBlobAsync(db, blobId, ct) : null;
         var now  = DateTimeOffset.UtcNow;
 
+        // No blob: finalized by a silo that predates them and not backfilled yet. Not shareable: an
+        // expression's object, or one the sweep is about to take.
         if (blob is null || !blob.Dedupable || blob.DeleteAfter <= now)
-            throw new InvalidOperationException("Source file cannot be shared");
+        {
+            logger.LogInformation("File {SourceId} cannot be linked: its object is not shareable", sourceFileId);
+            return AttachExistingFileError.SOURCE_NOT_FOUND;
+        }
 
         var limit = await ResolveEffectiveSizeLimit(userId, target.Purpose, target.SpaceId, ct);
         if (blob.Size > limit)
-            throw new InvalidOperationException($"File size {blob.Size} exceeds limit {limit} for purpose {target.Purpose}");
+            return AttachExistingFileError.TOO_LARGE;
 
         if (!AcceptsContentType(target.Purpose, source.ContentType))
-            throw new InvalidOperationException($"Content type '{source.ContentType}' is not allowed for purpose {target.Purpose}");
+            return AttachExistingFileError.CONTENT_TYPE_REJECTED;
 
         var file = new FileEntity
         {
@@ -141,7 +227,7 @@ public class FileStorageGrain(
         return null;
     }
 
-    private async Task<(FileUploadResponse Response, string S3Key)> CreateUploadAsync(FileUploadRequest request, CancellationToken ct)
+    private async Task<(FileUploadResponse Response, string S3Key)> CreateUploadAsync(FileUploadRequest request, CancellationToken ct, long? knownLimit = null)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.RequestUpload");
         activity?.SetTag("file.purpose", request.Purpose.ToString());
@@ -150,7 +236,7 @@ public class FileStorageGrain(
         var userId = this.GetPrimaryKey();
         activity?.SetTag("user.id", userId.ToString());
 
-        var effectiveLimit = await ResolveEffectiveSizeLimit(userId, request.Purpose, request.SpaceId, ct);
+        var effectiveLimit = knownLimit ?? await ResolveEffectiveSizeLimit(userId, request.Purpose, request.SpaceId, ct);
         activity?.SetTag("file.size_limit", effectiveLimit);
 
         if (request.FileSize > 0 && request.FileSize > effectiveLimit)
@@ -304,6 +390,7 @@ public class FileStorageGrain(
             Size        = metadata.ContentLength,
             ContentType = BlobHashes.NormalizeContentType(metadata.ContentType ?? file.ContentType),
             Md5         = BlobHashes.ParseEtagMd5(metadata.ETag),
+            ClaimedSha256 = blob.ClaimedSha256,
             Links       = 1,
             Dedupable   = file.Purpose.IsDedupable(),
             CreatedAt   = DateTimeOffset.UtcNow,

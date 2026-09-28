@@ -22,6 +22,7 @@ public class UserChatGrain(
     ILinkPreviewService linkPreviews,
     IOptions<CrawlerOptions> crawlerOptions,
     IPermissionCache permissionCache,
+    IEntitlementChecker entitlementChecker,
     IOptions<ExpressionsOptions> expressionsOptions) : Grain, IUserChatGrain
 {
     private Guid Me => this.GetUserId();
@@ -222,8 +223,7 @@ public class UserChatGrain(
                 return UploadFileError.NOT_AUTHORIZED;
 
             var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
-            var response = await fileGrain.RequestUploadAsync(
-                new FileUploadRequest(FilePurpose.DirectAttachment, "", 0), ct);
+            var response = await fileGrain.RequestUploadAsync(await DirectTargetAsync(userId, peerId, ct), ct);
             return new UploadTicket(response.BlobId, response.Url, response.Fields, response.TtlSeconds);
         }
         catch (Exception e)
@@ -240,6 +240,75 @@ public class UserChatGrain(
 
         return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName ?? "", fileInfo.FileSize, fileInfo.ContentType ?? "",
             fileInfo.DownloadUrl);
+    }
+
+    public async ValueTask<Either<AttachmentInfo, AttachExistingFileError>> AttachExistingFileAsync(Guid peerId, Guid sourceFileId, string? fileName,
+        CancellationToken ct = default)
+    {
+        var userId = Me;
+
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync(ct);
+
+            // The same wall that stops the message the file is for.
+            var blocked = await ctx.UserBlocklist.AnyAsync(x => x.UserId == peerId && x.BlockedId == userId, ct);
+            if (blocked)
+                return AttachExistingFileError.NOT_AUTHORIZED;
+
+            switch (await AttachmentSources.CheckAsync(ctx, entitlementChecker, userId, sourceFileId, ct))
+            {
+                case SourceAccess.NotFound: return AttachExistingFileError.SOURCE_NOT_FOUND;
+                case SourceAccess.Denied:   return AttachExistingFileError.NOT_AUTHORIZED;
+            }
+
+            var linked = await GrainFactory.GetGrain<IFileStorageGrain>(userId).LinkAsync(sourceFileId,
+                await DirectTargetAsync(userId, peerId, ct), fileName, ct);
+
+            if (!linked.IsSuccess)
+                return linked.Error;
+
+            var file = linked.Value;
+            return new AttachmentInfo(file.FileId, file.FileName ?? "", file.FileSize, file.ContentType ?? "", file.DownloadUrl);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to attach existing file {SourceId} into direct chat {Me} -> {Peer}", sourceFileId, userId, peerId);
+            return AttachExistingFileError.INTERNAL_ERROR;
+        }
+    }
+
+    public async ValueTask<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAttachmentAsync(Guid peerId, byte[] sha256, long size,
+        string contentType, string fileName, CancellationToken ct = default)
+    {
+        var userId = Me;
+
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync(ct);
+
+            var blocked = await ctx.UserBlocklist.AnyAsync(x => x.UserId == peerId && x.BlockedId == userId, ct);
+            if (blocked)
+                return PrepareUploadError.NOT_AUTHORIZED;
+
+            var target = await DirectTargetAsync(userId, peerId, ct);
+
+            return await GrainFactory.GetGrain<IFileStorageGrain>(userId).PrepareUploadAsync(
+                target with { ContentType = contentType, FileSize = size, FileName = fileName, ClaimedSha256 = sha256 }, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to prepare an upload for direct chat {Me} -> {Peer}", userId, peerId);
+            return PrepareUploadError.INTERNAL_ERROR;
+        }
+    }
+
+    // A direct-chat file records its conversation as its channel, which is what lets the other side
+    // copy it later; the conversation is created here if the first thing sent into it is a file.
+    private async Task<FileUploadRequest> DirectTargetAsync(Guid userId, Guid peerId, CancellationToken ct)
+    {
+        var conversation = await conversationService.GetOrCreateConversationAsync(userId, peerId, ct);
+        return new FileUploadRequest(FilePurpose.DirectAttachment, "", 0, null, conversation.Id);
     }
 
     /// <summary>

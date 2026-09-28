@@ -36,6 +36,24 @@ public class UserChatInteractionImpl : IUserChatInteractions
     public async Task<AttachmentInfo> CompleteUploadAttachment(Guid peerId, Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).CompleteUploadAttachmentAsync(blobId, ct);
 
+    public async Task<IAttachExistingFileResult> AttachExistingFile(Guid peerId, Guid sourceFileId, string? fileName, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).AttachExistingFileAsync(peerId, sourceFileId, fileName, ct);
+
+        return result.IsSuccess
+            ? new SuccessAttachExistingFile(result.Value)
+            : new FailedAttachExistingFile(result.Error);
+    }
+
+    public async Task<IPrepareUploadResult> PrepareUploadAttachment(Guid peerId, IonBytes sha256, long size, string contentType, string fileName,
+        CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7())
+           .PrepareUploadAttachmentAsync(peerId, sha256.ToArray(), size, contentType, fileName, ct);
+
+        return PrepareUploads.ToResult(result);
+    }
+
     public async Task<long> SendDirectMessage(Guid receiverId, string text, IonArray<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default)
         => await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).SendDirectMessageAsync(receiverId, text, entities.Values.ToList(), randomId, replyTo, ct);
 

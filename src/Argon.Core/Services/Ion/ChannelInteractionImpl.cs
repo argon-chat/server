@@ -283,6 +283,24 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
     public async Task<AttachmentInfo> CompleteUploadAttachment(Guid spaceId, Guid channelId, Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).CompleteUploadAttachment(blobId, ct);
 
+    public async Task<IAttachExistingFileResult> AttachExistingFile(Guid spaceId, Guid channelId, Guid sourceFileId, string? fileName,
+        CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).AttachExistingFile(sourceFileId, fileName, ct);
+
+        return result.IsSuccess
+            ? new SuccessAttachExistingFile(result.Value)
+            : new FailedAttachExistingFile(result.Error);
+    }
+
+    public async Task<IPrepareUploadResult> PrepareUploadAttachment(Guid spaceId, Guid channelId, IonBytes sha256, long size, string contentType,
+        string fileName, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).PrepareUploadAttachment(sha256.ToArray(), size, contentType, fileName, ct);
+
+        return PrepareUploads.ToResult(result);
+    }
+
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid spaceId, Guid channelId, Guid commandId, IonArray<SlashCommandOption> options, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).InvokeSlashCommand(commandId, options.Values.ToList());
 

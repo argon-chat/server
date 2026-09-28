@@ -30,6 +30,12 @@ public record FileInfoResponse(
     [property: Id(5)] string DownloadUrl,
     [property: Id(6)] string S3Key);
 
+/// <summary>What a prepared upload came to: a ticket to send the bytes on, or a copy of a file the account could already see.</summary>
+[GenerateSerializer]
+public record PreparedUpload(
+    [property: Id(0)] FileUploadResponse? Ticket,
+    [property: Id(1)] FileInfoResponse? Existing);
+
 [Alias(nameof(IFileStorageGrain))]
 public interface IFileStorageGrain : IGrainWithGuidKey
 {
@@ -39,6 +45,16 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(RequestUploadAsync))]
     Task<FileUploadResponse> RequestUploadAsync(FileUploadRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    ///     A request with the bytes described up front (<see cref="FileUploadRequest.ClaimedSha256"/>,
+    ///     size, type, name). When the account can already see a file with these bytes — its own, by the
+    ///     hash it claimed for it, or one posted in a channel of the target's space it can read, by a hash
+    ///     the server computed — a copy is linked instead of a ticket. An over-limit size is refused
+    ///     before anything is signed. The caller has checked it may post in the target.
+    /// </summary>
+    [Alias(nameof(PrepareUploadAsync))]
+    Task<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAsync(FileUploadRequest request, CancellationToken ct = default);
 
     /// <summary>
     ///     Finalize upload after client has uploaded to S3. Validates via HEAD.
@@ -64,7 +80,8 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     ///     and content types, and refuses a source whose object is not shareable.
     /// </remarks>
     [Alias(nameof(LinkAsync))]
-    Task<FileInfoResponse> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName, CancellationToken ct = default);
+    Task<Either<FileInfoResponse, AttachExistingFileError>> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName,
+        CancellationToken ct = default);
 
     /// <summary>
     ///     Increment reference count for a file the caller owns (e.g. attached to a message).

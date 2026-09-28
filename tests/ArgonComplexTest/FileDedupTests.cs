@@ -182,8 +182,11 @@ public class FileDedupTests : TestBase
         var bytes  = Fresh();
         var source = await StoreAsync(bytes, ct: ct);
 
-        var link = await Files(owner.UserId).LinkAsync(source.FileId, Attachment(), "copy.png", ct);
+        var linked = await Files(owner.UserId).LinkAsync(source.FileId, Attachment(), "copy.png", ct);
 
+        Assert.That(linked.IsSuccess, Is.True, "the owner's own file could not be linked");
+
+        var link      = linked.Value;
         var sourceRow = await FileRowAsync(source.FileId, ct);
         var linkRow   = await FileRowAsync(link.FileId, ct);
         var blob      = await BlobAsync(sourceRow.BlobId!.Value, ct);
@@ -238,13 +241,15 @@ public class FileDedupTests : TestBase
         var firstBlob  = await BlobAsync((await FileRowAsync(first.FileId, ct)).BlobId!.Value, ct);
         var secondBlob = await BlobAsync((await FileRowAsync(second.FileId, ct)).BlobId!.Value, ct);
 
+        var linked = await Files(owner.UserId).LinkAsync(first.FileId, Attachment(), null, ct);
+
         Assert.Multiple(() =>
         {
             Assert.That(firstBlob.Dedupable, Is.False);
             Assert.That(secondBlob.Id, Is.Not.EqualTo(firstBlob.Id));
             Assert.That(secondBlob.VerifyRequestedAt, Is.Null, "a sticker was queued for hashing");
-            Assert.That(() => Files(owner.UserId).LinkAsync(first.FileId, Attachment(), null, ct),
-                Throws.InstanceOf<InvalidOperationException>(), "a sticker's object was linked into a channel");
+            Assert.That(linked.IsSuccess, Is.False, "a sticker's object was linked into a channel");
+            Assert.That(linked.Error, Is.EqualTo(AttachExistingFileError.SOURCE_NOT_FOUND));
         });
     }
 

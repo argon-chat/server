@@ -103,6 +103,10 @@ public static class StorageInstruments
         InstrumentNames.StorageDedupLinks,
         description: "Total files created over an existing object. Tags: purpose");
 
+    public static readonly Counter<long> DedupPrepared = Meter.CreateCounter<long>(
+        InstrumentNames.StorageDedupPrepared,
+        description: "Total uploads answered with a copy of a file the account could already see, before any bytes moved. Tags: purpose");
+
     // ── S3 Operations ───────────────────────────────────────────────────
 
     public static readonly Counter<long> S3Operations = Meter.CreateCounter<long>(

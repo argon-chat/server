@@ -1076,6 +1076,9 @@ public static class InstrumentNames
     /// <summary>Files created over an existing object. Tags: purpose</summary>
     public const string StorageDedupLinks = "argon-storage-dedup-links";
 
+    /// <summary>Uploads answered with a copy before any bytes moved. Tags: purpose</summary>
+    public const string StorageDedupPrepared = "argon-storage-dedup-prepared";
+
     /// <summary>S3 operations count. Tags: operation, status</summary>
     public const string StorageS3Operations = "argon-storage-s3-operations";
 

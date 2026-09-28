@@ -26,6 +26,10 @@ public record BlobEntity : ArgonEntity, IEntityTypeConfiguration<BlobEntity>
     public string? ContentType { get; set; }
     public byte[]? Md5         { get; set; }
     public byte[]? Sha256      { get; set; }
+
+    /// <summary>What the uploader said the bytes hash to. Good enough for that same account to find its own upload again; nothing else trusts it.</summary>
+    public byte[]? ClaimedSha256 { get; set; }
+
     public long    Links       { get; set; }
 
     /// <summary>Whether two files may share this object; false where something writes back over the key.</summary>
@@ -46,6 +50,7 @@ public record BlobEntity : ArgonEntity, IEntityTypeConfiguration<BlobEntity>
            .HasFilter("\"Sha256\" IS NOT NULL AND \"CanonicalId\" IS NULL AND \"IsDeleted\" = false");
 
         builder.HasIndex(x => new { x.Md5, x.Size, x.ContentType });
+        builder.HasIndex(x => new { x.ClaimedSha256, x.ContentType });
 
         builder.HasIndex(x => x.VerifyRequestedAt)
            .HasFilter("\"VerifyRequestedAt\" IS NOT NULL AND \"IsDeleted\" = false");

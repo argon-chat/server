@@ -1,5 +1,6 @@
 namespace Argon.Grains.Interfaces;
 
+using Argon.Api.Grains.Interfaces;
 using Argon.Features.BotApi;
 using ion.runtime;
 using Orleans.Concurrency;
@@ -174,6 +175,22 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias(nameof(CompleteUploadAttachment)), ResponseTimeout("00:01:00")]
     ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of an existing file as an attachment of this channel, without the bytes moving. Needs
+    /// AttachFiles here and the right to read the source: its owner, or a member who can view the
+    /// channel it was posted in.
+    /// </summary>
+    [Alias(nameof(AttachExistingFile))]
+    ValueTask<Either<AttachmentInfo, AttachExistingFileError>> AttachExistingFile(Guid sourceFileId, string? fileName, CancellationToken ct = default);
+
+    /// <summary>
+    /// BeginUploadAttachment with the bytes described up front: a copy when the caller can already see
+    /// a file with them, a ticket otherwise, an over-limit size refused before anything is signed.
+    /// </summary>
+    [Alias(nameof(PrepareUploadAttachment))]
+    ValueTask<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAttachment(byte[] sha256, long size, string contentType, string fileName,
+        CancellationToken ct = default);
 
     [Alias(nameof(InvokeSlashCommand))]
     Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options);
