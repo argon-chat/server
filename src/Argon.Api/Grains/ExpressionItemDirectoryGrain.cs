@@ -49,6 +49,10 @@ public sealed class ExpressionItemDirectoryGrain(
     }
 }
 
+// TODO: this is a stopgap and has to be rewritten properly. An IGrainFactory extension that mutates a
+// List in place, parses the icon id twice per profile, and mixes DTO decoration with a cache lookup and a
+// fire-and-forget cleanup, called ad hoc from six grains. Status-emoji resolution belongs in one profile
+// read path (a decorator the profile queries run through), not sprinkled over the callers.
 public static class StatusEmojiProfiles
 {
     public static async Task<ArgonUserProfile> WithStatusEmojiAsync(this IGrainFactory grains, ArgonUserProfile profile)

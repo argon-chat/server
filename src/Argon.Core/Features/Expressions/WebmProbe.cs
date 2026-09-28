@@ -20,6 +20,17 @@ internal struct WebmInfo
 
     /// <summary>The higher of the declared (<c>DefaultDuration</c>) and the measured rate, measured leniently.</summary>
     public double Fps;
+
+    /// <summary>One frame: the declared <c>DefaultDuration</c>, else the mean block interval.</summary>
+    public double FrameSeconds;
+}
+
+/// <summary>Where the first video frame lies in the file, and its alpha packet (<c>BlockAddID</c> 1) if it has one.</summary>
+internal readonly record struct WebmFrame(int Offset, int Length, int AlphaOffset, int AlphaLength)
+{
+    public ReadOnlySpan<byte> Colour(ReadOnlySpan<byte> file) => file.Slice(Offset, Length);
+
+    public ReadOnlySpan<byte> Alpha(ReadOnlySpan<byte> file) => file.Slice(AlphaOffset, AlphaLength);
 }
 
 /// <summary>
@@ -56,6 +67,10 @@ internal static class WebmProbe
     private const uint BlockGroup      = 0xA0;
     private const uint Block           = 0xA1;
     private const uint BlockDuration   = 0x9B;
+    private const uint BlockAdditions  = 0x75A1;
+    private const uint BlockMore       = 0xA6;
+    private const uint BlockAddId      = 0xEE;
+    private const uint BlockAdditional = 0xA5;
 
     private const long UnknownSize = -1;
 
@@ -153,10 +168,10 @@ internal static class WebmProbe
 
         var slackNs    = Math.Min(scale, MaxSlackNs);
         var measuredNs = 0.0;
+        var spanNs     = blocks.Count > 0 ? (double)(blocks.Last - blocks.First) * scale : 0;
 
         if (blocks.Count > 0)
         {
-            var spanNs = (double)(blocks.Last - blocks.First) * scale;
             var tailNs = frameNs > 0 ? frameNs
                 : blocks.LastEnd > blocks.Last ? (double)(blocks.LastEnd - blocks.Last) * scale
                 : blocks.Count > 1 ? spanNs / (blocks.Count - 1)
@@ -171,8 +186,227 @@ internal static class WebmProbe
         if (frameNs > 0)
             info.Fps = Math.Max(info.Fps, 1e9 / frameNs);
 
+        info.FrameSeconds = frameNs > 0 ? frameNs / 1e9 : blocks.Count > 1 ? spanNs / (blocks.Count - 1) / 1e9 : 0;
+
         info.DurationSeconds = Math.Max(declared * scale, measuredNs) / 1e9;
         info.SlackSeconds    = slackNs / 1e9;
+        return true;
+    }
+
+    /// <summary>
+    /// The first block of the video track: its frame and, for VP9 with alpha, the packet in its
+    /// <c>BlockAdditional</c>. A laced block is not taken.
+    /// </summary>
+    public static bool TryReadFirstFrame(ReadOnlySpan<byte> file, out WebmFrame frame)
+    {
+        frame = default;
+        var pos = 0;
+
+        if (!TryHeader(file, ref pos, file.Length, out var id, out var size) || id != EbmlHeader || size < 0)
+            return false;
+        pos += (int)size;
+
+        while (true)
+        {
+            if (!TryHeader(file, ref pos, file.Length, out id, out size))
+                return false;
+            if (id == Segment)
+                break;
+            if (size < 0)
+                return false;
+            pos += (int)size;
+        }
+
+        var   end   = size == UnknownSize ? file.Length : pos + (int)size;
+        ulong track = 0;
+
+        while (pos < end)
+        {
+            if (!TryHeader(file, ref pos, end, out id, out size))
+                return false;
+
+            if (id == Cluster)
+            {
+                // A block before Tracks names a track nobody declared.
+                if (track == 0)
+                    return false;
+
+                var clusterEnd = size == UnknownSize ? end : pos + (int)size;
+                if (!FindFrame(file, ref pos, clusterEnd, size == UnknownSize, track, out frame, out var found))
+                    return false;
+                if (found)
+                    return true;
+                continue;
+            }
+
+            if (size < 0)
+                return false;
+            if (id == Tracks && !VideoTrack(file.Slice(pos, (int)size), out track))
+                return false;
+
+            pos += (int)size;
+        }
+
+        return false;
+    }
+
+    private static bool VideoTrack(ReadOnlySpan<byte> tracks, out ulong track)
+    {
+        track = 0;
+        var pos = 0;
+
+        while (pos < tracks.Length)
+        {
+            if (!TryHeader(tracks, ref pos, tracks.Length, out var id, out var size) || size < 0)
+                return false;
+
+            if (id == TrackEntry)
+            {
+                var entry   = default(WebmInfo);
+                var frameNs = 0UL;
+                if (!ReadTrackEntry(tracks.Slice(pos, (int)size), ref entry, ref frameNs))
+                    return false;
+                if (entry.TrackType == 1 && track == 0)
+                    track = entry.TrackNumber;
+            }
+
+            pos += (int)size;
+        }
+
+        return track != 0;
+    }
+
+    /// <summary>Walks a cluster for the track's first block; false only on malformed data.</summary>
+    private static bool FindFrame(ReadOnlySpan<byte> file, ref int pos, int end, bool unknownSize, ulong track, out WebmFrame frame,
+        out bool found)
+    {
+        frame = default;
+        found = false;
+
+        while (pos < end)
+        {
+            var start = pos;
+            if (!TryHeader(file, ref pos, end, out var id, out var size))
+                return false;
+
+            if (unknownSize && id is Cluster or Cues or Tags or SeekHead or Info or Tracks or Chapters or Attachments or EbmlHeader)
+            {
+                pos = start;
+                return true;
+            }
+
+            if (size < 0)
+                return false;
+
+            var at = pos;
+            pos += (int)size;
+
+            switch (id)
+            {
+                case SimpleBlock:
+                    if (!BlockFrame(file, at, at + (int)size, track, out var offset, out var length, out found))
+                        return false;
+                    if (found)
+                    {
+                        frame = new WebmFrame(offset, length, 0, 0);
+                        return true;
+                    }
+                    break;
+
+                case BlockGroup:
+                    if (!GroupFrame(file, at, at + (int)size, track, out frame, out found))
+                        return false;
+                    if (found)
+                        return true;
+                    break;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool GroupFrame(ReadOnlySpan<byte> file, int pos, int end, ulong track, out WebmFrame frame, out bool found)
+    {
+        frame = default;
+        found = false;
+
+        int offset = 0, length = 0, alphaOffset = 0, alphaLength = 0;
+
+        while (pos < end)
+        {
+            if (!TryHeader(file, ref pos, end, out var id, out var size) || size < 0)
+                return false;
+
+            if (id == Block && !BlockFrame(file, pos, pos + (int)size, track, out offset, out length, out found))
+                return false;
+            if (id == BlockAdditions && !AlphaPacket(file, pos, pos + (int)size, out alphaOffset, out alphaLength))
+                return false;
+
+            pos += (int)size;
+        }
+
+        if (found)
+            frame = new WebmFrame(offset, length, alphaOffset, alphaLength);
+        return true;
+    }
+
+    /// <summary>A block's frame when it is the track's; false on a malformed or laced one.</summary>
+    private static bool BlockFrame(ReadOnlySpan<byte> file, int pos, int end, ulong track, out int offset, out int length, out bool found)
+    {
+        offset = 0;
+        length = 0;
+        found  = false;
+
+        // Track number, a 16-bit relative timestamp, then the flags.
+        if (!TryVint(file, ref pos, end, out var number) || number < 0 || pos + 3 > end)
+            return false;
+        if ((ulong)number != track)
+            return true;
+        if ((file[pos + 2] & 0x06) != 0 || pos + 3 == end)
+            return false;
+
+        offset = pos + 3;
+        length = end - offset;
+        found  = true;
+        return true;
+    }
+
+    /// <summary>The <c>BlockAdditional</c> of <c>BlockAddID</c> 1 (its default), where VP9 alpha is kept.</summary>
+    private static bool AlphaPacket(ReadOnlySpan<byte> file, int pos, int end, out int offset, out int length)
+    {
+        offset = 0;
+        length = 0;
+
+        while (pos < end)
+        {
+            if (!TryHeader(file, ref pos, end, out var id, out var size) || size < 0)
+                return false;
+
+            if (id == BlockMore)
+            {
+                var inner   = pos;
+                var moreEnd = pos + (int)size;
+                var addId   = 1UL;
+                int at      = 0, bytes = 0;
+
+                while (inner < moreEnd)
+                {
+                    if (!TryHeader(file, ref inner, moreEnd, out var child, out var childSize) || childSize < 0)
+                        return false;
+                    if (child == BlockAddId && !TryUInt(file.Slice(inner, (int)childSize), out addId))
+                        return false;
+                    if (child == BlockAdditional)
+                        (at, bytes) = (inner, (int)childSize);
+                    inner += (int)childSize;
+                }
+
+                if (addId == 1 && bytes > 0 && length == 0)
+                    (offset, length) = (at, bytes);
+            }
+
+            pos += (int)size;
+        }
+
         return true;
     }
 

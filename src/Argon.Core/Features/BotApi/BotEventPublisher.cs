@@ -1,6 +1,8 @@
 namespace Argon.Features.BotApi;
 
 using Argon.Features.NatsStreaming;
+using Argon.Features.Storage;
+using Argon.Grains.Interfaces;
 using Argon.Services.Ion;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -20,6 +22,7 @@ public sealed class BotEventPublisher(
     UserLocaleRegistry          localeRegistry,
     InteractionContextStore     interactionStore,
     IGrainFactory               grainFactory,
+    IOptions<StorageOptions>    storage,
     ILogger<BotEventPublisher>  logger)
 {
     public InteractionContextStore InteractionStore => interactionStore;
@@ -169,17 +172,27 @@ public sealed class BotEventPublisher(
 
                 case ReactionAdded e:
                 {
+                    var (name, url) = await CustomEmojiAsync(e.emoji, e.customEmojiId);
                     await PublishAsync(spaceId, BotEventType.ReactionAdd,
-                        new ReactionAddEvent(e.spaceId, e.channelId, e.messageId, e.userId, e.emoji),
+                        new ReactionAddEvent(e.spaceId, e.channelId, e.messageId, e.userId, e.emoji, e.customEmojiId, name, url),
                         e.channelId);
                     break;
                 }
 
                 case ReactionRemoved e:
                 {
+                    var (name, url) = await CustomEmojiAsync(e.emoji, e.customEmojiId);
                     await PublishAsync(spaceId, BotEventType.ReactionRemove,
-                        new ReactionRemoveEvent(e.spaceId, e.channelId, e.messageId, e.userId, e.emoji),
+                        new ReactionRemoveEvent(e.spaceId, e.channelId, e.messageId, e.userId, e.emoji, e.customEmojiId, name, url),
                         e.channelId);
+                    break;
+                }
+
+                case SpaceExpressionsChanged e:
+                {
+                    var delta = await BotEventMapper.FromExpressionDeltaAsync(e.delta, userCache);
+                    await PublishAsync(spaceId, BotEventType.ExpressionsUpdate,
+                        new ExpressionsUpdateEvent(e.spaceId, e.version, e.baseVersion, delta));
                     break;
                 }
 
@@ -193,6 +206,28 @@ public sealed class BotEventPublisher(
             logger.LogWarning(ex, "Failed to publish bot event for {EventType} in space {SpaceId}",
                 @event.GetType().Name, spaceId);
         }
+    }
+
+    /// <summary>A custom emoji's name, and its file URL while the item lives; nothing for a unicode reaction.</summary>
+    private async ValueTask<(string? Name, string? Url)> CustomEmojiAsync(string emoji, Guid? customEmojiId)
+    {
+        if (customEmojiId is not { } itemId)
+            return (null, null);
+
+        var name = emoji.Trim(':');
+
+        try
+        {
+            var found = await grainFactory.GetGrain<IExpressionItemDirectoryGrain>(Guid.Empty).ResolveEmojiAsync(new List<Guid> { itemId });
+            if (found.TryGetValue(itemId, out var item))
+                return (item.name, storage.Value.Cdn.BuildFileUrl(item.fileId));
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "custom emoji {ItemId} of a reaction could not be resolved", itemId);
+        }
+
+        return (name, null);
     }
 
     /// <summary>

@@ -87,7 +87,42 @@ public class SpaceExpressionTests : TestBase
         return output.ToArray();
     }
 
+    /// <summary>
+    /// A 512×512 VP9 sticker with alpha from ffmpeg (libvpx-vp9, yuva420p, three frames at 25 fps): a red
+    /// square over 156..355 on both axes, clear around it.
+    /// </summary>
+    private static readonly byte[] SquareWebm = Convert.FromBase64String(
+        "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAMBEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHGTbuMU6uEElTD" +
+        "Z1OsggEZTbuMU6uEHFO7a1OsggLr7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBNgIRMYXZmV0GETGF2ZkSJiEBeAAAAAAAAFlSua86uAQAAAAAAAEXXgQFzxYgAAAAA" +
+        "AAAAAZyBACK1nIN1bmSIgQCGhVZfVlA5g4EBI+ODhAJiWgDglrCCAgC6ggIAmoECU8CBAVWwhFW5gQESVMNn1XNz0mPAi2PFiAAAAAAAAAABZ8icRaOHRU5D" +
+        "T0RFUkSHj0xhdmMgbGlidnB4LXZwOWfIokWjiERVUkFUSU9ORIeUMDA6MDA6MDAuMTIwMDAwMDAwAAAfQ7Z1QXLngQCgQNih3IEAAACCSYNCAB/wH/YAOCQc" +
+        "GD4QAFBh9jr2gFzR7gAAAAAAHGb/1d////Xnz/////2oBDqBWFJHkR4cePHhwABm/9Xf///158/////9qAQ6gVhSR5EeHHjx4cAAdaH3pvXugQGl8IJJg0IA" +
+        "H/Af9gA4JBwYPhAAcG+x17QAulX/gB779AAAAAAAIWcb9MRKvnbmWM6oFDKlz+hj8Jn5i6azeHeam9PgCSC4AGcb9MRKvnb7s/t7tK0xHQ+GqCkISQYizj6M" +
+        "n+CDVhS2zN9Liujm3hS/HACgy6GhgQAoAIYAQJKcAE8BAAMAYNWFGwAAAAAABGcRzABnEcwAdaGipqDugQGlm4YAQJKcAE8BAAMAYNWFGwAAAAAAA2mlWGml" +
+        "WPuB2KDFoZ6BAFAAhgBAkpwATaEAAYBgAAAAAAAEZxHMAGcRzAB1oZ+mne6BAaWYhgBAkpwATaEAAYBgAAAAAAADaaVYaaVY+4HYHFO7a5G7j7OBALeK94EB" +
+        "8YIBc/CBAw==");
+
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
+
+    private static bool Renders(ExpressionFormat format) => Services.GetRequiredService<IFirstFrameRenderer>().IsAvailable(format);
+
+    private static FakeContentModeration Moderation => Services.GetRequiredService<FakeContentModeration>();
+
+    private static async Task<string> KeyOfAsync(Guid fileId, CancellationToken ct)
+    {
+        await using var db = await DbAsync(ct);
+        return await db.Files.AsNoTracking().Where(f => f.Id == fileId).Select(f => f.S3Key).SingleAsync(ct);
+    }
+
+    private static async Task<Image<Rgba32>> StoredImageAsync(Guid fileId, CancellationToken ct)
+    {
+        await using var stream = await Services.GetRequiredService<IS3StorageService>().GetObjectStreamAsync(await KeyOfAsync(fileId, ct), ct);
+        Assert.That(stream, Is.Not.Null, $"file {fileId} is not in the store");
+        return await Image.LoadAsync<Rgba32>(stream!, ct);
+    }
+
+    private static bool IsRed(Rgba32 pixel) => pixel is { R: > 240, G: < 16, B: < 16, A: 255 };
 
     private static ISpaceExpressionInteraction ExpressionsOf(TestUserSession session)
         => session.Client.ForService<ISpaceExpressionInteraction>(Services);
@@ -273,7 +308,8 @@ public class SpaceExpressionTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That(ErrorOf(refused), Is.EqualTo(ExpressionError.INVALID_FORMAT), "an animated sticker without a first frame was taken");
+            Assert.That(ErrorOf(refused), Is.EqualTo(Renders(ExpressionFormat.Lottie) ? (ExpressionError?)null : ExpressionError.INVALID_FORMAT),
+                "without a renderer an animated sticker needs the client's first frame");
             Assert.That(item.format, Is.EqualTo(ExpressionFormat.Lottie));
             Assert.That((item.width, item.height), Is.EqualTo((512, 512)));
             Assert.That(item.thumbFileId, Is.Not.Null);
@@ -283,6 +319,101 @@ public class SpaceExpressionTests : TestBase
             Assert.That(stored?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl), "an animation is not immutable");
             Assert.That(storedThumb?.ContentType, Is.EqualTo(ExpressionContentTypes.Webp));
             Assert.That(storedThumb?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl), "a first frame is not immutable");
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task An_animated_sticker_without_a_first_frame_gets_the_servers(CancellationToken ct = default)
+    {
+        Assume.That(Renders(ExpressionFormat.Lottie), "rlottie is not installed");
+
+        var (owner, spaceId, _) = await RoomAsync(ct);
+        var pack = await PackAsync(owner, spaceId, ExpressionKind.Sticker, "drawn", ct);
+
+        var blob = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Lottie, Tgs(), "application/x-tgsticker", ct);
+        var item = Ok(await ExpressionsOf(owner).AddItem(spaceId, pack.packId, blob, null, "drawn", Wave, NoKeywords, null, ct));
+
+        Assert.That(item.thumbFileId, Is.Not.Null, "no first frame was stored");
+
+        using var thumb  = await StoredImageAsync(item.thumbFileId!.Value, ct);
+        var       stored = await StoredAsync(item.thumbFileId.Value, ct);
+        var       key    = await KeyOfAsync(item.thumbFileId.Value, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(item.thumbUrl, Is.Not.Null);
+            Assert.That(item.outline, Is.Not.Null, "the outline is traced from the server's frame");
+            Assert.That((thumb.Width, thumb.Height), Is.EqualTo((512, 512)));
+            Assert.That(IsRed(thumb[256, 256]), Is.True, $"the square: {thumb[256, 256]}");
+            Assert.That(thumb[100, 100].A, Is.Zero, "around the square");
+            Assert.That(stored?.ContentType, Is.EqualTo(ExpressionContentTypes.Webp));
+            Assert.That(stored?.CacheControl, Is.EqualTo(ExpressionUploads.CacheControl));
+            Assert.That(Moderation.WasEvaluated(key), Is.True, "moderation did not see the first frame");
+        });
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task The_servers_frame_replaces_the_clients_and_is_what_moderation_judges(CancellationToken ct = default)
+    {
+        Assume.That(Renders(ExpressionFormat.Lottie), "rlottie is not installed");
+
+        var (owner, spaceId, _) = await RoomAsync(ct);
+        var pack = await PackAsync(owner, spaceId, ExpressionKind.Sticker, "judged", ct);
+
+        // The client's thumbnail is a disc wider than the animation's square.
+        var blob  = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Lottie, Tgs(), "application/x-tgsticker", ct);
+        var thumb = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Static, StickerWebp, "image/webp", ct);
+        var item  = Ok(await ExpressionsOf(owner).AddItem(spaceId, pack.packId, blob, thumb, "judged", Wave, NoKeywords, null, ct));
+
+        using var stored = await StoredImageAsync(item.thumbFileId!.Value, ct);
+        var       key    = await KeyOfAsync(item.thumbFileId.Value, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(IsRed(stored[256, 256]), Is.True, $"the square: {stored[256, 256]}");
+            Assert.That(stored[400, 256].A, Is.Zero, "the client's disc is still the thumbnail");
+            Assert.That(Moderation.WasEvaluated(key), Is.True, "moderation did not judge the stored first frame");
+            Assert.That(item.outline, Is.Not.Null);
+        });
+
+        var denied = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Lottie, Tgs(), "application/x-tgsticker", ct);
+        var cover  = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Static, StickerWebp, "image/webp", ct);
+
+        await using var db = await DbAsync(ct);
+        var coverKey = await db.Files.AsNoTracking().Where(f => db.FileBlobs.Any(b => b.Id == cover && b.FileId == f.Id))
+           .Select(f => f.S3Key).SingleAsync(ct);
+
+        Moderation.Deny(coverKey, new Dictionary<string, float> { ["porn"] = 0.99f });
+
+        var rejected = await ExpressionsOf(owner).AddItem(spaceId, pack.packId, denied, cover, "denied", Wave, NoKeywords, null, ct);
+
+        Assert.That(ErrorOf(rejected), Is.EqualTo(ExpressionError.CONTENT_REJECTED));
+    }
+
+    [Test, CancelAfter(180_000)]
+    public async Task A_video_sticker_without_a_first_frame_gets_the_servers(CancellationToken ct = default)
+    {
+        Assume.That(Renders(ExpressionFormat.Video), "libvpx is not installed");
+
+        var (owner, spaceId, _) = await RoomAsync(ct);
+        var pack = await PackAsync(owner, spaceId, ExpressionKind.Sticker, "decoded", ct);
+
+        var blob = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Video, SquareWebm, "video/webm", ct);
+        var item = Ok(await ExpressionsOf(owner).AddItem(spaceId, pack.packId, blob, null, "decoded", Wave, NoKeywords, null, ct));
+
+        Assert.That(item.thumbFileId, Is.Not.Null, "no first frame was stored");
+
+        using var thumb = await StoredImageAsync(item.thumbFileId!.Value, ct);
+        var       key   = await KeyOfAsync(item.thumbFileId.Value, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(item.format, Is.EqualTo(ExpressionFormat.Video));
+            Assert.That(item.outline, Is.Not.Null, "the outline is traced from the decoded alpha");
+            Assert.That((thumb.Width, thumb.Height), Is.EqualTo((512, 512)));
+            Assert.That(thumb[256, 256] is { R: > 240, G: < 16, B: < 16, A: > 250 }, Is.True, $"the square: {thumb[256, 256]}");
+            Assert.That(thumb[20, 20].A, Is.LessThan(8), "around the square");
+            Assert.That(Moderation.WasEvaluated(key), Is.True, "moderation did not see the first frame");
         });
     }
 

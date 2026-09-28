@@ -44,6 +44,16 @@ public static class ExpressionUploads
             _                                                                                                          => false
         };
 
+    /// <summary>The format a stored content type is of, or null for none of the three.</summary>
+    public static ExpressionFormat? FormatOf(string? contentType)
+    {
+        foreach (var format in Formats)
+            if (Accepts(format, contentType))
+                return format;
+
+        return null;
+    }
+
     /// <summary>The largest upload for a format: a plain-JSON Lottie is judged by its gzipped size, so it may arrive larger.</summary>
     public static int MaxUploadBytes(ExpressionKind kind, ExpressionFormat format)
         => format == ExpressionFormat.Lottie ? ExpressionLimits.LottieMaxJsonBytes : ExpressionLimits.MaxBytes(kind, format);
@@ -71,6 +81,16 @@ public static class ExpressionUploads
         var json = data.TrimStart(" \t\r\n"u8);
         return json.Length > 0 && json[0] == (byte)'{' ? ExpressionFormat.Lottie : null;
     }
+
+    /// <summary>The media type the bytes are stored under, from their signature; null when they are no expression file.</summary>
+    public static string? ContentTypeOf(ReadOnlySpan<byte> data)
+        => Sniff(data) switch
+        {
+            ExpressionFormat.Static => data[0] == 0x89 ? ExpressionContentTypes.Png : ExpressionContentTypes.Webp,
+            ExpressionFormat.Lottie => data[0] == 0x1F ? ExpressionContentTypes.Tgs : ExpressionContentTypes.Json,
+            ExpressionFormat.Video  => ExpressionContentTypes.Webm,
+            _                       => null
+        };
 
     /// <summary>A client's outline if it is one — at most 1 KiB and decodable — and none otherwise.</summary>
     public static byte[]? AcceptOutline(byte[]? outline)

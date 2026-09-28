@@ -21,6 +21,12 @@ public static class ExpressionLimits
     public const double LottieMaxFps       = 60;
     public const double VideoMaxFps        = 30;
 
+    /// <summary>Telegram's exporters write 33 ms frames, which read as 30.3 fps.</summary>
+    public const double VideoFpsTolerance = 0.5;
+
+    /// <summary>A video may run one frame past <see cref="MaxDurationSeconds"/>; a frame counts for at most this.</summary>
+    public const double VideoMaxOverrunSeconds = 0.1;
+
     /// <summary>Decompressed Lottie JSON cap; also the cap on a plain-JSON upload.</summary>
     public const int LottieMaxJsonBytes = 4 * 1024 * 1024;
     public const int LottieMaxDepth     = 64;

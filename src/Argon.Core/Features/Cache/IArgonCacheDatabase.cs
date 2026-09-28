@@ -67,4 +67,5 @@ public interface IArgonCacheDatabase
     Task<string[]> SortedSetRangeAsync(string key, int offset, int count, bool descending, CancellationToken ct = default);
     Task<long>     SortedSetLengthAsync(string key, CancellationToken ct = default);
     Task<long>     SortedSetRemoveRangeByScoreAsync(string key, double min, double max, CancellationToken ct = default);
+    Task<bool>     SortedSetRemoveAsync(string key, string member, CancellationToken ct = default);
 }

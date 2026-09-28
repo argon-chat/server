@@ -50,8 +50,12 @@ public enum BotIntent : long
     /// <summary>CONTROL_INTERACTION — button/select interactions on messages</summary>
     ControlInteractions = 1 << 13,
 
+    /// <summary>EXPRESSIONS_UPDATE — sticker and custom emoji pack changes</summary>
+    Expressions = 1 << 14,
+
     /// <summary>All non-privileged intents.</summary>
-    AllNonPrivileged = Messages | Channels | Reactions | Typing | Commands | DirectMessages | Moderation | Archetypes | SpaceUpdates | Voice | ControlInteractions,
+    AllNonPrivileged = Messages | Channels | Reactions | Typing | Commands | DirectMessages | Moderation | Archetypes | SpaceUpdates | Voice
+                     | ControlInteractions | Expressions,
 
     /// <summary>Privileged intents that require bot verification.</summary>
     AllPrivileged = Presence | Members | Calls,

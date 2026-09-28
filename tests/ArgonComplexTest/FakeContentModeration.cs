@@ -16,8 +16,12 @@ using Argon.Features.Storage;
 public sealed class FakeContentModeration : IContentModerationService
 {
     private readonly ConcurrentDictionary<string, ContentModerationResult> verdicts = new();
+    private readonly ConcurrentQueue<string>                              evaluated = new();
 
     public bool IsAvailable => false;
+
+    /// <summary>Whether the classifier was asked about the object at <paramref name="s3Key"/>.</summary>
+    public bool WasEvaluated(string s3Key) => evaluated.Contains(s3Key);
 
     /// <summary>Makes the classifier reject the object at <paramref name="s3Key"/> with these scores.</summary>
     public void Deny(string s3Key, Dictionary<string, float> scores, Dictionary<string, float>? refined = null)
@@ -31,7 +35,10 @@ public sealed class FakeContentModeration : IContentModerationService
         };
 
     public Task<ContentModerationResult> EvaluateAsync(string s3Key, FilePurpose purpose, CancellationToken ct = default)
-        => Task.FromResult(verdicts.TryGetValue(s3Key, out var verdict)
+    {
+        evaluated.Enqueue(s3Key);
+
+        return Task.FromResult(verdicts.TryGetValue(s3Key, out var verdict)
             ? verdict
             : new ContentModerationResult
             {
@@ -40,4 +47,5 @@ public sealed class FakeContentModeration : IContentModerationService
                 ElapsedMs  = 0,
                 Scores     = new Dictionary<string, float>()
             });
+    }
 }

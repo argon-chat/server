@@ -22,6 +22,9 @@ public static class TestServerConfiguration
     /// <summary>Independent reporters that make a case urgent in the test configuration.</summary>
     public const int IndependentReportersThreshold = 3;
 
+    /// <summary><c>Expressions:BotMutationsPerMinute</c> in the test host, which a test spends in a loop.</summary>
+    public const int BotExpressionMutationsPerMinute = 15;
+
     /// <summary>
     /// A complete, valid moderation configuration. Without it <c>ReportSystem:IsEnabled</c> is false
     /// and the report/trust code paths short-circuit on their first line, so none of that behaviour

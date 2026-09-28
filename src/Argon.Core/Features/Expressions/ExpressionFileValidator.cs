@@ -9,8 +9,6 @@ using SixLabors.ImageSharp.PixelFormats;
 
 public sealed class ExpressionFileValidator : IExpressionFileValidator
 {
-    private const double FpsSlack = 0.01;
-
     private static readonly DecoderOptions Decoding = new()
     {
         Configuration = new Configuration(new PngConfigurationModule(), new WebpConfigurationModule()),
@@ -177,7 +175,8 @@ public sealed class ExpressionFileValidator : IExpressionFileValidator
          || info.ForeignBlocks
          || !ExpressionLimits.DimensionsFit(kind, ExpressionFormat.Video, info.Width, info.Height)
          || info.DurationSeconds > ExpressionLimits.MaxDurationSeconds + info.SlackSeconds
-         || info.Fps > ExpressionLimits.VideoMaxFps + FpsSlack)
+                                 + Math.Min(info.FrameSeconds, ExpressionLimits.VideoMaxOverrunSeconds)
+         || info.Fps > ExpressionLimits.VideoMaxFps + ExpressionLimits.VideoFpsTolerance)
             return ExpressionValidation.Failed(ExpressionError.INVALID_FORMAT, ExpressionFormat.Video);
 
         return new ExpressionValidation(true, ExpressionError.NONE, ExpressionFormat.Video, info.Width, info.Height,

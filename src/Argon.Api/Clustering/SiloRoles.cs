@@ -93,6 +93,7 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<CosmeticsReadGrain>();
         registry.AddToRef<UserPresenceGrain>();
         registry.AddToRef<BotGatewayGrain>();
+        registry.AddToRef<BotFilesGrain>();
         registry.AddToRef<ServerInviteGrain>();
         registry.AddToRef<InviteGrain>();
         registry.AddToRef<SpaceDeletionGrain>();

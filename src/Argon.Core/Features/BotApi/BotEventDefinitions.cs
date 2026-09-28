@@ -181,22 +181,38 @@ public sealed record ArchetypeUpdateEvent(
 // ─── Reactions ───────────────────────────────────────────
 
 [BotEventDefinition(BotEventType.ReactionAdd, "Reactions", Intent = BotIntent.Reactions)]
-[BotEventDescription("A user added a reaction to a message.")]
+[BotEventDescription("A user added a reaction to a message. For a custom emoji, customEmojiId is its item id, emoji reads :name:, and emojiName and emojiUrl describe it (emojiUrl is null once the emoji is deleted).")]
 public sealed record ReactionAddEvent(
-    Guid   SpaceId,
-    Guid   ChannelId,
-    long   MessageId,
-    Guid   UserId,
-    string Emoji);
+    Guid    SpaceId,
+    Guid    ChannelId,
+    long    MessageId,
+    Guid    UserId,
+    string  Emoji,
+    Guid?   CustomEmojiId = null,
+    string? EmojiName     = null,
+    string? EmojiUrl      = null);
 
 [BotEventDefinition(BotEventType.ReactionRemove, "Reactions", Intent = BotIntent.Reactions)]
-[BotEventDescription("A user removed a reaction from a message.")]
+[BotEventDescription("A user removed a reaction from a message. Custom emoji are described as in reactionAdd.")]
 public sealed record ReactionRemoveEvent(
-    Guid   SpaceId,
-    Guid   ChannelId,
-    long   MessageId,
-    Guid   UserId,
-    string Emoji);
+    Guid    SpaceId,
+    Guid    ChannelId,
+    long    MessageId,
+    Guid    UserId,
+    string  Emoji,
+    Guid?   CustomEmojiId = null,
+    string? EmojiName     = null,
+    string? EmojiUrl      = null);
+
+// ─── Expressions ─────────────────────────────────────────
+
+[BotEventDefinition(BotEventType.ExpressionsUpdate, "Expressions", Intent = BotIntent.Expressions)]
+[BotEventDescription("A space's sticker or custom emoji packs changed. Apply the delta when baseVersion is the version you hold; otherwise, or when delta is null, re-read IExpressions/List.")]
+public sealed record ExpressionsUpdateEvent(
+    Guid                   SpaceId,
+    string                 Version,
+    string?                BaseVersion,
+    BotExpressionsDeltaV1? Delta);
 
 // ─── Control Interactions ────────────────────────────────
 

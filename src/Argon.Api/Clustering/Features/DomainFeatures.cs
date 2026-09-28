@@ -203,7 +203,10 @@ public sealed class ExpressionsFeature : IArgonFeature
             .Options<ExpressionsOptions>(ExpressionsOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Services.AddSingleton<IExpressionFileValidator, ExpressionFileValidator>();
+    {
+        ctx.Services.AddSingleton<IExpressionFileValidator, ExpressionFileValidator>();
+        ctx.Services.AddSingleton<IFirstFrameRenderer, FirstFrameRenderer>();
+    }
 }
 
 public sealed class ReportSystemFeature : IArgonFeature

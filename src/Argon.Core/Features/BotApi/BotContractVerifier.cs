@@ -296,7 +296,7 @@ public static class BotContractVerifier
         foreach (var prop in props)
         {
             var camelName = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
-            var (innerType, typeName, isArray, isNullable) = DecomposeWebType(prop.PropertyType);
+            var (innerType, typeName, isArray, isNullable) = DecomposeWebType(prop);
 
             List<TypeProperty>? children = null;
             var isCircular = false;
@@ -424,7 +424,7 @@ public static class BotContractVerifier
                .Select(p =>
                 {
                     var camelName = char.ToLowerInvariant(p.Name[0]) + p.Name[1..];
-                    var (innerType, webTypeName, isArray, isNullable) = DecomposeWebType(p.PropertyType);
+                    var (innerType, webTypeName, isArray, isNullable) = DecomposeWebType(p);
 
                     List<TypeProperty>? children = null;
                     var isCircular = false;
@@ -450,6 +450,17 @@ public static class BotContractVerifier
         }
 
         return (discriminatorField, discriminatorType, variants);
+    }
+
+    // Nullable<T> shows in the Type; a nullable reference (string?) only in the compiler's nullability metadata.
+    private static (Type Inner, string TypeName, bool IsArray, bool IsNullable) DecomposeWebType(PropertyInfo prop)
+    {
+        var (inner, name, isArray, isNullable) = DecomposeWebType(prop.PropertyType);
+
+        if (!isNullable && !prop.PropertyType.IsValueType)
+            isNullable = new NullabilityInfoContext().Create(prop).ReadState == NullabilityState.Nullable;
+
+        return (inner, name, isArray, isNullable);
     }
 
     private static (Type Inner, string TypeName, bool IsArray, bool IsNullable) DecomposeWebType(Type type)

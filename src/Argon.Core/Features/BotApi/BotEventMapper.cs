@@ -41,7 +41,7 @@ public static class BotEventMapper
         MessageEntitySystemCallEnded e    => Base(e.type, e.offset, e.length) with { CallerId = e.callerId, CallId = e.callId, DurationSeconds = e.durationSeconds },
         MessageEntitySystemCallTimeout e  => Base(e.type, e.offset, e.length) with { CallerId = e.callerId, CallId = e.callId },
         MessageEntitySystemUserJoined e   => Base(e.type, e.offset, e.length) with { UserId = e.userId, InviterId = e.inviterId },
-        MessageEntityAttachment e         => Base(e.type, e.offset, e.length) with { FileName = e.fileName, FileSize = e.fileSize, ContentType = e.contentType, Width = e.width, Height = e.height, ThumbHash = e.thumbHash },
+        MessageEntityAttachment e         => Base(e.type, e.offset, e.length) with { FileName = e.fileName, FileSize = e.fileSize, ContentType = e.contentType, Width = e.width, Height = e.height, ThumbHash = e.thumbHash, Url = e.downloadUrl },
         MessageEntityGif e               => Base(e.type, e.offset, e.length) with { Width = e.width, Height = e.height },
         MessageEntityLinkPreview e       => Base(e.type, e.offset, e.length) with { Url = e.url, Title = e.title, Description = e.description, SiteName = e.siteName, ImageUrl = e.imageUrl, CanonicalUrl = e.canonicalUrl },
         // Stickers and custom emoji have no V1 shape; bots do not see them.
@@ -60,9 +60,11 @@ public static class BotEventMapper
 
         var reactions = msg.reactions.Size > 0
             ? msg.reactions.Values
-               .Select(r => new BotReactionV1(r.emoji, r.count, r.userIds.Values.ToList()))
+               .Select(r => new BotReactionV1(r.emoji, r.count, r.userIds.Values.ToList(), r.customEmojiId))
                .ToList()
             : null;
+
+        var attachments = msg.entities.Values.OfType<MessageEntityAttachment>().Select(FromAttachment).ToList();
 
         var crosspost = msg.crosspost is { } cp
             ? new BotCrosspostV1(cp.sourceSpaceId, cp.sourceChannelId, cp.sourceMessageId, cp.sourceSpaceName, cp.sourceChannelName)
@@ -72,7 +74,80 @@ public static class BotEventMapper
 
         return new BotMessageV1(
             msg.messageId, msg.replyId, msg.channelId, msg.spaceId,
-            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions, crosspost, webhook);
+            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions, crosspost, webhook,
+            attachments.Count > 0 ? attachments : null);
+    }
+
+    public static BotAttachmentV1 FromAttachment(MessageEntityAttachment a)
+        => new(a.fileId, a.downloadUrl ?? string.Empty, a.fileName, a.fileSize, a.contentType, a.width, a.height);
+
+    public static BotExpressionItemV1 FromExpressionItem(ExpressionItem i, bool createdByBot)
+        => new(i.itemId, i.packId, i.spaceId, (BotExpressionKind)(int)i.kind, (BotExpressionFormat)(int)i.format, i.name,
+            i.downloadUrl, i.width, i.height, i.fileSize, i.emoji.Values?.ToList() ?? [], i.keywords.Values?.ToList() ?? [],
+            i.textColor, i.sortOrder, i.creatorId, createdByBot);
+
+    public static BotExpressionPackV1 FromExpressionPack(ExpressionPack p, Func<Guid?, bool> byBot)
+        => new(p.packId, p.spaceId, (BotExpressionKind)(int)p.kind, p.title, p.slug, p.coverItemId, p.sortOrder, p.version,
+            p.items.Values?.Select(i => FromExpressionItem(i, byBot(i.creatorId))).ToList() ?? [], p.creatorId, byBot(p.creatorId));
+
+    /// <summary>Which of the creators are bot accounts, by the BOT flag the clients show.</summary>
+    public static async ValueTask<Func<Guid?, bool>> BotCreatorsAsync(IEnumerable<Guid?> creatorIds, BotUserCache users)
+    {
+        var bots = new HashSet<Guid>();
+
+        foreach (var id in creatorIds.OfType<Guid>().Distinct())
+        {
+            try
+            {
+                if ((await users.GetOrResolveAsync(id)).Flags.HasFlag(UserFlag.BOT))
+                    bots.Add(id);
+            }
+            catch (Exception)
+            {
+                // An account that cannot be read is not reported as a bot.
+            }
+        }
+
+        return id => id is { } creator && bots.Contains(creator);
+    }
+
+    public static async ValueTask<List<BotExpressionPackV1>> FromExpressionPacksAsync(IEnumerable<ExpressionPack> packs, BotUserCache users)
+    {
+        var list  = packs.ToList();
+        var byBot = await BotCreatorsAsync(list.SelectMany(p => (p.items.Values ?? []).Select(i => i.creatorId).Append(p.creatorId)), users);
+        return list.Select(p => FromExpressionPack(p, byBot)).ToList();
+    }
+
+    /// <summary>Null for a change V1 has no shape for; the bot re-reads the list then.</summary>
+    public static async ValueTask<BotExpressionsDeltaV1?> FromExpressionDeltaAsync(IExpressionDelta? delta, BotUserCache users)
+    {
+        switch (delta)
+        {
+            case PackUpserted d:
+                return new BotExpressionsDeltaV1("packUpserted", Pack: (await FromExpressionPacksAsync([d.pack], users))[0], PackId: d.pack.packId);
+
+            case PackDeleted d:
+                return new BotExpressionsDeltaV1("packDeleted", PackId: d.packId);
+
+            case ItemUpserted d:
+            {
+                var byBot = await BotCreatorsAsync([d.item.creatorId], users);
+                return new BotExpressionsDeltaV1("itemUpserted", Item: FromExpressionItem(d.item, byBot(d.item.creatorId)),
+                    PackId: d.item.packId, ItemId: d.item.itemId);
+            }
+
+            case ItemDeleted d:
+                return new BotExpressionsDeltaV1("itemDeleted", PackId: d.packId, ItemId: d.itemId);
+
+            case PacksReordered d:
+                return new BotExpressionsDeltaV1("packsReordered", Kind: (BotExpressionKind)(int)d.kind, Ordered: d.ordered.Values?.ToList() ?? []);
+
+            case ItemsReordered d:
+                return new BotExpressionsDeltaV1("itemsReordered", PackId: d.packId, Ordered: d.ordered.Values?.ToList() ?? []);
+
+            default:
+                return null;
+        }
     }
 
     private static BotMessageEntityV1 Base(EntityType type, int offset, int length) => new()

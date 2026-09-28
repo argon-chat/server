@@ -94,6 +94,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # The first-frame renderer's native libraries, the same packages as the image's (src/Argon.Api/Dockerfile).
+      # Without them its tests skip and the animated-upload tests take the client-thumbnail path.
+      - name: Install rlottie and libvpx
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends librlottie0-1 libvpx9
+
       - name: Cache NuGet packages
         uses: actions/cache@v6
         with:

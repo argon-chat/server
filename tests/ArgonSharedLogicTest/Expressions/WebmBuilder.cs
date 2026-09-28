@@ -19,6 +19,9 @@ internal sealed class WebmBuilder
     public int     FramesPerCluster  { get; init; } = 30;
     public int     FramePayload      { get; init; } = 16;
 
+    /// <summary>VP9 with alpha, as libvpx writes it: AlphaMode on the track, the alpha plane in each block's BlockAdditions.</summary>
+    public bool    Alpha             { get; init; }
+
     public static WebmBuilder Sticker(double seconds, double fps = 30)
         => new()
         {
@@ -38,11 +41,17 @@ internal sealed class WebmBuilder
         if (DurationMs is { } duration)
             info.Add(Float(0x4489, duration));
 
+        var picture = new List<byte[]> { UInt(0xB0, (ulong)Width), UInt(0xBA, (ulong)Height) };
+        if (Alpha)
+            picture.Add(UInt(0x53C0, 1)); // AlphaMode
+
         var video = new List<byte[]>
         {
             UInt(0xD7, 1), UInt(0x73C5, 1), UInt(0x83, 1), Str(0x86, Codec),
-            Master(0xE0, UInt(0xB0, (ulong)Width), UInt(0xBA, (ulong)Height))
+            Master(0xE0, picture.ToArray())
         };
+        if (Alpha)
+            video.Add(UInt(0x55EE, 1)); // MaxBlockAdditionID
         if (DefaultDurationNs is { } frameNs)
             video.Add(UInt(0x23E383, frameNs));
 
@@ -83,7 +92,14 @@ internal sealed class WebmBuilder
         BinaryPrimitives.WriteInt16BigEndian(payload.AsSpan(1), relative);
         payload[3] = keyframe ? (byte)0x80 : (byte)0;
         payload.AsSpan(4).Fill(0x5A);
-        return Element(0xA3, payload);
+
+        if (!Alpha || track != 1)
+            return Element(0xA3, payload);
+
+        // BlockGroup { Block, BlockAdditions { BlockMore { BlockAddID = 1, BlockAdditional } } }
+        payload[3] = 0;
+        return Master(0xA0, Element(0xA1, payload),
+            Master(0x75A1, Master(0xA6, UInt(0xEE, 1), Element(0xA5, Enumerable.Repeat((byte)0xA5, FramePayload).ToArray()))));
     }
 
     public static byte[] Master(uint id, params byte[][] children)

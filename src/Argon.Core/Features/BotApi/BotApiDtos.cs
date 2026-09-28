@@ -147,7 +147,7 @@ public sealed record BotMessageEntityV1
     public int?    Height       { get; init; }
     public string? ThumbHash    { get; init; }
 
-    // LinkPreview
+    // Attachment (the download URL), LinkPreview
     public string? Url          { get; init; }
     public string? Title        { get; init; }
     public string? Description  { get; init; }
@@ -158,11 +158,24 @@ public sealed record BotMessageEntityV1
 
 // ─── Message ─────────────────────────────────────────────
 
+/// <summary><c>customEmojiId</c> is set for a custom emoji, whose <c>emoji</c> reads <c>:name:</c>.</summary>
 [BotDtoVersion(1)]
 public sealed record BotReactionV1(
     string     Emoji,
     int        Count,
-    List<Guid> UserIds);
+    List<Guid> UserIds,
+    Guid?      CustomEmojiId = null);
+
+/// <summary>A file sent with a message. <c>width</c> and <c>height</c> are set for an image.</summary>
+[BotDtoVersion(1)]
+public sealed record BotAttachmentV1(
+    Guid   FileId,
+    string Url,
+    string FileName,
+    long   Size,
+    string ContentType,
+    int?   Width,
+    int?   Height);
 
 [BotDtoVersion(1)]
 public sealed record BotMessageV1(
@@ -174,10 +187,11 @@ public sealed record BotMessageV1(
     List<BotMessageEntityV1>  Entities,
     DateTime                  TimeSent,
     BotUserV1?                Sender,
-    List<ControlRowV1>?       Controls  = null,
-    List<BotReactionV1>?      Reactions = null,
-    BotCrosspostV1?           Crosspost = null,
-    BotWebhookV1?             Webhook   = null);
+    List<ControlRowV1>?       Controls    = null,
+    List<BotReactionV1>?      Reactions   = null,
+    BotCrosspostV1?           Crosspost   = null,
+    BotWebhookV1?             Webhook     = null,
+    List<BotAttachmentV1>?    Attachments = null);
 
 /// <summary>
 /// Set on a message that a followed announcement channel published into this channel: where it came
@@ -673,3 +687,112 @@ public sealed record ModalDefinitionV1
 /// </summary>
 [BotDtoVersion(1)]
 public sealed record ModalSubmitValueV1(string CustomId, List<string> Values);
+
+// ─── Stickers and custom emoji ───────────────────────────
+
+/// <summary>Written as a camelCase string by both the HTTP (STJ) and the SSE (Newtonsoft) serializers.</summary>
+public sealed class BotStringEnumConverter<TEnum>() : System.Text.Json.Serialization.JsonStringEnumConverter<TEnum>(
+    System.Text.Json.JsonNamingPolicy.CamelCase) where TEnum : struct, Enum;
+
+[System.Text.Json.Serialization.JsonConverter(typeof(BotStringEnumConverter<BotExpressionKind>))]
+[Newtonsoft.Json.JsonConverter(typeof(StringEnumConverter), typeof(Newtonsoft.Json.Serialization.CamelCaseNamingStrategy))]
+public enum BotExpressionKind
+{
+    Sticker = 0,
+    Emoji   = 1,
+}
+
+[System.Text.Json.Serialization.JsonConverter(typeof(BotStringEnumConverter<BotExpressionFormat>))]
+[Newtonsoft.Json.JsonConverter(typeof(StringEnumConverter), typeof(Newtonsoft.Json.Serialization.CamelCaseNamingStrategy))]
+public enum BotExpressionFormat
+{
+    /// <summary>WEBP (a PNG upload is stored as WEBP).</summary>
+    Static = 0,
+    /// <summary>TGS: gzipped Lottie JSON.</summary>
+    Lottie = 1,
+    /// <summary>WEBM, VP9.</summary>
+    Video  = 2,
+}
+
+/// <summary>What an upload is for; it sets the size cap and the formats taken.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(BotStringEnumConverter<BotUploadPurpose>))]
+[Newtonsoft.Json.JsonConverter(typeof(StringEnumConverter), typeof(Newtonsoft.Json.Serialization.CamelCaseNamingStrategy))]
+public enum BotUploadPurpose
+{
+    Sticker    = 0,
+    Emoji      = 1,
+    /// <summary>A file for <c>IMessages/Send</c>: any type, at most 10 MiB.</summary>
+    Attachment = 2,
+}
+
+/// <summary>A sticker or custom emoji. Files are given as URLs; <c>createdByBot</c> is set when a bot account added it.</summary>
+[BotDtoVersion(1)]
+public sealed record BotExpressionItemV1(
+    Guid                ItemId,
+    Guid                PackId,
+    Guid                SpaceId,
+    BotExpressionKind   Kind,
+    BotExpressionFormat Format,
+    string              Name,
+    string?             Url,
+    int                 Width,
+    int                 Height,
+    int                 FileSize,
+    List<string>        Emoji,
+    List<string>        Keywords,
+    bool                TextColor,
+    int                 SortOrder,
+    Guid?               CreatorId,
+    bool                CreatedByBot);
+
+[BotDtoVersion(1)]
+public sealed record BotExpressionPackV1(
+    Guid                      PackId,
+    Guid                      SpaceId,
+    BotExpressionKind         Kind,
+    string                    Title,
+    string                    Slug,
+    Guid?                     CoverItemId,
+    int                       SortOrder,
+    long                      Version,
+    List<BotExpressionItemV1> Items,
+    Guid?                     CreatorId,
+    bool                      CreatedByBot);
+
+/// <summary>
+/// One change to a space's packs, flattened: <see cref="Type"/> is <c>packUpserted</c> (<c>pack</c>, without items),
+/// <c>packDeleted</c> (<c>packId</c>), <c>itemUpserted</c> (<c>item</c>), <c>itemDeleted</c> (<c>packId</c>, <c>itemId</c>),
+/// <c>packsReordered</c> (<c>kind</c>, <c>ordered</c>) or <c>itemsReordered</c> (<c>packId</c>, <c>ordered</c>).
+/// </summary>
+[BotDtoVersion(1)]
+public sealed record BotExpressionsDeltaV1(
+    string               Type,
+    BotExpressionPackV1? Pack    = null,
+    BotExpressionItemV1? Item    = null,
+    Guid?                PackId  = null,
+    Guid?                ItemId  = null,
+    BotExpressionKind?   Kind    = null,
+    List<Guid>?          Ordered = null);
+
+[BotDtoVersion(1)]
+public sealed record BotQuotaUsageV1(int Used, int Max);
+
+[BotDtoVersion(1)]
+public sealed record BotItemsPerPackV1(int Sticker, int Emoji);
+
+[BotDtoVersion(1)]
+public sealed record BotQuotaV1(
+    BotQuotaUsageV1   Packs,
+    BotQuotaUsageV1   Stickers,
+    BotQuotaUsageV1   Emoji,
+    BotItemsPerPackV1 ItemsPerPack,
+    int               BoostLevel);
+
+/// <summary>A file a bot uploaded, or may read. <c>fileId</c> is what file fields take in place of a part.</summary>
+[BotDtoVersion(1)]
+public sealed record BotFileV1(
+    Guid    FileId,
+    long    Size,
+    string  ContentType,
+    string  Url,
+    string? FileName = null);

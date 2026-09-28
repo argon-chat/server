@@ -5,6 +5,7 @@ using Livekit.Server.Sdk.Dotnet;
 using Argon.Features.Clustering;
 using Argon.Features.EF;
 using Argon.Features.Integrations.Klipy;
+using Argon.Features.Expressions;
 using Argon.Features.Moderation;
 using Argon.Features.Testing;
 using Argon.Features.Vault;
@@ -84,6 +85,11 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
             services.AddSingleton<FakeContentModeration>();
             services.AddSingleton<IContentModerationService>(sp => sp.GetRequiredService<FakeContentModeration>());
 
+            // The shipped renderer, which a test can take away from one caller to see a server without it.
+            services.AddSingleton<FirstFrameRenderer>();
+            services.AddSingleton<TestFirstFrameRenderer>();
+            services.AddSingleton<IFirstFrameRenderer>(sp => sp.GetRequiredService<TestFirstFrameRenderer>());
+
             // No Vault in the suite. Enrolment and revocation go to an in-memory CA (FakeVaultPkiService);
             // the certificate step-up trusts the operator CA of TestOperatorPki, which forwards the rest.
             services.AddSingleton<FakeVaultPkiService>();
@@ -159,9 +165,13 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         foreach (var botInterface in new[]
                  {
                      "IMessages", "IInteractions", "ICommands", "IChannels", "ISpaces",
-                     "IMembers", "IVoice", "IBotSelf", "ICalls", "IVoiceEgress", "IEvents"
+                     "IMembers", "IVoice", "IBotSelf", "ICalls", "IVoiceEgress", "IEvents",
+                     "IFiles", "IExpressions"
                  })
             builder.UseSetting($"BotApi:RateLimits:Interfaces:{botInterface}:PermitLimit", "100000");
+
+        // Small enough for BotExpressionsTests to spend in a loop; no other fixture has a bot change expressions.
+        builder.UseSetting("Expressions:BotMutationsPerMinute", TestServerConfiguration.BotExpressionMutationsPerMinute.ToString());
 
         // Object storage. Configured through settings rather than by substituting a fake service, so
         // the presigned URL the client is handed is the one production would generate and the upload

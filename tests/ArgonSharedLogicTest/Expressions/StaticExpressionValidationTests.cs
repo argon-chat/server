@@ -64,6 +64,78 @@ public class StaticExpressionValidationTests
         });
     }
 
+    [Test]
+    public async Task A_webp_carrying_exif_and_an_icc_profile_passes()
+    {
+        using var image = TestImages.Disc(512, 512);
+        var webp = ExtendedWebp(TestImages.Webp(image), 512, 512, MinimalIccProfile(), Exif());
+
+        Assert.That(System.Text.Encoding.ASCII.GetString(webp, 12, 4), Is.EqualTo("VP8X"), "setup: not the extended format");
+
+        var result = await Validate(webp, ExpressionKind.Sticker);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True, result.Error.ToString());
+            Assert.That((result.Width, result.Height), Is.EqualTo((512, 512)));
+            Assert.That(result.ContentType, Is.EqualTo("image/webp"));
+            Assert.That(result.Outline, Is.Not.Null);
+        });
+    }
+
+    /// <summary>Rewraps a simple (VP8L) WEBP as VP8X with ICCP before the image and EXIF after it.</summary>
+    private static byte[] ExtendedWebp(byte[] simple, int width, int height, byte[] icc, byte[] exif)
+    {
+        Assert.That(System.Text.Encoding.ASCII.GetString(simple, 12, 4), Is.EqualTo("VP8L"), "setup: expected a lossless WEBP");
+
+        var image = simple[12..];
+        var vp8x  = new byte[10];
+        vp8x[0] = 0x20 | 0x10 | 0x08; // ICC, alpha, EXIF
+        WriteUInt24(vp8x.AsSpan(4), width - 1);
+        WriteUInt24(vp8x.AsSpan(7), height - 1);
+
+        byte[] body = [.. "WEBP"u8, .. Chunk("VP8X", vp8x), .. Chunk("ICCP", icc), .. image, .. Chunk("EXIF", exif)];
+
+        var size = new byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(size, (uint)body.Length);
+        return [.. "RIFF"u8, .. size, .. body];
+
+        static byte[] Chunk(string fourCc, byte[] payload)
+        {
+            var header = new byte[8];
+            System.Text.Encoding.ASCII.GetBytes(fourCc, header);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(4), (uint)payload.Length);
+            return payload.Length % 2 == 0 ? [.. header, .. payload] : [.. header, .. payload, 0];
+        }
+
+        static void WriteUInt24(Span<byte> target, int value)
+        {
+            target[0] = (byte)value;
+            target[1] = (byte)(value >> 8);
+            target[2] = (byte)(value >> 16);
+        }
+    }
+
+    /// <summary>A structurally valid display profile: the 128-byte header and an empty tag table.</summary>
+    private static byte[] MinimalIccProfile()
+    {
+        var icc = new byte[132];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(icc, 132);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(icc.AsSpan(8), 0x04300000);
+        "mntr"u8.CopyTo(icc.AsSpan(12));
+        "RGB "u8.CopyTo(icc.AsSpan(16));
+        "XYZ "u8.CopyTo(icc.AsSpan(20));
+        "acsp"u8.CopyTo(icc.AsSpan(36));
+        return icc;
+    }
+
+    private static byte[] Exif()
+    {
+        var exif = new SixLabors.ImageSharp.Metadata.Profiles.Exif.ExifProfile();
+        exif.SetValue(SixLabors.ImageSharp.Metadata.Profiles.Exif.ExifTag.Software, "Telegram Desktop");
+        return exif.ToByteArray()!;
+    }
+
     [TestCase(512, 512)]
     [TestCase(512, 300)]
     [TestCase(200, 512)]

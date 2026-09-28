@@ -44,6 +44,12 @@ public static class BotErrors
     public static readonly BotError NotVerified    = new(403, "not_verified", "This endpoint requires a verified bot.");
     public static readonly BotError NotFound       = new(404, "not_found", "The requested entity does not exist.");
 
+    /// <summary>Produced by form binding, see <see cref="BotRouteSpecBase{TSelf}.FromForm"/>.</summary>
+    public static readonly BotError InvalidRequest = new(400, "invalid_request",
+        "The form could not be read: a field is missing or malformed, or an attach:// reference names no part.");
+
+    public static readonly BotError TooLarge = new(413, "too_large", "The request, or a file in it, is over the size limit.");
+
     /// <summary>Produced by the rate limiter, not by handlers — every bot route can return it.</summary>
     public static readonly BotError RateLimited = new(429, "rate_limited", "You are being rate limited.");
 
@@ -66,13 +72,15 @@ public sealed record BotInterfaceMetadata(
 /// Everything the documentation needs about one route, attached to the endpoint by the route
 /// builder itself. Unlike an attribute, it cannot describe a route that was never mapped.
 /// </summary>
+/// <param name="FormType">The request record of a form route, which the OpenAPI document describes as a multipart body.</param>
 public sealed record BotOperationMetadata(
     string                  Method,
     string                  Path,
     string?                 Summary,
     ArgonEntitlement?       Permission,
     bool                    IsPrivileged,
-    IReadOnlyList<BotError> Errors);
+    IReadOnlyList<BotError> Errors,
+    Type?                   FormType = null);
 
 /// <summary>
 /// Turns <see cref="BotApiException"/> into the JSON error body, and complains when a route returns
@@ -123,7 +131,13 @@ public enum BotRequestBinding
     Body,
 
     /// <summary>Bound from the query string, one property per parameter.</summary>
-    Query
+    Query,
+
+    /// <summary>Bound from a multipart form by <see cref="BotFormBinder"/>, files included.</summary>
+    Form,
+
+    /// <summary>A JSON body, or the same fields as a multipart form with files, by the request's content type.</summary>
+    BodyOrForm
 }
 
 internal sealed class BotRouteConfig(RouteGroupBuilder group, string method, string path, BotRequestBinding binding)
@@ -133,6 +147,8 @@ internal sealed class BotRouteConfig(RouteGroupBuilder group, string method, str
     public string            Path   { get; } = path;
 
     public BotRequestBinding Binding              { get; set; } = binding;
+    public Type?             RequestType          { get; set; }
+    public long              MaxFormBytes         { get; set; } = BotFormBinder.DefaultLimit;
     public string            ContentType          { get; set; } = "application/json";
     public string?           Summary              { get; set; }
     public ArgonEntitlement? Permission           { get; set; }
@@ -147,13 +163,27 @@ internal sealed class BotRouteConfig(RouteGroupBuilder group, string method, str
         // the membership and verification filters to translate what they throw.
         builder.AddEndpointFilter<BotErrorFilter>();
 
+        // No Accepts metadata on a form: routing would answer another content type with a bare 415, where the
+        // binder answers invalid_request (and takes an url-encoded form too).
+        if (Binding is BotRequestBinding.Form or BotRequestBinding.BodyOrForm)
+        {
+            builder.AddEndpointFilter<BotFormFilter>();
+            builder.DisableAntiforgery();
+            builder.WithMetadata(new BotRequestSizeLimit(MaxFormBytes));
+        }
+
+        // As a [FromBody] route has it, with the form beside: this is also what describes both bodies.
+        if (Binding is BotRequestBinding.BodyOrForm)
+            builder.Accepts(RequestType!, "application/json", "multipart/form-data");
+
         if (NeedsVerifiedBot)
             builder.AddEndpointFilter<BotVerifiedFilter>();
 
         if (NeedsSpaceMembership)
             builder.AddEndpointFilter<BotSpaceMembershipFilter>();
 
-        builder.WithMetadata(new BotOperationMetadata(Method, Path, Summary, Permission, IsPrivileged, Errors));
+        builder.WithMetadata(new BotOperationMetadata(Method, Path, Summary, Permission, IsPrivileged, Errors,
+            Binding is BotRequestBinding.Form ? RequestType : null));
 
         if (Summary is not null)
             builder.WithMetadata(new EndpointSummaryAttribute(Summary));
@@ -248,6 +278,32 @@ public abstract class BotRouteSpecBase<TSelf> where TSelf : BotRouteSpecBase<TSe
         return Self;
     }
 
+    /// <summary>
+    /// Binds the request from a multipart form, Telegram style: fields are converted as JSON would be and every
+    /// <see cref="BotInputFile"/> property takes a part (its own, or one an <c>attach://</c> reference names) or a
+    /// fileId. The body is capped at <paramref name="maxBytes"/>; both refusals are declared here.
+    /// </summary>
+    public TSelf FromForm(long maxBytes)
+    {
+        cfg.Binding      = BotRequestBinding.Form;
+        cfg.MaxFormBytes = maxBytes;
+        cfg.Errors.Add(BotErrors.InvalidRequest);
+        cfg.Errors.Add(BotErrors.TooLarge);
+        return Self;
+    }
+
+    /// <summary>
+    /// Binds the request from a JSON body, or from a multipart form carrying the same fields and the files they
+    /// attach (see <see cref="FromForm"/>), as Telegram's methods take either. The body is capped at
+    /// <paramref name="maxBytes"/>; both refusals are declared here.
+    /// </summary>
+    public TSelf FromBodyOrForm(long maxBytes)
+    {
+        FromForm(maxBytes);
+        cfg.Binding = BotRequestBinding.BodyOrForm;
+        return Self;
+    }
+
     /// <summary>The media type of a successful response, for routes that do not answer in JSON.</summary>
     public TSelf Produces(string contentType)
     {
@@ -263,7 +319,7 @@ public abstract class BotRouteSpecBase<TSelf> where TSelf : BotRouteSpecBase<TSe
 public sealed class BotRouteSpec<TRequest, TResponse> : BotRouteSpecBase<BotRouteSpec<TRequest, TResponse>>
     where TRequest : notnull
 {
-    internal BotRouteSpec(BotRouteConfig cfg) : base(cfg) { }
+    internal BotRouteSpec(BotRouteConfig cfg) : base(cfg) => cfg.RequestType = typeof(TRequest);
 
     /// <summary>Maps the endpoint. The response type is the handler's, so it cannot be misdeclared.</summary>
     public RouteHandlerBuilder Handle(Func<HttpContext, TRequest, Task<TResponse>> handler)
@@ -279,18 +335,25 @@ public sealed class BotRouteSpec<TRequest, TResponse> : BotRouteSpecBase<BotRout
     internal static RouteHandlerBuilder Map<T>(BotRouteConfig cfg, Func<HttpContext, TRequest, Task<T>> handler)
         // [FromBody] rather than letting it be inferred: a DELETE never infers a body, and two
         // routes here take one.
-        => cfg.Binding is BotRequestBinding.Body
-            ? cfg.Group.MapMethods(cfg.Path, [cfg.Method],
-                async (HttpContext ctx, [FromBody] TRequest request) => await handler(ctx, request))
-            : cfg.Group.MapMethods(cfg.Path, [cfg.Method],
-                async (HttpContext ctx, [AsParameters] TRequest request) => await handler(ctx, request));
+        => cfg.Binding switch
+        {
+            BotRequestBinding.Body => cfg.Group.MapMethods(cfg.Path, [cfg.Method],
+                async (HttpContext ctx, [FromBody] TRequest request) => await handler(ctx, request)),
+            // BotFormFilter answers a failed binding before this runs, so Value is set here.
+            BotRequestBinding.Form => cfg.Group.MapMethods(cfg.Path, [cfg.Method],
+                async (HttpContext ctx, BotForm<TRequest> form) => await handler(ctx, form.Value!)),
+            BotRequestBinding.BodyOrForm => cfg.Group.MapMethods(cfg.Path, [cfg.Method],
+                async (HttpContext ctx, BotBodyOrForm<TRequest> request) => await handler(ctx, request.Value!)),
+            _ => cfg.Group.MapMethods(cfg.Path, [cfg.Method],
+                async (HttpContext ctx, [AsParameters] TRequest request) => await handler(ctx, request))
+        };
 }
 
 /// <summary>A route that takes a request payload and answers with an empty 200.</summary>
 public sealed class BotCommandSpec<TRequest> : BotRouteSpecBase<BotCommandSpec<TRequest>>
     where TRequest : notnull
 {
-    internal BotCommandSpec(BotRouteConfig cfg) : base(cfg) { }
+    internal BotCommandSpec(BotRouteConfig cfg) : base(cfg) => cfg.RequestType = typeof(TRequest);
 
     /// <inheritdoc cref="BotRouteSpec{TRequest,TResponse}.Handle"/>
     public RouteHandlerBuilder Handle(Func<HttpContext, TRequest, Task> handler)

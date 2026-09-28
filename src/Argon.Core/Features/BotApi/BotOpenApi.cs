@@ -195,13 +195,13 @@ public static class BotOpenApi
         return result;
     }
 
-    private static Task TransformOperationAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken ct)
+    private static async Task TransformOperationAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken ct)
     {
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
         var iface    = metadata.OfType<BotInterfaceMetadata>().LastOrDefault();
 
         if (iface is null)
-            return Task.CompletedTask;
+            return;
 
         var route = metadata.OfType<BotOperationMetadata>().LastOrDefault();
 
@@ -213,13 +213,22 @@ public static class BotOpenApi
         {
             operation.Summary     = route.Summary;
             operation.Description = Describe(route, iface);
-            DescribeErrors(operation, route.Errors);
             Annotate(operation, route);
         }
 
-        DescribeErrors(operation, [BotErrors.Unauthorized, BotErrors.RateLimited]);
+        if (route?.FormType is { } form)
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Required = true,
+                Content  = new Dictionary<string, OpenApiMediaType>
+                {
+                    ["multipart/form-data"] = new() { Schema = await context.GetOrCreateSchemaAsync(form, null, ct) }
+                }
+            };
+
+        // In one pass: a route's own 429 (slow_mode, space_rate_limited) shares the status with the limiter's.
+        DescribeErrors(operation, [..route?.Errors ?? [], BotErrors.Unauthorized, BotErrors.RateLimited]);
         CamelCaseQueryParameters(operation);
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -327,9 +336,39 @@ public static class BotOpenApi
     {
         var type = context.JsonTypeInfo.Type;
 
+        if (type == typeof(BotInputFile))
+        {
+            var partOnly = context.JsonPropertyInfo?.AttributeProvider?.IsDefined(typeof(BotPartOnlyAttribute), true) == true;
+            DescribeInputFile(schema, partOnly);
+            return;
+        }
+
+        // A string enum (BotStringEnumConverter) comes out as bare names.
+        if (type.IsEnum && schema.Type is null && schema.Enum is { Count: > 0 })
+            schema.Type = JsonSchemaType.String;
+
+        // A request with a file field is a form, and may carry the parts it attaches. A list of files is also given
+        // as fileIds in JSON, so its request is left as it is.
+        if (type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(p => p.PropertyType == typeof(BotInputFile)))
+            schema.AdditionalProperties = new OpenApiSchema
+            {
+                Type        = JsonSchemaType.String,
+                Format      = "binary",
+                Description = "A part an `attach://<name>` reference names."
+            };
+
         if (IsIonUnion(type))
         {
             await FillUnionAsync(schema, type, context, ct);
+            return;
+        }
+
+        // BotInputFile reaches the wire through its own converter too, so a list of them has no item schema either.
+        if (schema.Items is null && ElementType(type) == typeof(BotInputFile))
+        {
+            var file = new OpenApiSchema();
+            DescribeInputFile(file, partOnly: false);
+            schema.Items = file;
             return;
         }
 
@@ -339,6 +378,19 @@ public static class BotOpenApi
             await FillUnionAsync(items, element, context, ct);
             schema.Items = items;
         }
+    }
+
+    private static void DescribeInputFile(OpenApiSchema schema, bool partOnly)
+    {
+        schema.Type                 = JsonSchemaType.String;
+        schema.Format               = "binary";
+        schema.Properties           = null;
+        schema.AdditionalProperties = null;
+        schema.Description = partOnly
+            ? "A file: the part of this name itself, or a text field holding `attach://<name>` (another part of the "
+            + "request). A fileId is not accepted here."
+            : "A file: the part of this name itself, or a text field holding `attach://<name>` (another part of the "
+            + "request) or the `fileId` of an `IFiles/Upload`.";
     }
 
     private static async Task FillUnionAsync(OpenApiSchema schema, Type union, OpenApiSchemaTransformerContext context, CancellationToken ct)

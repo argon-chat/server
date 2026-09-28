@@ -22,6 +22,7 @@ public partial class SpaceExpressionsGrain(
     IArgonCacheDatabase counters,
     IS3StorageService s3,
     IExpressionFileValidator validator,
+    IFirstFrameRenderer renderer,
     IReferenceCountService refCount,
     IOptions<ExpressionsOptions> options,
     ILogger<SpaceExpressionsGrain> logger) : Grain, ISpaceExpressionsGrain
@@ -57,6 +58,26 @@ public partial class SpaceExpressionsGrain(
             known == current.Version ? (IonArray<ExpressionPack>?)null : current.Value);
     }
 
+    public async Task<ExpressionQuota> GetQuota()
+    {
+        var callerId = this.GetUserId();
+
+        if (await permissionCache.GetMemberWithArchetypesAsync(SpaceId, callerId) is null)
+            throw new InvalidOperationException($"user '{callerId}' is not a member of space '{SpaceId}'");
+
+        var packs = (await SnapshotAsync()).Value.ToList();
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var boost = await BoostLevelAsync(ctx);
+
+        int Used(ExpressionKind kind) => packs.Where(p => p.kind == kind).Sum(p => p.items.Count);
+
+        return new ExpressionQuota(packs.Count, Limits.PacksPerSpace,
+            Used(ExpressionKind.Sticker), Limits.SlotsFor(ExpressionKind.Sticker, boost),
+            Used(ExpressionKind.Emoji), Limits.SlotsFor(ExpressionKind.Emoji, boost),
+            Limits.ItemsPerStickerPack, Limits.ItemsPerEmojiPack, boost);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, ExpressionItem>> ResolveLiveItemsAsync(IReadOnlyCollection<Guid> itemIds)
     {
         var found = new Dictionary<Guid, ExpressionItem>();
@@ -75,8 +96,9 @@ public partial class SpaceExpressionsGrain(
     public async Task<IPackResult> CreatePack(ExpressionKind kind, string title, string slug)
     {
         var callerId = this.GetUserId();
+        var rights   = await RightsAsync(callerId);
 
-        if (!(await RightsAsync(callerId)).MayCreate)
+        if (!rights.MayCreate)
             return new FailedPack(ExpressionError.FORBIDDEN);
 
         if (!kind.IsKnown() || !ExpressionLimits.IsValidPackTitle(title) || !ExpressionLimits.IsValidPackSlug(slug))
@@ -87,15 +109,20 @@ public partial class SpaceExpressionsGrain(
         var packs = await ctx.ExpressionPacks
            .AsNoTracking()
            .Where(p => p.SpaceId == SpaceId)
-           .Select(p => new { p.Kind, p.Slug, p.SortOrder })
+           .Select(p => new { p.Id, p.Kind, p.Slug, p.SortOrder, p.CreatorId })
            .ToListAsync();
+
+        // A bot repeating its own create gets the pack it made.
+        if (rights.Bot && packs.FirstOrDefault(p => p.Slug == slug) is { } same && same.CreatorId == callerId && same.Kind == kind
+         && await PackAsync(same.Id) is { } existing)
+            return new SuccessPack(existing);
 
         if (packs.Count >= Limits.PacksPerSpace)
             return new FailedPack(ExpressionError.QUOTA_EXCEEDED);
         if (packs.Any(p => p.Slug == slug))
             return new FailedPack(ExpressionError.NAME_TAKEN);
 
-        if (!await TakeMutationAsync())
+        if (!await TakeMutationAsync(rights.Bot))
             return new FailedPack(ExpressionError.RATE_LIMITED);
 
         var before = (await SnapshotAsync()).Version;
@@ -169,7 +196,7 @@ public partial class SpaceExpressionsGrain(
         if (newSlug != pack.Slug && await ctx.ExpressionPacks.AnyAsync(p => p.SpaceId == SpaceId && p.Slug == newSlug))
             return new FailedPack(ExpressionError.NAME_TAKEN);
 
-        if (!await TakeMutationAsync())
+        if (!await TakeMutationAsync(rights.Bot))
             return new FailedPack(ExpressionError.RATE_LIMITED);
 
         var before = (await SnapshotAsync()).Version;
@@ -199,7 +226,7 @@ public partial class SpaceExpressionsGrain(
         var callerId = this.GetUserId();
         var rights   = await RightsAsync(callerId);
 
-        if (!rights.MayCreate)
+        if (rights.Bot || !rights.MayCreate)
             return new FailedPack(ExpressionError.FORBIDDEN);
 
         await using var ctx = await context.CreateDbContextAsync();
@@ -213,7 +240,7 @@ public partial class SpaceExpressionsGrain(
         if (!rights.MayChange(pack.CreatorId, callerId))
             return new FailedPack(ExpressionError.FORBIDDEN);
 
-        if (!await TakeMutationAsync())
+        if (!await TakeMutationAsync(rights.Bot))
             return new FailedPack(ExpressionError.RATE_LIMITED);
 
         var before = (await SnapshotAsync()).Version;
@@ -242,7 +269,9 @@ public partial class SpaceExpressionsGrain(
 
     public async Task<IReorderResult> ReorderPacks(ExpressionKind kind, List<Guid> ordered)
     {
-        if (!(await RightsAsync(this.GetUserId())).Manage)
+        var rights = await RightsAsync(this.GetUserId());
+
+        if (rights.Bot || !rights.Manage)
             return new FailedReorder(ExpressionError.FORBIDDEN);
 
         await using var ctx = await context.CreateDbContextAsync();
@@ -258,7 +287,7 @@ public partial class SpaceExpressionsGrain(
         if (moved.Count == 0)
             return new SuccessReorder(new IonArray<Guid>(ordered));
 
-        if (!await TakeMutationAsync())
+        if (!await TakeMutationAsync(rights.Bot))
             return new FailedReorder(ExpressionError.RATE_LIMITED);
 
         var before = (await SnapshotAsync()).Version;
@@ -366,23 +395,42 @@ public partial class SpaceExpressionsGrain(
 
     // ── shared ──────────────────────────────────────────────────────────────────────────────────
 
-    private readonly record struct Rights(bool Create, bool Manage)
+    /// <summary>A bot never deletes or reorders, and changes only what it made, whatever it was granted.</summary>
+    private readonly record struct Rights(bool Create, bool Manage, bool Bot)
     {
         public bool MayCreate => Create || Manage;
 
         /// <summary>One's own with CreateExpressions, anybody's with ManageExpressions.</summary>
-        public bool MayChange(Guid ownerId, Guid callerId) => Manage || (Create && ownerId == callerId);
+        public bool MayChange(Guid ownerId, Guid callerId) => Bot ? MayCreate && ownerId == callerId : Manage || (Create && ownerId == callerId);
     }
 
     private async Task<Rights> RightsAsync(Guid callerId)
         => new(await entitlementChecker.HasAccessAsync(SpaceId, callerId, ArgonEntitlement.CreateExpressions),
-            await entitlementChecker.HasAccessAsync(SpaceId, callerId, ArgonEntitlement.ManageExpressions));
+            await entitlementChecker.HasAccessAsync(SpaceId, callerId, ArgonEntitlement.ManageExpressions),
+            await IsBotAsync(callerId));
 
-    /// <summary>Takes one of the space's mutations for the current minute.</summary>
-    private async Task<bool> TakeMutationAsync()
+    // A user never turns into a bot or back, so the answer holds for the activation.
+    private readonly Dictionary<Guid, bool> bots = new();
+
+    private async Task<bool> IsBotAsync(Guid userId)
     {
-        var key   = $"expressions:rate:{SpaceId}";
-        var limit = Limits.MutationsPerMinute;
+        if (bots.TryGetValue(userId, out var bot))
+            return bot;
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Older bot accounts carry no BotEntityId; the bot row's back-reference names them too.
+        bot = await ctx.Users.IgnoreQueryFilters().AnyAsync(u => u.Id == userId && u.BotEntityId != null)
+           || await ctx.BotEntities.IgnoreQueryFilters().AnyAsync(b => b.BotAsUserId == userId);
+
+        return bots[userId] = bot;
+    }
+
+    /// <summary>Takes one of the space's mutations for the current minute; bots draw on a budget of their own.</summary>
+    private async Task<bool> TakeMutationAsync(bool bot)
+    {
+        var key   = bot ? $"expressions:rate:{SpaceId}:bot" : $"expressions:rate:{SpaceId}";
+        var limit = bot ? Limits.BotMutationsPerMinute : Limits.MutationsPerMinute;
 
         try
         {

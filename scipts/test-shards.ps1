@@ -139,6 +139,8 @@ $presenceFixtures = @(
 # (added 2026-09-26, with announcement channels phase 2) likewise, into the first shard.
 # ChannelComposerTests (added 2026-09-26, with scheduled posts and drafts) likewise, into the first shard.
 # SpaceExpressionTests (added 2026-09-27, with stickers and custom emoji) likewise, into the first shard.
+# BotExpressionsTests (added 2026-09-27, with the Bot API for stickers and custom emoji) likewise, into the first shard.
+# BotReactionsTests and BotAttachmentsTests (added 2026-09-28, with bot custom-emoji reactions and attachments) likewise, into the first shard.
 # The grain-coverage fixtures of 2026-09-24/25 are hand-placed until the next -FromTrx rebalance:
 # the Admin*, security, dev-team and space ones into the first shard, the commerce, user-state and social ones into the second,
 # PresenceSessionGateTests into the presence shard, and ChannelSendCapTests (NonParallelizable: it
@@ -162,8 +164,11 @@ $generalShards = @(
         'AnnouncementReportTests'
         'AppManagementTests'
         'ArchetypeTests'
+        'BotAttachmentsTests'
         'BotDirectoryTests'
+        'BotExpressionsTests'
         'BotGatewayTests'
+        'BotReactionsTests'
         'ChannelFollowTests'
         'ChannelComposerTests'
         'ChannelHighWaterMarkTests'

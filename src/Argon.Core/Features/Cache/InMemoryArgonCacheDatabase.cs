@@ -169,4 +169,13 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         lock (entries)
             return Task.FromResult((long)entries.RemoveAll(entry => entry.Score >= min && entry.Score <= max));
     }
+
+    public Task<bool> SortedSetRemoveAsync(string key, string member, CancellationToken ct = default)
+    {
+        if (!_sorted.TryGetValue(key, out var entries))
+            return Task.FromResult(false);
+
+        lock (entries)
+            return Task.FromResult(entries.RemoveAll(entry => entry.Member == member) > 0);
+    }
 }

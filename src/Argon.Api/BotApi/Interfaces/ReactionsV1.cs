@@ -3,7 +3,7 @@ namespace Argon.Api.BotApi.Interfaces;
 using Argon.Features.BotApi;
 
 [BotInterface("IReactions", 1)]
-[BotDescription("Add and remove emoji reactions on messages.")]
+[BotDescription("Add and remove emoji reactions on messages, unicode or custom.")]
 public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
 {
     public sealed record AddReactionRequest(
@@ -16,14 +16,22 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
         long   MessageId,
         string Emoji);
 
+    public sealed record CustomReactionRequest(
+        Guid SpaceId,
+        Guid ChannelId,
+        long MessageId,
+        Guid ItemId);
+
     public sealed record ListReactionsQuery(
         Guid ChannelId,
         long MessageId);
 
+    /// <summary><c>customEmojiId</c> is set for a custom emoji, whose <c>emoji</c> reads <c>:name:</c>.</summary>
     public sealed record ReactionDto(
         string     Emoji,
         int        Count,
-        List<Guid> UserIds);
+        List<Guid> UserIds,
+        Guid?      CustomEmojiId = null);
 
     public sealed record ListReactionsResponse(
         List<ReactionDto> Reactions);
@@ -45,6 +53,9 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
     private static readonly BotError ReactionLimitReached  = new(422, "reaction_limit_reached", "Maximum 20 unique emoji per message.");
     private static readonly BotError InsufficientRights    = new(403, "insufficient_permissions", "Bot does not have the AddReactions permission.");
     private static readonly BotError ReactionsDisabled     = new(403, "reactions_disabled", "Reactions are turned off in this announcement channel.");
+    private static readonly BotError EmojiNotFound         = new(404, "not_found", "The custom emoji does not exist or was deleted, or the channel takes no reactions.");
+    private static readonly BotError ForeignEmojiRefused   = new(403, "insufficient_permissions",
+        "Bot does not have the AddReactions permission, or the emoji belongs to another space and the bot is not verified.");
 
     public void MapRoutes(RouteGroupBuilder group)
     {
@@ -97,18 +108,66 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
                     }).Raise();
             });
 
+        group.Post<CustomReactionRequest>("/AddCustom")
+           .Summary("Adds a custom emoji reaction (itemId: an emoji item, see IExpressions/List); its emoji reads :name:. Any bot may react with an emoji of the space the message is in. An emoji of another space is for verified bots only; others get 403 insufficient_permissions.")
+           .Permission(ArgonEntitlement.AddReactions)
+           .Throws(MessageNotFound)
+           .Throws(EmojiNotFound)
+           .Throws(AlreadyReacted)
+           .Throws(ReactionLimitReached)
+           .Throws(ForeignEmojiRefused)
+           .Throws(ReactionsDisabled)
+           .Handle(async (ctx, request) =>
+            {
+                var result = await grains.GetGrain<IChannelGrain>(request.ChannelId)
+                   .AddCustomReaction(request.MessageId, request.ItemId, allowForeign: ctx.GetBotIsVerified());
+
+                if (result is FailedAddReaction failure)
+                    throw (failure.error switch
+                    {
+                        AddReactionError.NONE                     => EmojiNotFound,
+                        AddReactionError.MESSAGE_NOT_FOUND        => MessageNotFound,
+                        AddReactionError.ALREADY_REACTED          => AlreadyReacted,
+                        AddReactionError.REACTION_LIMIT_REACHED   => ReactionLimitReached,
+                        AddReactionError.INSUFFICIENT_PERMISSIONS => ForeignEmojiRefused,
+                        AddReactionError.REACTIONS_DISABLED       => ReactionsDisabled,
+                        _                                         => throw new InvalidOperationException(
+                            $"unhandled AddReactionError {failure.error}")
+                    }).Raise();
+            });
+
+        group.Post<CustomReactionRequest>("/RemoveCustom")
+           .Summary("Removes the bot's custom emoji reaction, also after the emoji was deleted.")
+           .Throws(MessageNotFound)
+           .Throws(ReactionNotFound)
+           .Handle(async (_, request) =>
+            {
+                var result = await grains.GetGrain<IChannelGrain>(request.ChannelId)
+                   .RemoveCustomReaction(request.MessageId, request.ItemId);
+
+                if (result is FailedRemoveReaction failure)
+                    throw (failure.error switch
+                    {
+                        RemoveReactionError.MESSAGE_NOT_FOUND  => MessageNotFound,
+                        RemoveReactionError.REACTION_NOT_FOUND => ReactionNotFound,
+                        _                                      => throw new InvalidOperationException(
+                            $"unhandled RemoveReactionError {failure.error}")
+                    }).Raise();
+            });
+
         group.Get<ListReactionsQuery, ListReactionsResponse>("/List")
            .Summary("Lists all reactions on a message. Returns emoji, count, and a preview of user IDs (up to 3).")
            .Throws(MessageNotFound)
            .Handle(async (_, query) =>
             {
-                var messages = await grains.GetGrain<IChannelGrain>(query.ChannelId).QueryMessages(query.MessageId, 1);
-                var message  = messages.FirstOrDefault(m => m.MessageId == query.MessageId)
-                            ?? throw MessageNotFound.Raise();
+                // The channel's own reaction buffer: the stored row lags behind it until the next flush.
+                var byMessage = await grains.GetGrain<IChannelGrain>(query.ChannelId).BatchGetReactions(new List<long> { query.MessageId });
+                if (!byMessage.TryGetValue(query.MessageId, out var reactions))
+                    throw MessageNotFound.Raise();
 
-                return new ListReactionsResponse(message.Reactions?
-                   .Select(r => new ReactionDto(r.Emoji, r.UserIds.Count, r.UserIds.Take(3).ToList()))
-                   .ToList() ?? []);
+                return new ListReactionsResponse(reactions
+                   .Select(r => new ReactionDto(r.emoji, r.count, r.userIds.Values.Take(3).ToList(), r.customEmojiId))
+                   .ToList());
             });
 
         group.Post<BatchGetReactionsRequest, BatchGetReactionsResponse>("/BatchGet")
@@ -120,7 +179,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
 
                 return new BatchGetReactionsResponse(byMessage.Select(kv => new MessageReactionsDto(
                     kv.Key,
-                    kv.Value.Select(r => new ReactionDto(r.emoji, r.count, r.userIds.Values.Take(3).ToList())).ToList()))
+                    kv.Value.Select(r => new ReactionDto(r.emoji, r.count, r.userIds.Values.Take(3).ToList(), r.customEmojiId)).ToList()))
                    .ToList());
             });
     }

@@ -8,7 +8,8 @@ public record FileUploadRequest(
     [property: Id(1)] string ContentType,
     [property: Id(2)] long FileSize,
     [property: Id(3)] Guid? SpaceId = null,
-    [property: Id(4)] Guid? ChannelId = null);
+    [property: Id(4)] Guid? ChannelId = null,
+    [property: Id(5)] string? FileName = null);
 
 [GenerateSerializer]
 public record FileUploadResponse(
@@ -43,6 +44,14 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(FinalizeUploadAsync)), ResponseTimeout("00:01:00")]
     Task<FileInfoResponse> FinalizeUploadAsync(Guid blobId, CancellationToken ct = default);
+
+    /// <summary>
+    ///     Stores bytes the server already holds: request, put and finalize in one call. With
+    ///     <paramref name="unclaimedFor"/> the file starts without a reference and is collectable that long from now.
+    /// </summary>
+    [Alias(nameof(StoreAsync)), ResponseTimeout("00:01:00")]
+    Task<FileInfoResponse> StoreAsync(FileUploadRequest request, byte[] data, string? cacheControl, TimeSpan? unclaimedFor,
+        CancellationToken ct = default);
 
     /// <summary>
     ///     Increment reference count for a file the caller owns (e.g. attached to a message).

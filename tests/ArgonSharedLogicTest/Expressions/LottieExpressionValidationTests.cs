@@ -39,6 +39,18 @@ public class LottieExpressionValidationTests
     }
 
     [Test]
+    public async Task A_telegram_export_with_the_tgs_marker_passes()
+    {
+        // Telegram's exporter writes "tgs": 1 at the root of every .tgs.
+        var document = TestLottie.Document();
+        document["tgs"] = 1;
+
+        var result = await Validate(TestLottie.Gzip(TestLottie.Json(document)));
+
+        Assert.That(result.Ok, Is.True, result.Error.ToString());
+    }
+
+    [Test]
     public async Task Plain_json_is_accepted_and_gzipped_for_storage()
     {
         var json = TestLottie.Json(TestLottie.Document());

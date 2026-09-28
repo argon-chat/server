@@ -302,7 +302,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
         => await this.GetGrain<IChannelGrain>(channelId).RemoveReaction(messageId, emoji);
 
     public async Task<IAddReactionResult> AddCustomReaction(Guid spaceId, Guid channelId, long messageId, Guid itemId, CancellationToken ct = default)
-        => await this.GetGrain<IChannelGrain>(channelId).AddCustomReaction(messageId, itemId);
+        => await this.GetGrain<IChannelGrain>(channelId).AddCustomReaction(messageId, itemId, allowForeign: false);
 
     public async Task<IRemoveReactionResult> RemoveCustomReaction(Guid spaceId, Guid channelId, long messageId, Guid itemId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).RemoveCustomReaction(messageId, itemId);

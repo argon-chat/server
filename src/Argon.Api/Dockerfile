@@ -13,6 +13,8 @@ WORKDIR /app
 
 # Kestrel's HTTP/3 (and so WebTransport) runs on MsQuic, which the base image does not carry: without
 # it QUIC is silently unsupported. It comes from packages.microsoft.com for the image's own Ubuntu.
+# rlottie and libvpx draw the first frame of animated stickers (FirstFrameRenderer); without them an
+# animated upload needs the client's thumbnail.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
  && . /etc/os-release \
@@ -21,7 +23,7 @@ RUN apt-get update \
  && dpkg -i /tmp/packages-microsoft-prod.deb \
  && rm /tmp/packages-microsoft-prod.deb \
  && apt-get update \
- && apt-get install -y --no-install-recommends libmsquic \
+ && apt-get install -y --no-install-recommends libmsquic librlottie0-1 libvpx9 \
  && apt-get purge -y --auto-remove curl \
  && rm -rf /var/lib/apt/lists/*
 

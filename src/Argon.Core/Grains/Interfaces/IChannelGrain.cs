@@ -60,6 +60,13 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<(SendMessageError error, long messageId)> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo,
         List<ControlRowV1>? controls = null);
 
+    /// <summary>
+    /// <see cref="SendMessage"/> for the Bot API: attachments are the bot's uploads, made into entities from what
+    /// was stored, and any the bot wrote itself are dropped.
+    /// </summary>
+    [Alias(nameof(SendBotMessage))]
+    Task<BotMessageSent> SendBotMessage(BotMessageSend request);
+
     [Alias(nameof(QueryMessages))]
     Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit);
 
@@ -192,9 +199,13 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(RemoveReaction))]
     Task<IRemoveReactionResult> RemoveReaction(long messageId, string emoji);
 
-    /// <summary>Reacts with a live custom emoji of this channel's space; keyed as <c>:name:</c> plus the item id.</summary>
+    /// <summary>
+    /// Reacts with a live custom emoji; keyed as <c>:name:</c> plus the item id. An emoji of another space is taken only
+    /// with <paramref name="allowForeign"/> and is refused with <c>INSUFFICIENT_PERMISSIONS</c> otherwise; an unknown or
+    /// deleted one is refused with <c>NONE</c>.
+    /// </summary>
     [Alias(nameof(AddCustomReaction))]
-    Task<IAddReactionResult> AddCustomReaction(long messageId, Guid itemId);
+    Task<IAddReactionResult> AddCustomReaction(long messageId, Guid itemId, bool allowForeign = false);
 
     [Alias(nameof(RemoveCustomReaction))]
     Task<IRemoveReactionResult> RemoveCustomReaction(long messageId, Guid itemId);
@@ -232,6 +243,28 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(ReceiveCrosspostAsync))]
     Task<long?> ReceiveCrosspostAsync(CrosspostDraft draft);
 }
+
+/// <remarks>Pass <see cref="List{T}"/>s: a collection expression's compiler-made type does not cross a grain call.</remarks>
+[GenerateSerializer, Immutable]
+public sealed record BotMessageSend(
+    [property: Id(0)] string               Text,
+    [property: Id(1)] List<IMessageEntity> Entities,
+    [property: Id(2)] long                 RandomId,
+    [property: Id(3)] long?                ReplyTo,
+    [property: Id(4)] List<ControlRowV1>?  Controls,
+    [property: Id(5)] List<Guid>           Attachments);
+
+/// <summary>
+/// <see cref="MessageId"/> and <see cref="Attachments"/> are set when <see cref="Error"/> is <c>NONE</c>.
+/// <see cref="MissingUploads"/> lists the attachments that are no usable upload of the bot's, and comes with
+/// <c>INVALID_DATA</c>.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record BotMessageSent(
+    [property: Id(0)] SendMessageError              Error,
+    [property: Id(1)] long                          MessageId,
+    [property: Id(2)] List<MessageEntityAttachment> Attachments,
+    [property: Id(3)] List<Guid>                    MissingUploads);
 
 /// <summary>A stretch of a channel's history, newest first, and whether more lies on either side.</summary>
 [GenerateSerializer, Immutable]

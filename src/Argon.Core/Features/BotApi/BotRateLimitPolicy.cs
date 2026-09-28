@@ -24,6 +24,11 @@ public sealed class BotRateLimitOptions
         ["ICalls"]        = new() { PermitLimit =  20, Window = TimeSpan.FromMinutes(1) },
         ["IVoiceEgress"]  = new() { PermitLimit =  10, Window = TimeSpan.FromMinutes(1) },
         ["IEvents"]       = new() { PermitLimit =   5, Window = TimeSpan.FromMinutes(1) },
+        ["ITyping"]       = new() { PermitLimit =  60, Window = TimeSpan.FromMinutes(1) },
+        ["IArchetypes"]   = new() { PermitLimit =  30, Window = TimeSpan.FromMinutes(1) },
+        ["IReactions"]    = new() { PermitLimit =  60, Window = TimeSpan.FromMinutes(1) },
+        ["IFiles"]        = new() { PermitLimit =  30, Window = TimeSpan.FromMinutes(1) },
+        ["IExpressions"]  = new() { PermitLimit =  60, Window = TimeSpan.FromMinutes(1) },
     };
 }
 

@@ -26,6 +26,35 @@ public class FileStorageGrain(
     private readonly FileLimitsOptions _limits  = limitsOptions.Value;
 
     public async Task<FileUploadResponse> RequestUploadAsync(FileUploadRequest request, CancellationToken ct = default)
+        => (await CreateUploadAsync(request, ct)).Response;
+
+    public async Task<FileInfoResponse> StoreAsync(FileUploadRequest request, byte[] data, string? cacheControl, TimeSpan? unclaimedFor,
+        CancellationToken ct = default)
+    {
+        var (upload, key) = await CreateUploadAsync(request with { FileSize = data.Length }, ct);
+
+        using (var content = new MemoryStream(data, writable: false))
+            if (!await s3.PutObjectAsync(key, content, request.ContentType, cacheControl, ct))
+                throw new InvalidOperationException($"could not store file {upload.FileId}");
+
+        var file = await FinalizeUploadAsync(upload.BlobId, ct);
+
+        if (unclaimedFor is { } lifetime)
+        {
+            // FileGcService collects RefCount <= 0 once UpdatedAt is older than its grace period, so stamping
+            // UpdatedAt ahead keeps an unclaimed file for at least the lifetime.
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            await db.FileCounters
+               .Where(c => c.Id == file.FileId)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(c => c.RefCount, 0L)
+                   .SetProperty(c => c.UpdatedAt, DateTimeOffset.UtcNow + lifetime), ct);
+        }
+
+        return file;
+    }
+
+    private async Task<(FileUploadResponse Response, string S3Key)> CreateUploadAsync(FileUploadRequest request, CancellationToken ct)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.RequestUpload");
         activity?.SetTag("file.purpose", request.Purpose.ToString());
@@ -71,7 +100,7 @@ public class FileStorageGrain(
             BucketName  = putData.Url, // store full presigned URL for reference
             FileSize    = 0,
             ContentType = request.ContentType,
-            FileName    = null,
+            FileName    = request.FileName,
             Finalized   = false,
             SpaceId     = request.SpaceId,
             ChannelId   = request.ChannelId,
@@ -103,7 +132,7 @@ public class FileStorageGrain(
         logger.LogInformation("Upload requested: fileId={FileId}, purpose={Purpose}, sizeLimit={Limit}, userId={UserId}",
             fileId, request.Purpose, effectiveLimit, userId);
 
-        return new FileUploadResponse(blob.Id, fileId, putData.Url, putData.Headers, _limits.BlobTtlSeconds);
+        return (new FileUploadResponse(blob.Id, fileId, putData.Url, putData.Headers, _limits.BlobTtlSeconds), s3Key);
     }
 
     public async Task<FileInfoResponse> FinalizeUploadAsync(Guid blobId, CancellationToken ct = default)
@@ -398,7 +427,7 @@ public class FileStorageGrain(
             var ownerId = spaceId ?? userId;
             return purpose switch
             {
-                FilePurpose.ChannelAttachment => $"s/{ownerId}/{category}/{channelId}/{fileId}",
+                FilePurpose.ChannelAttachment when channelId is not null => $"s/{ownerId}/{category}/{channelId}/{fileId}",
                 FilePurpose.Video             => $"s/{ownerId}/{category}/{channelId}/{fileId}",
                 _                             => $"s/{ownerId}/{category}/{fileId}"
             };

@@ -64,8 +64,9 @@ public sealed class BotSpaceMembershipFilter(IGrainFactory grains) : IEndpointFi
 
         if (!spaceId.HasValue)
         {
-            foreach (var arg in context.Arguments)
+            foreach (var argument in context.Arguments)
             {
+                var arg = argument is IBotBoundRequest bound ? bound.Value : argument;
                 if (arg is null) continue;
                 var prop = arg.GetType().GetProperty("SpaceId");
                 if (prop?.PropertyType == typeof(Guid) && prop.GetValue(arg) is Guid bodyId)

@@ -160,4 +160,7 @@ public class RedisArgonCacheDatabase(
     public Task<long> SortedSetRemoveRangeByScoreAsync(
         string key, double min, double max, CancellationToken ct = default)
         => ExecWithRetry(db => db.SortedSetRemoveRangeByScoreAsync(key, min, max));
+
+    public Task<bool> SortedSetRemoveAsync(string key, string member, CancellationToken ct = default)
+        => ExecWithRetry(db => db.SortedSetRemoveAsync(key, member));
 }

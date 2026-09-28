@@ -39,6 +39,7 @@ export const allEntitlements: EntitlementInfo[] = [
   { bit: 1n << 12n, key: 'ExternalStickers',    label: 'External Stickers',   description: 'Allows using stickers from other spaces',     category: 'chat' },
   { bit: 1n << 13n, key: 'UseCommands',         label: 'Use Commands',        description: 'Allows using bot and slash commands',         category: 'chat' },
   { bit: 1n << 14n, key: 'PostEmbeddedLinks',   label: 'Embed Links',         description: 'Allows links to show embedded previews',      category: 'chat' },
+  { bit: 1n << 15n, key: 'CreateExpressions',   label: 'Create Expressions',  description: 'Allows creating sticker and emoji packs, adding items and editing its own', category: 'chat' },
 
   // Media
   { bit: 1n << 20n, key: 'Connect', label: 'Connect to Voice',  description: 'Allows connecting to voice channels',     category: 'media' },
@@ -66,6 +67,8 @@ export const allEntitlements: EntitlementInfo[] = [
   { bit: 1n << 53n, key: 'ManageEvents',    label: 'Manage Events',      description: 'Allows creating and managing events',             category: 'admin', dangerous: true },
   { bit: 1n << 54n, key: 'ManageBehaviour', label: 'Manage Behaviour',   description: 'Allows configuring automod and behaviour rules',  category: 'admin', dangerous: true },
   { bit: 1n << 55n, key: 'ManageServer',    label: 'Manage Server',      description: 'Allows full server management',                  category: 'admin', dangerous: true },
+  { bit: 1n << 56n, key: 'ManageMessages',  label: 'Manage Messages',    description: 'Allows deleting other people\'s messages and bypassing slow mode', category: 'admin', dangerous: true },
+  { bit: 1n << 57n, key: 'ManageExpressions', label: 'Manage Expressions', description: 'Allows editing and deleting any sticker or emoji pack',        category: 'admin', dangerous: true },
 ]
 
 /** Convert a u64 mask (number) to the set of matching entitlements. */

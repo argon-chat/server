@@ -299,10 +299,11 @@ internal sealed class ChannelTestBot
             pump          = PumpAsync(body);
         }
 
-        public static async Task<BotEvents> OpenAsync(string token, CancellationToken ct)
+        public static async Task<BotEvents> OpenAsync(string token, CancellationToken ct, long? intents = null)
         {
             var cts     = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            var request = new HttpRequestMessage(HttpMethod.Get, "/api/bot/IEvents/v1/Stream");
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                intents is { } wanted ? $"/api/bot/IEvents/v1/Stream?intents={wanted}" : "/api/bot/IEvents/v1/Stream");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bot", token);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 

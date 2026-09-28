@@ -4,16 +4,37 @@ using Argon.Features.Expressions;
 
 public partial class ChannelGrain
 {
-    public async Task<IAddReactionResult> AddCustomReaction(long messageId, Guid itemId)
+    public async Task<IAddReactionResult> AddCustomReaction(long messageId, Guid itemId, bool allowForeign = false)
     {
         // A list, not a collection expression: the grain call has to be able to name the argument's type.
         var items = await LiveItemsAsync(new List<Guid> { itemId });
 
+        if (items.TryGetValue(itemId, out var item) && item.kind == ExpressionKind.Emoji && item.spaceId == SpaceId)
+            return await AddReactionAsync(messageId, $":{item.name}:", itemId);
+
         // There is no "unknown emoji" refusal to give; NONE is what an unusable one reads as.
-        if (!items.TryGetValue(itemId, out var item) || item.kind != ExpressionKind.Emoji || item.spaceId != SpaceId)
+        if (await ForeignEmojiAsync(itemId) is not { } foreign)
             return new FailedAddReaction(AddReactionError.NONE);
 
-        return await AddReactionAsync(messageId, $":{item.name}:", itemId);
+        if (!allowForeign)
+            return new FailedAddReaction(AddReactionError.INSUFFICIENT_PERMISSIONS);
+
+        return await AddReactionAsync(messageId, $":{foreign.name}:", itemId);
+    }
+
+    /// <summary>A live emoji of another space, looked up across spaces.</summary>
+    private async Task<StatusEmoji?> ForeignEmojiAsync(Guid itemId)
+    {
+        try
+        {
+            var found = await GrainFactory.GetGrain<IExpressionItemDirectoryGrain>(Guid.Empty).ResolveEmojiAsync(new List<Guid> { itemId });
+            return found.TryGetValue(itemId, out var emoji) && emoji.spaceId != SpaceId ? emoji : null;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "could not look up custom emoji {ItemId}; treating it as unknown", itemId);
+            return null;
+        }
     }
 
     // Taking one back needs no live item: it may have been deleted since.

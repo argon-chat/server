@@ -33,6 +33,50 @@ public class VideoExpressionValidationTests
     }
 
     [Test]
+    public async Task Thirty_three_millisecond_frames_pass_up_to_one_frame_past_three_seconds()
+    {
+        // Telegram's exporters write 33 ms frames (30.3 fps): 91 of them run to 3.003 s.
+        var telegram = new WebmBuilder { Frames = 91, FrameIntervalMs = 33, DefaultDurationNs = 33_000_000, DurationMs = 3003 }.Build();
+        var measured = new WebmBuilder { Frames = 91, FrameIntervalMs = 33, DefaultDurationNs = null, DurationMs = null }.Build();
+        var twoOver  = new WebmBuilder { Frames = 93, FrameIntervalMs = 33, DefaultDurationNs = 33_000_000, DurationMs = 3069 }.Build();
+
+        var result = await Validate(telegram);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True, result.Error.ToString());
+            Assert.That(result.Fps, Is.EqualTo(30.3).Within(0.05));
+            Assert.That(result.DurationSeconds, Is.EqualTo(3.003).Within(0.001));
+        });
+        Assert.That((await Validate(measured)).Ok, Is.True, "without a declared frame duration");
+        Assert.That((await Validate(twoOver)).Error, Is.EqualTo(ExpressionError.INVALID_FORMAT), "two frames past three seconds");
+    }
+
+    [Test]
+    public async Task A_declared_frame_duration_does_not_stretch_the_length_limit()
+    {
+        // One frame of slack, however long the file says a frame is.
+        var stretched = new WebmBuilder { Frames = 2, FrameIntervalMs = 2500, DefaultDurationNs = 2_500_000_000, DurationMs = 5000 }.Build();
+
+        Assert.That((await Validate(stretched)).Error, Is.EqualTo(ExpressionError.INVALID_FORMAT));
+    }
+
+    [Test]
+    public async Task Vp9_with_an_alpha_channel_passes()
+    {
+        var webm = new WebmBuilder { Alpha = true }.Build();
+
+        var result = await Validate(webm);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Ok, Is.True, result.Error.ToString());
+            Assert.That(result.DurationSeconds, Is.EqualTo(3.0).Within(0.001));
+            Assert.That(result.Fps, Is.EqualTo(30).Within(0.05));
+        });
+    }
+
+    [Test]
     public async Task An_audio_track_is_refused()
         => Assert.That((await Validate(new WebmBuilder { Audio = true }.Build())).Error, Is.EqualTo(ExpressionError.INVALID_FORMAT));
 

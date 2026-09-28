@@ -23,6 +23,9 @@ public sealed class ExpressionsOptions : IValidatableFeatureOptions
     public int MutationsPerMinute       { get; set; } = 30;
     public int MaxCustomEmojiPerMessage { get; set; } = 100;
 
+    /// <summary>The bots' own per-space budget, kept apart so bots and people do not starve each other.</summary>
+    public int BotMutationsPerMinute { get; set; } = 120;
+
     public IReadOnlyList<int> EffectiveEmojiSlots
         => EmojiSlotsByBoostLevel.Length > 0 ? EmojiSlotsByBoostLevel : DefaultEmojiSlotsByBoostLevel;
 
@@ -48,6 +51,7 @@ public sealed class ExpressionsOptions : IValidatableFeatureOptions
         report.RequireRange(ItemsPerStickerPack, 1, 10_000, nameof(ItemsPerStickerPack));
         report.RequireRange(ItemsPerEmojiPack, 1, 10_000, nameof(ItemsPerEmojiPack));
         report.RequireRange(MutationsPerMinute, 1, 10_000, nameof(MutationsPerMinute));
+        report.RequireRange(BotMutationsPerMinute, 1, 10_000, nameof(BotMutationsPerMinute));
         report.RequireRange(MaxCustomEmojiPerMessage, 0, 4096, nameof(MaxCustomEmojiPerMessage));
     }
 

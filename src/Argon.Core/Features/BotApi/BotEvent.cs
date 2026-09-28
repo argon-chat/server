@@ -39,6 +39,8 @@ public enum BotEventType
     ArchetypeUpdate,
     ReactionAdd,
     ReactionRemove,
+    // Appended only: the NATS serializer writes these as numbers.
+    ExpressionsUpdate,
 }
 
 /// <summary>

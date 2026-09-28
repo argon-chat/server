@@ -14,6 +14,14 @@ internal static class BotSendErrors
     public static readonly BotError SlowMode = new(429, "slow_mode",
         "The channel is holding messages back; retry later.");
 
+    public static readonly BotError NoAttachPermission = new(403, "insufficient_permissions",
+        "Bot does not have AttachFiles permission in this channel.");
+
+    public static readonly BotError UploadNotFound = new(404, "not_found",
+        "An attachment's fileId names no upload of this bot with purpose attachment, or one over 24 hours old.");
+
+    public static readonly BotError EmptyAttachment = new(400, "invalid_format", "An attached file is empty.");
+
     public static BotApiException Raise(SendMessageError error) => error switch
     {
         SendMessageError.NO_PERMISSION        => CannotSend.Raise("Bot does not have SendMessages permission in this channel."),
