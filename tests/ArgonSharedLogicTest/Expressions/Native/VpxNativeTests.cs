@@ -22,7 +22,7 @@ public class VpxNativeTests
         => Assert.That(Math.Max(255 - pixel.R, Math.Max(pixel.G, pixel.B)), Is.LessThanOrEqualTo(Tolerance), $"{where}: {pixel}");
 
     [Test]
-    public void The_image_struct_is_vpx_image_t_at_image_abi_5()
+    public unsafe void The_image_struct_is_vpx_image_t_at_image_abi_5()
     {
         Assume.That(Environment.Is64BitProcess);
 
