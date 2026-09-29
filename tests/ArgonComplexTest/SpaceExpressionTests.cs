@@ -112,7 +112,7 @@ public class SpaceExpressionTests : TestBase
     private static async Task<string> KeyOfAsync(Guid fileId, CancellationToken ct)
     {
         await using var db = await DbAsync(ct);
-        return await db.Files.AsNoTracking().Where(f => f.Id == fileId).Select(f => f.S3Key).SingleAsync(ct);
+        return await db.KeyOfAsync(fileId, ct);
     }
 
     private static async Task<Image<Rgba32>> StoredImageAsync(Guid fileId, CancellationToken ct)
@@ -230,7 +230,7 @@ public class SpaceExpressionTests : TestBase
     private static async Task<S3FileMetadata?> StoredAsync(Guid fileId, CancellationToken ct)
     {
         await using var db  = await DbAsync(ct);
-        var             key = await db.Files.AsNoTracking().Where(f => f.Id == fileId).Select(f => f.S3Key).SingleAsync(ct);
+        var             key = await db.KeyOfAsync(fileId, ct);
         return await Services.GetRequiredService<IS3StorageService>().HeadFileAsync(key, ct);
     }
 
@@ -380,8 +380,8 @@ public class SpaceExpressionTests : TestBase
         var cover  = await UploadAsync(owner, spaceId, ExpressionKind.Sticker, ExpressionFormat.Static, StickerWebp, "image/webp", ct);
 
         await using var db = await DbAsync(ct);
-        var coverKey = await db.Files.AsNoTracking().Where(f => db.FileBlobs.Any(b => b.Id == cover && b.FileId == f.Id))
-           .Select(f => f.S3Key).SingleAsync(ct);
+        var coverFileId = await db.FileBlobs.AsNoTracking().Where(b => b.Id == cover).Select(b => b.FileId).SingleAsync(ct);
+        var coverKey    = await db.KeyOfAsync(coverFileId, ct);
 
         Moderation.Deny(coverKey, new Dictionary<string, float> { ["porn"] = 0.99f });
 
@@ -498,7 +498,7 @@ public class SpaceExpressionTests : TestBase
         await using var db = await DbAsync(ct);
         var file = await db.Files.AsNoTracking().Where(f => db.FileBlobs.Any(b => b.Id == blob && b.FileId == f.Id)).SingleAsync(ct);
 
-        Services.GetRequiredService<FakeContentModeration>().Deny(file.S3Key, new Dictionary<string, float> { ["porn"] = 0.99f });
+        Services.GetRequiredService<FakeContentModeration>().Deny(await db.KeyOfAsync(file.Id, ct), new Dictionary<string, float> { ["porn"] = 0.99f });
 
         var result = await ExpressionsOf(owner).AddItem(spaceId, pack.packId, blob, null, "nope", Wave, NoKeywords, null, ct);
 

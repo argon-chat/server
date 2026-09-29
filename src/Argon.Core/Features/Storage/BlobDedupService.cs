@@ -26,9 +26,6 @@ public interface IBlobDedupService
     /// <summary>Queues every dedupable blob that has an unverified twin by (md5, size, type).</summary>
     Task<int> RequestBackfillAsync(CancellationToken ct = default);
 
-    /// <summary>Gives finalized files that predate blobs a blob each, a batch at a time. Returns how many it did.</summary>
-    Task<int> BackfillBlobsAsync(int batch, CancellationToken ct = default);
-
     /// <summary>Points every file of <paramref name="duplicateId"/> at <paramref name="canonicalId"/> and schedules the duplicate's object.</summary>
     Task MergeAsync(Guid duplicateId, Guid canonicalId, CancellationToken ct = default);
 }
@@ -223,45 +220,6 @@ public sealed class BlobDedupService(
            .ExecuteUpdateAsync(s => s.SetProperty(b => b.VerifyRequestedAt, now), ct);
     }
 
-    public async Task<int> BackfillBlobsAsync(int batch, CancellationToken ct = default)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        var files = await db.Files
-           .Where(f => f.Finalized && f.BlobId == null)
-           .OrderBy(f => f.CreatedAt)
-           .Take(batch)
-           .ToListAsync(ct);
-
-        if (files.Count == 0)
-            return 0;
-
-        var now = DateTimeOffset.UtcNow;
-
-        foreach (var file in files)
-        {
-            var blob = new BlobEntity
-            {
-                Id          = ArgonId.New(),
-                S3Key       = file.S3Key,
-                Size        = file.FileSize,
-                ContentType = BlobHashes.NormalizeContentType(file.ContentType),
-                Md5         = BlobHashes.ParseEtagMd5(file.Checksum),
-                Links       = 1,
-                Dedupable   = file.Purpose.IsDedupable(),
-                CreatedAt   = file.CreatedAt,
-                UpdatedAt   = now
-            };
-
-            db.Blobs.Add(blob);
-            file.BlobId    = blob.Id;
-            file.UpdatedAt = now;
-        }
-
-        await db.SaveChangesAsync(ct);
-        return files.Count;
-    }
-
     public async Task MergeAsync(Guid duplicateId, Guid canonicalId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -282,7 +240,6 @@ public sealed class BlobDedupService(
            .Where(f => f.BlobId == duplicate.Id)
            .ExecuteUpdateAsync(s => s
                .SetProperty(f => f.BlobId, canonical.Id)
-               .SetProperty(f => f.S3Key, canonical.S3Key)
                .SetProperty(f => f.UpdatedAt, now), ct);
 
         await db.Blobs

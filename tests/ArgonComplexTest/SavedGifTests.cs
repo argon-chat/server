@@ -3,6 +3,7 @@ namespace ArgonComplexTest.Tests;
 using Argon.Entities;
 using Argon.Features.Integrations.Klipy;
 using Argon.Features.Storage;
+using ArgonComplexTest.Infrastructure;
 using ArgonComplexTest.Infrastructure.Account;
 using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
@@ -60,11 +61,11 @@ public class SavedGifTests : TestBase
         var fileId = Guid.CreateVersion7();
         var now    = DateTimeOffset.UtcNow;
 
-        db.Files.Add(new FileEntity
+        FileKeys.Seed(db, new FileEntity
         {
-            Id = fileId, OwnerId = Guid.Empty, Purpose = FilePurpose.Gif, S3Key = s3Key, BucketName = "cdn",
+            Id = fileId, OwnerId = Guid.Empty, Purpose = FilePurpose.Gif, BucketName = "cdn",
             FileSize = Webp.Length, ContentType = "image/webp", Finalized = true, CreatedAt = now, UpdatedAt = now
-        });
+        }, s3Key);
         db.FileCounters.Add(new FileCounterEntity { Id = fileId, RefCount = refs, CreatedAt = now, UpdatedAt = now });
 
         await db.SaveChangesAsync(ct);

@@ -171,6 +171,7 @@ public sealed class MediaRole : IArgonRole
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
+        features.Add<ArchetypeCacheFeature>();
         features.Add<FileStorageFeature>();
         features.Add<FileGcFeature>();
     }

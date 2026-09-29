@@ -98,7 +98,6 @@ public class FileDedupTests : TestBase
             Assert.That(duplicate.DeleteAfter, Is.Not.Null.And.GreaterThan(DateTimeOffset.UtcNow),
                 "the duplicate's object is due for deletion before the redirect cache can have forgotten its key");
             Assert.That(await Store.HeadFileAsync(duplicate.S3Key, ct), Is.Not.Null, "the duplicate object went before its delay");
-            Assert.That((await FileRowAsync(second.FileId, ct)).S3Key, Is.EqualTo(canonical.S3Key), "the file's key did not follow its blob");
         });
 
         await DueNowAsync(duplicate.Id, ct);

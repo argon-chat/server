@@ -108,13 +108,14 @@ public class FileStorageRulesTests : TestBase
 
         var blob = await db.FileBlobs.AsNoTracking().SingleAsync(b => b.Id == ticket.BlobId, ct);
         var file = await db.Files.AsNoTracking().SingleAsync(f => f.Id == ticket.FileId, ct);
+        var key  = await db.KeyOfAsync(ticket.FileId, ct);
 
         Assert.Multiple(() =>
         {
             Assert.That(blob.SizeLimit, Is.EqualTo(limit), "the blob carries a limit other than the purpose's");
             Assert.That(blob.OwnerId, Is.EqualTo(user.UserId));
             Assert.That(file.Finalized, Is.False, "nothing has been uploaded yet");
-            Assert.That(file.S3Key, Is.EqualTo(ExpectedKey(purpose, ticket.FileId, user.UserId)));
+            Assert.That(key, Is.EqualTo(ExpectedKey(purpose, ticket.FileId, user.UserId)));
         });
     }
 
@@ -456,7 +457,7 @@ public class FileStorageRulesTests : TestBase
 
         var file = await db.Files.IgnoreQueryFilters().AsNoTracking().SingleAsync(f => f.Id == ticket.FileId, ct);
         var blob = await db.FileBlobs.IgnoreQueryFilters().AsNoTracking().SingleAsync(b => b.Id == ticket.BlobId, ct);
-        var head = await FactoryAsp.Services.GetRequiredService<IS3StorageService>().HeadFileAsync(file.S3Key, ct);
+        var head = await FactoryAsp.Services.GetRequiredService<IS3StorageService>().HeadFileAsync(await db.KeyOfAsync(ticket.FileId, ct), ct);
 
         Assert.Multiple(() =>
         {

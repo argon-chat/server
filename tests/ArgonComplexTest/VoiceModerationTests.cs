@@ -23,8 +23,13 @@ using LkParticipant = Livekit.Server.Sdk.Dotnet.ParticipantInfo;
 /// <remarks>
 /// No SFU runs in the suite; <see cref="FakeLiveKit"/> answers LiveKit's API and records what the
 /// server asked of it, which is what the enforcement half of these tests reads.
+///
+/// <para>Not in parallel with anything: <see cref="Move_needs_an_SFU_that_moves"/> takes the Move
+/// capability off the host's one bound <c>CallKitOptions</c> for the length of a call, and a move
+/// made anywhere else in that window — <c>VoiceBroadcastTests</c> moving a member into HQ — comes back
+/// SFU_UNAVAILABLE. Hence the topology shard, with the other fixtures that change shared host state.</para>
 /// </remarks>
-[TestFixture]
+[TestFixture, NonParallelizable]
 public class VoiceModerationTests : TestBase
 {
     private static readonly TimeSpan Settle = TimeSpan.FromSeconds(15);

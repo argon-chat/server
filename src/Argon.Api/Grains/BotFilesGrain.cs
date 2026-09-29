@@ -86,12 +86,13 @@ public sealed class BotFilesGrain(
 
         await using var ctx = await context.CreateDbContextAsync();
 
-        return await ctx.Files
-           .AsNoTracking()
-           .Where(f => f.Id == fileId && f.OwnerId == BotUserId && f.Finalized && f.CreatedAt > cutoff
-                    && (f.Purpose == FilePurpose.Sticker || f.Purpose == FilePurpose.Emoji))
-           .Select(f => new BotStoredFile(f.Id, f.S3Key, f.ContentType))
-           .FirstOrDefaultAsync();
+        return await (
+            from f in ctx.Files.AsNoTracking()
+            join b in ctx.Blobs.AsNoTracking() on f.BlobId equals b.Id
+            where f.Id == fileId && f.OwnerId == BotUserId && f.Finalized && f.CreatedAt > cutoff
+               && (f.Purpose == FilePurpose.Sticker || f.Purpose == FilePurpose.Emoji)
+            select new BotStoredFile(f.Id, b.S3Key, f.ContentType)
+        ).FirstOrDefaultAsync();
     }
 
     public async Task ClaimAsync(Guid fileId)

@@ -152,13 +152,17 @@ public class KlipyService(
         var cdnKey = ComputeCachePath(slug);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        var cachedFile = await db.Files
-            .FirstOrDefaultAsync(x => x.S3Key == cdnKey && x.Finalized, ct);
+        var cachedFileId = await (
+            from b in db.Blobs
+            join f in db.Files on b.Id equals f.BlobId
+            where b.S3Key == cdnKey && f.Finalized
+            select (Guid?)f.Id
+        ).FirstOrDefaultAsync(ct);
 
-        if (cachedFile is not null)
+        if (cachedFileId is { } cachedId)
         {
-            await refCount.IncrementAsync(cachedFile.Id, ct: ct);
-            return (cachedFile.Id, 0, 0);
+            await refCount.IncrementAsync(cachedId, ct: ct);
+            return (cachedId, 0, 0);
         }
 
         try
@@ -180,16 +184,29 @@ public class KlipyService(
                 return null;
 
             var fileId = ArgonId.New();
+            // One object per GIF, found again by its key; never merged with anything.
+            var blob = new BlobEntity
+            {
+                Id          = ArgonId.New(),
+                S3Key       = cdnKey,
+                Size        = mediaBytes.Length,
+                ContentType = "image/webp",
+                Links       = 1,
+                Dedupable   = false,
+                CreatedAt   = DateTimeOffset.UtcNow,
+                UpdatedAt   = DateTimeOffset.UtcNow
+            };
+            db.Blobs.Add(blob);
             db.Files.Add(new FileEntity
             {
                 Id          = fileId,
                 OwnerId     = Guid.Empty,
                 Purpose     = FilePurpose.Gif,
-                S3Key       = cdnKey,
                 BucketName  = "cdn",
                 FileSize    = mediaBytes.Length,
                 ContentType = "image/webp",
                 Finalized   = true,
+                BlobId      = blob.Id,
                 CreatedAt   = DateTimeOffset.UtcNow,
                 UpdatedAt   = DateTimeOffset.UtcNow
             });

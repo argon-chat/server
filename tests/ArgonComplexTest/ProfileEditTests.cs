@@ -355,7 +355,7 @@ public class ProfileEditTests : TestBase
         await using (var db = await SocialHarness.DbAsync(ct))
         {
             rejected = await db.FileBlobs.Where(b => b.Id == ticket.blobId).Select(b => b.FileId).SingleAsync(ct);
-            key      = await db.Files.Where(f => f.Id == rejected).Select(f => f.S3Key).SingleAsync(ct);
+            key      = await db.KeyOfAsync(rejected, ct);
         }
 
         FactoryAsp.Services.GetRequiredService<FakeContentModeration>()

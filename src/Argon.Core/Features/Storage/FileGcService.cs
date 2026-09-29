@@ -46,7 +46,6 @@ public class FileGcService(
         var lastBlobSweep   = DateTimeOffset.MinValue;
         var lastOrphanSweep = DateTimeOffset.MinValue;
         var lastVerify      = DateTimeOffset.MinValue;
-        var blobsBackfilled = false;
         var backfilled      = !dedupOptions.Value.Backfill;
 
         while (!stoppingToken.IsCancellationRequested)
@@ -55,10 +54,7 @@ public class FileGcService(
             {
                 var now = DateTimeOffset.UtcNow;
 
-                if (!blobsBackfilled)
-                    blobsBackfilled = await BackfillBlobsAsync(stoppingToken);
-
-                if (blobsBackfilled && !backfilled)
+                if (!backfilled)
                     backfilled = await RequestBackfillAsync(stoppingToken);
 
                 if (now - lastBlobSweep >= BlobSweepInterval)
@@ -116,17 +112,27 @@ public class FileGcService(
             .Where(f => fileIds.Contains(f.Id))
             .ToDictionaryAsync(f => f.Id, ct);
 
+        // The key of an upload that never finished is on its object row, reserved when the URL was signed.
+        var objectIds = files.Values.Select(f => f.BlobId).OfType<Guid>().ToList();
+        var objects = await db.Blobs
+            .Where(b => objectIds.Contains(b.Id))
+            .ToDictionaryAsync(b => b.Id, ct);
+
         foreach (var blob in expiredBlobs)
         {
             if (files.Remove(blob.FileId, out var file))
             {
-                try
+                if (file.BlobId is { } objectId && objects.Remove(objectId, out var stored))
                 {
-                    await s3.DeleteFileAsync(file.S3Key, ct);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "FileGC: failed to delete S3 object {Key}", file.S3Key);
+                    try
+                    {
+                        await s3.DeleteFileAsync(stored.S3Key, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "FileGC: failed to delete S3 object {Key}", stored.S3Key);
+                    }
+                    db.Blobs.Remove(stored);
                 }
                 db.Files.Remove(file);
             }
@@ -145,9 +151,8 @@ public class FileGcService(
 
     /// <summary>One pass over finalized files nothing references any more; nothing happens without the lease.</summary>
     /// <remarks>
-    ///     A file over a shared object releases the object rather than deleting it; <see cref="SweepObjectsAsync"/>
-    ///     removes objects once no live file points at them. A file finalized before blobs still owns its
-    ///     object outright and is deleted here as before.
+    ///     A file releases its object rather than deleting it; <see cref="SweepObjectsAsync"/> removes
+    ///     objects once no live file points at them.
     /// </remarks>
     public async Task SweepOrphanFilesAsync(CancellationToken ct)
     {
@@ -177,20 +182,9 @@ public class FileGcService(
         foreach (var orphan in orphanFiles)
         {
             if (orphan.File.BlobId is { } blobId)
-            {
                 await dedup.ReleaseAsync(blobId, ct);
-            }
             else
-            {
-                try
-                {
-                    await s3.DeleteFileAsync(orphan.File.S3Key, ct);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "FileGC: failed to delete orphan S3 object {Key}", orphan.File.S3Key);
-                }
-            }
+                logger.LogWarning("FileGC: orphan file {FileId} names no object; only its rows go", orphan.File.Id);
 
             db.FileCounters.Remove(orphan.Counter);
             db.Files.Remove(orphan.File);
@@ -246,41 +240,7 @@ public class FileGcService(
         logger.LogInformation("FileGC: hashed {Count} objects in {ElapsedMs}ms", read, sw.Elapsed.TotalMilliseconds);
     }
 
-    /// <summary>
-    ///     Files finalized before blobs existed get one each, so links and the object sweep can find their
-    ///     objects. Batched under the lease; true once no such file is left, whichever replica did the work.
-    /// </summary>
-    /// <remarks>
-    ///     Here rather than in the migration: CockroachDB will not write a column added in the same
-    ///     transaction, and a table's worth of inserts does not belong in a schema change anyway.
-    /// </remarks>
-    private async Task<bool> BackfillBlobsAsync(CancellationToken ct)
-    {
-        using var scope = scopeFactory.CreateScope();
-        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
-            .CreateDbContextAsync(ct);
-
-        await using var lease = await TryAcquireLeaseAsync(db, ct);
-        if (lease is null) return false;
-
-        var total = 0;
-        int done;
-
-        while ((done = await dedup.BackfillBlobsAsync(500, ct)) > 0)
-        {
-            total += done;
-
-            if (!await lease.TryRenewAsync(ct))
-                return false;
-        }
-
-        if (total > 0)
-            logger.LogInformation("FileGC: gave {Count} files finalized before blobs a blob each", total);
-
-        return true;
-    }
-
-    /// <summary>Queues the existing objects that have twins, once; true when done or when another replica did it.</summary>
+    /// <summary>Queues the existing objects that have twins, once; true when done or when another replica did it.
     private async Task<bool> RequestBackfillAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();

@@ -13,10 +13,11 @@ public sealed class FileDirectoryGrain(IDbContextFactory<ApplicationDbContext> c
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        return await db.Files
-           .AsNoTracking()
-           .Where(f => f.Id == fileId && f.Finalized)
-           .Select(f => f.S3Key)
-           .FirstOrDefaultAsync(ct);
+        return await (
+            from f in db.Files.AsNoTracking()
+            join b in db.Blobs.AsNoTracking() on f.BlobId equals b.Id
+            where f.Id == fileId && f.Finalized
+            select b.S3Key
+        ).FirstOrDefaultAsync(ct);
     }
 }

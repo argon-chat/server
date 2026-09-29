@@ -8,6 +8,7 @@ using Argon.Features.Storage;
 using Argon.Features.Testing;
 using Argon.Grains.Interfaces;
 using Argon.Grains.Persistence.States;
+using ArgonComplexTest.Infrastructure;
 using ArgonComplexTest.Infrastructure.Account;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
@@ -558,13 +559,13 @@ public class AccountDeletionEdgeTests : TestBase
 
         await using (var db = await AccountSeed.NewDbAsync(ct))
         {
-            db.Files.Add(new FileEntity
+            FileKeys.Seed(db, new FileEntity
             {
                 Id = fileId, OwnerId = session.UserId, Purpose = FilePurpose.Avatar,
-                S3Key = $"seeded/{fileId:N}", BucketName = "seeded", FileSize = 3,
+                BucketName = "seeded", FileSize = 3,
                 ContentType = "image/png", FileName = "avatar.png", Finalized = true,
                 IsDeleted = true, DeletedAt = now, CreatedAt = now, UpdatedAt = now
-            });
+            }, $"seeded/{fileId:N}");
             db.FileCounters.Add(new FileCounterEntity { Id = fileId, RefCount = 1, CreatedAt = now, UpdatedAt = now });
 
             await db.SaveChangesAsync(ct);
@@ -617,13 +618,13 @@ public class AccountDeletionEdgeTests : TestBase
                          (counted, FilePurpose.ChannelAttachment, false)
                      })
             {
-                db.Files.Add(new FileEntity
+                FileKeys.Seed(db, new FileEntity
                 {
                     Id = fileId, OwnerId = session.UserId, Purpose = purpose,
-                    S3Key = $"seeded/{fileId:N}", BucketName = "seeded", FileSize = 3,
+                    BucketName = "seeded", FileSize = 3,
                     ContentType = "image/png", FileName = "seeded.png", Finalized = true,
                     IsDeleted = deleted, DeletedAt = deleted ? now : null, CreatedAt = now, UpdatedAt = now
-                });
+                }, $"seeded/{fileId:N}");
             }
 
             db.FileCounters.Add(new FileCounterEntity { Id = counted, RefCount = 1, CreatedAt = now, UpdatedAt = now });

@@ -305,8 +305,9 @@ public class MediaUploadTests : TestBase
         await Upload(ticket, Png);
 
         var attachment = await channels.CompleteUploadAttachment(spaceId, channelId, ticket.blobId, ct);
-        var stored     = await GetGrainFactory().GetGrain<IFileStorageGrain>(await CurrentUserId(scope, ct))
-           .GetFileInfoAsync(attachment.fileId, ct);
+
+        await using var db = await NewDbAsync(ct);
+        var key = await db.KeyOfAsync(attachment.fileId, ct);
 
         using var client = FactoryAsp.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -318,9 +319,9 @@ public class MediaUploadTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That(stored?.S3Key, Is.Not.Null.And.Not.EqualTo(attachment.fileId.ToString()),
+            Assert.That(key, Is.Not.Null.And.Not.EqualTo(attachment.fileId.ToString()),
                 "premise: the attachment is stored under a key of its own");
-            Assert.That(first.Headers.Location?.AbsolutePath, Does.EndWith($"/{stored!.S3Key}"),
+            Assert.That(first.Headers.Location?.AbsolutePath, Does.EndWith($"/{key}"),
                 "the redirect points somewhere other than the object the file was stored under");
             Assert.That(cached.Headers.Location, Is.EqualTo(first.Headers.Location));
         });
@@ -461,8 +462,7 @@ public class MediaUploadTests : TestBase
 
         FileEntity NewFile(bool finalized) => new()
         {
-            Id = Guid.CreateVersion7(), OwnerId = owner, Purpose = FilePurpose.Avatar, S3Key = $"gc-test/{Guid.NewGuid():N}",
-            BucketName = "gc-test", Finalized = finalized
+            Id = Guid.CreateVersion7(), OwnerId = owner, Purpose = FilePurpose.Avatar, BucketName = "gc-test", Finalized = finalized
         };
 
         FileBlobEntity NewBlob(FileEntity file, DateTimeOffset expiresAt) => new()
@@ -478,7 +478,9 @@ public class MediaUploadTests : TestBase
 
         await using (var db = await NewDbAsync(ct))
         {
-            db.Files.AddRange([..expired, pending, orphan, retained]);
+            FileEntity[] files = [..expired, pending, orphan, retained];
+            foreach (var file in files)
+                FileKeys.Seed(db, file, $"gc-test/{Guid.NewGuid():N}");
             db.FileBlobs.AddRange([..expired.Select(f => NewBlob(f, DateTimeOffset.UtcNow.AddHours(-1))),
                 NewBlob(pending, DateTimeOffset.UtcNow.AddHours(1))]);
             db.FileCounters.AddRange(

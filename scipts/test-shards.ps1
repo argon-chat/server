@@ -87,6 +87,7 @@ $topologyFixtures = @(
     'SchemaDeclarationTests'
     'TablePlacementTests'
     'TtlSweepTests'
+    'VoiceModerationTests'
 )
 
 $presenceFixtures = @(
@@ -147,6 +148,8 @@ $presenceFixtures = @(
 # PresenceSessionGateTests into the presence shard, and ChannelSendCapTests (NonParallelizable: it
 # changes the host's shared per-channel send cap) and AutoDeleteSchedulerTests (NonParallelizable: it
 # switches the host's auto-delete on) into topology.
+# VoiceModerationTests (NonParallelizable since 2026-09-29: it takes the Move capability off the shared SFU options
+# for one test, which made VoiceBroadcastTests fail with SFU_UNAVAILABLE when the two overlapped) into topology.
 $generalShards = @(
     @(   # ~237 s serial
         'AccountConsoleTests'
@@ -212,7 +215,6 @@ $generalShards = @(
         'UssdTests'
         'VoiceBroadcastSettingsTests'
         'VoiceBroadcastTests'
-        'VoiceModerationTests'
     ),
     @(   # ~272 s serial
         'AccountDeletionEdgeTests'

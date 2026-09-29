@@ -2435,13 +2435,13 @@ public class AccountDeletionTests : TestBase
         // count, which is the thing the deletion is supposed to bring down.
         foreach (var (fileId, purpose) in new[] { (avatarFileId, FilePurpose.Avatar), (uploadFileId, FilePurpose.ChannelAttachment) })
         {
-            db.Files.Add(new FileEntity
+            FileKeys.Seed(db, new FileEntity
             {
                 Id = fileId, OwnerId = victim.UserId, Purpose = purpose,
-                S3Key = $"seeded/{fileId:N}", BucketName = "seeded", FileSize = 3,
+                BucketName = "seeded", FileSize = 3,
                 ContentType = "image/png", FileName = "seeded.png", Finalized = true,
                 CreatedAt = now, UpdatedAt = now
-            });
+            }, $"seeded/{fileId:N}");
             db.FileCounters.Add(new FileCounterEntity
             {
                 Id = fileId, RefCount = 1, CreatedAt = now, UpdatedAt = now

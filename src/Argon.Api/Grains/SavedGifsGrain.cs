@@ -55,10 +55,12 @@ public class SavedGifsGrain(
         var evicted = await EnforceLimitsAsync(db, userId, ct);
 
         var cdnKey = klipy.ComputeCachePath(slug);
-        var file = await db.Files
-            .Where(x => x.S3Key == cdnKey && x.Finalized)
-            .Select(x => new { x.Id, x.FileSize })
-            .FirstOrDefaultAsync(ct);
+        var file = await (
+            from b in db.Blobs
+            join x in db.Files on b.Id equals x.BlobId
+            where b.S3Key == cdnKey && x.Finalized
+            select new { x.Id, x.FileSize }
+        ).FirstOrDefaultAsync(ct);
 
         if (file is null)
         {

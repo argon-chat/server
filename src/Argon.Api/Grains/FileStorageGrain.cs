@@ -178,7 +178,6 @@ public class FileStorageGrain(
             Id          = ArgonId.New(),
             OwnerId     = userId,
             Purpose     = target.Purpose,
-            S3Key       = blob.S3Key,
             BucketName  = "link",
             FileSize    = blob.Size,
             ContentType = source.ContentType,
@@ -210,7 +209,7 @@ public class FileStorageGrain(
             sourceFileId, file.Id, target.Purpose, userId);
 
         return new FileInfoResponse(file.Id, file.FileName, file.FileSize, file.ContentType, file.Purpose,
-            s3.GetFileDownloadUrl(file.Id), file.S3Key);
+            s3.GetFileDownloadUrl(file.Id), blob.S3Key);
     }
 
     private static async Task<BlobEntity?> ResolveBlobAsync(ApplicationDbContext db, Guid id, CancellationToken ct)
@@ -264,12 +263,25 @@ public class FileStorageGrain(
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
+        // The object's row exists from the moment its key is signed: an upload that never finishes is
+        // still an object to delete, and the key has no other home.
+        var stored = new BlobEntity
+        {
+            Id          = ArgonId.New(),
+            S3Key       = s3Key,
+            Size        = 0,
+            ContentType = BlobHashes.NormalizeContentType(request.ContentType),
+            Links       = 0,
+            Dedupable   = request.Purpose.IsDedupable(),
+            CreatedAt   = DateTimeOffset.UtcNow,
+            UpdatedAt   = DateTimeOffset.UtcNow
+        };
+
         var file = new FileEntity
         {
             Id          = fileId,
             OwnerId     = userId,
             Purpose     = request.Purpose,
-            S3Key       = s3Key,
             BucketName  = putData.Url, // store full presigned URL for reference
             FileSize    = 0,
             ContentType = request.ContentType,
@@ -277,6 +289,7 @@ public class FileStorageGrain(
             Finalized   = false,
             SpaceId     = request.SpaceId,
             ChannelId   = request.ChannelId,
+            BlobId      = stored.Id,
             CreatedAt   = DateTimeOffset.UtcNow,
             UpdatedAt   = DateTimeOffset.UtcNow
         };
@@ -294,6 +307,7 @@ public class FileStorageGrain(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
+        db.Blobs.Add(stored);
         db.Files.Add(file);
         db.FileBlobs.Add(blob);
         await db.SaveChangesAsync(ct);
@@ -324,26 +338,31 @@ public class FileStorageGrain(
         if (blob is null)
             throw new KeyNotFoundException("Upload blob not found");
 
+        var file   = await db.Files.FindAsync([blob.FileId], ct);
+        var stored = file?.BlobId is { } storedId ? await db.Blobs.FindAsync([storedId], ct) : null;
+
         if (blob.ExpiresAt < DateTimeOffset.UtcNow)
         {
             // Expired — clean up
-            var expiredFile = await db.Files.FindAsync([blob.FileId], ct);
-            if (expiredFile is not null)
+            if (file is not null)
             {
-                await s3.DeleteFileAsync(expiredFile.S3Key, ct);
-                db.Files.Remove(expiredFile);
+                if (stored is not null)
+                {
+                    await s3.DeleteFileAsync(stored.S3Key, ct);
+                    db.Blobs.Remove(stored);
+                }
+                db.Files.Remove(file);
             }
             db.FileBlobs.Remove(blob);
             await db.SaveChangesAsync(ct);
             throw new InvalidOperationException("Upload blob has expired");
         }
 
-        var file = await db.Files.FindAsync([blob.FileId], ct);
-        if (file is null)
+        if (file is null || stored is null)
             throw new KeyNotFoundException("File record not found");
 
         // Validate file exists in S3 via HEAD
-        var metadata = await s3.HeadFileAsync(file.S3Key, ct);
+        var metadata = await s3.HeadFileAsync(stored.S3Key, ct);
         if (metadata is null)
             throw new InvalidOperationException("File not found in storage — upload may have failed");
 
@@ -353,8 +372,9 @@ public class FileStorageGrain(
         // was never held to.
         if (!AcceptsContentType(file.Purpose, metadata.ContentType))
         {
-            await s3.DeleteFileAsync(file.S3Key, ct);
+            await s3.DeleteFileAsync(stored.S3Key, ct);
             db.Files.Remove(file);
+            db.Blobs.Remove(stored);
             db.FileBlobs.Remove(blob);
             await db.SaveChangesAsync(ct);
 
@@ -369,8 +389,9 @@ public class FileStorageGrain(
         // Validate size
         if (metadata.ContentLength > blob.SizeLimit)
         {
-            await s3.DeleteFileAsync(file.S3Key, ct);
+            await s3.DeleteFileAsync(stored.S3Key, ct);
             db.Files.Remove(file);
+            db.Blobs.Remove(stored);
             db.FileBlobs.Remove(blob);
             await db.SaveChangesAsync(ct);
             throw new InvalidOperationException($"Uploaded file size {metadata.ContentLength} exceeds limit {blob.SizeLimit}");
@@ -383,21 +404,13 @@ public class FileStorageGrain(
         file.Finalized   = true;
         file.UpdatedAt   = DateTimeOffset.UtcNow;
 
-        var stored = new BlobEntity
-        {
-            Id          = ArgonId.New(),
-            S3Key       = file.S3Key,
-            Size        = metadata.ContentLength,
-            ContentType = BlobHashes.NormalizeContentType(metadata.ContentType ?? file.ContentType),
-            Md5         = BlobHashes.ParseEtagMd5(metadata.ETag),
-            ClaimedSha256 = blob.ClaimedSha256,
-            Links       = 1,
-            Dedupable   = file.Purpose.IsDedupable(),
-            CreatedAt   = DateTimeOffset.UtcNow,
-            UpdatedAt   = DateTimeOffset.UtcNow
-        };
-
-        file.BlobId = stored.Id;
+        // The object is now what the store says it is.
+        stored.Size          = metadata.ContentLength;
+        stored.ContentType   = BlobHashes.NormalizeContentType(metadata.ContentType ?? file.ContentType);
+        stored.Md5           = BlobHashes.ParseEtagMd5(metadata.ETag);
+        stored.ClaimedSha256 = blob.ClaimedSha256;
+        stored.Links         = 1;
+        stored.UpdatedAt     = DateTimeOffset.UtcNow;
 
         // Create ref counter
         var counter = new FileCounterEntity
@@ -408,7 +421,6 @@ public class FileStorageGrain(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        db.Blobs.Add(stored);
         db.FileCounters.Add(counter);
         db.FileBlobs.Remove(blob);
         await db.SaveChangesAsync(ct);
@@ -440,7 +452,7 @@ public class FileStorageGrain(
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
-            file.Purpose, downloadUrl, file.S3Key);
+            file.Purpose, downloadUrl, stored.S3Key);
     }
 
     /// <inheritdoc cref="IFileStorageGrain.IncrementRefAsync"/>
@@ -540,14 +552,22 @@ public class FileStorageGrain(
     public async Task<FileInfoResponse?> GetFileInfoAsync(Guid fileId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var file = await db.Files.AsNoTracking().FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
-        if (file is null) return null;
 
+        var found = await (
+            from f in db.Files.AsNoTracking()
+            join b in db.Blobs.AsNoTracking() on f.BlobId equals b.Id
+            where f.Id == fileId && f.Finalized
+            select new { File = f, Key = b.S3Key }
+        ).FirstOrDefaultAsync(ct);
+
+        if (found is null) return null;
+
+        var file        = found.File;
         var downloadUrl = s3.GetFileDownloadUrl(file.Id);
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
-            file.Purpose, downloadUrl, file.S3Key);
+            file.Purpose, downloadUrl, found.Key);
     }
 
     public async Task<string?> GetDownloadUrlAsync(Guid fileId, CancellationToken ct = default)

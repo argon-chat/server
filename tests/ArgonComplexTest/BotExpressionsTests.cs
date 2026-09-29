@@ -427,7 +427,7 @@ public class BotExpressionsTests : TestBase
         var thumbId = await db.ExpressionItems.AsNoTracking().Where(i => i.Id == itemId).Select(i => i.ThumbFileId).SingleAsync(ct);
 
         Assert.That(thumbId, Is.Not.Null, "no first frame was stored");
-        return await db.Files.AsNoTracking().Where(f => f.Id == thumbId).Select(f => f.S3Key).SingleAsync(ct);
+        return await db.KeyOfAsync(thumbId!.Value, ct);
     }
 
     [Test, CancelAfter(180_000)]
@@ -441,7 +441,7 @@ public class BotExpressionsTests : TestBase
 
         await using var db = await DbAsync(ct);
         var fileId = FileIdOf(item.GetProperty("url").GetString());
-        var key    = await db.Files.AsNoTracking().Where(f => f.Id == fileId).Select(f => f.S3Key).SingleAsync(ct);
+        var key    = await db.KeyOfAsync(fileId, ct);
         var stored = await Services.GetRequiredService<IS3StorageService>().HeadFileAsync(key, ct);
 
         Assert.Multiple(() =>

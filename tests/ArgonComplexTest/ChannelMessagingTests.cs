@@ -4,6 +4,7 @@ using Argon.Entities;
 using Argon.Features.Integrations.Klipy;
 using Argon.Features.Storage;
 using Argon.Grains.Interfaces;
+using ArgonComplexTest.Infrastructure;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime;
@@ -116,17 +117,16 @@ public class ChannelMessagingTests : TestBase
 
         await using (var db = await DbAsync(ct))
         {
-            db.Files.Add(new FileEntity
+            FileKeys.Seed(db, new FileEntity
             {
                 Id          = fileId,
                 OwnerId     = Guid.Empty,
                 Purpose     = FilePurpose.Gif,
-                S3Key       = klipy.ComputeCachePath(slug),
                 BucketName  = "cdn",
                 FileSize    = 2048,
                 ContentType = "image/webp",
                 Finalized   = true
-            });
+            }, klipy.ComputeCachePath(slug));
             db.FileCounters.Add(new FileCounterEntity { Id = fileId, RefCount = 1 });
             await db.SaveChangesAsync(ct);
         }

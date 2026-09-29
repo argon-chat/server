@@ -1291,12 +1291,11 @@ public class DataExportArchiveTests : TestBase
             UpdatedAt      = now
         });
 
-        db.Files.Add(new FileEntity
+        FileKeys.Seed(db, new FileEntity
         {
             Id          = uploadedFileId,
             OwnerId     = subject.UserId,
             Purpose     = FilePurpose.Gif,
-            S3Key       = $"gifs/{uploadedFileId:N}.webm",
             BucketName  = "argon-test",
             FileSize    = 2048,
             ContentType = "video/webm",
@@ -1304,7 +1303,7 @@ public class DataExportArchiveTests : TestBase
             Finalized   = true,
             CreatedAt   = now,
             UpdatedAt   = now
-        });
+        }, $"gifs/{uploadedFileId:N}.webm");
 
         db.SavedGifs.Add(new SavedGifEntity
         {
