@@ -3,6 +3,7 @@ namespace Argon.Services.Ion;
 using Core.Services.Validators;
 using Features.Auth;
 using Features.Jwt;
+using Features.Logic;
 using Features.WebSession;
 
 public class IdentityInteraction(
@@ -12,6 +13,8 @@ public class IdentityInteraction(
     DeviceProofVerifier deviceProofs,
     IHttpContextAccessor http,
     IOptions<WebSessionOptions> webSession,
+    IOptions<ClientAppsOptions> clientApps,
+    ISessionRegistryTransit sessionRegistry,
     IQrLoginService qrLogin) : IIdentityInteraction
 {
     public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default)
@@ -356,10 +359,21 @@ public class IdentityInteraction(
             // after the revocation check above, so an already-ended session never re-registers itself
             // under a new row (S7 — see SessionRevocation.CredentialsKey).
             if (tokenSessionId is { } credentialSessionId && http.HttpContext is { } request)
-                await SessionRevocation.RememberCredentialSessionAsync(
-                    cache, logger, userId,
-                    request.TryGetSessionId(out var presenceSessionId) ? presenceSessionId : null,
-                    credentialSessionId, ct);
+            {
+                var presence = request.TryGetSessionId(out var presenceSessionId) ? presenceSessionId : (Guid?)null;
+
+                await SessionRevocation.RememberCredentialSessionAsync(cache, logger, userId, presence, credentialSessionId, ct);
+
+                // A refresh is the one thing an offline device does on its own; the row it keeps on
+                // the devices screen is dated by it. issuedAt dates a row for a token that predates
+                // the registry.
+                var ctx = ArgonRequestContext.Current;
+
+                await sessionRegistry.TouchAsync(userId, credentialSessionId, SessionTouch.Now(
+                    machineId, presence,
+                    UserSessionMeta.Describe(ctx, clientApps.Value.Find(ctx.AppId, ctx.Client)),
+                    issuedAt), ct);
+            }
 
             // The proven device travels on the access token, so every subsequent request knows which
             // machine is asking without asking the database again — which is what makes a hardware

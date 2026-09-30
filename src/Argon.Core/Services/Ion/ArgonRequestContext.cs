@@ -105,6 +105,10 @@ public static class ServiceEx
         public Guid    GetUserId()      => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
         public string  GetMachineId()   => ArgonRequestContext.Current.MachineId ?? throw new InvalidOperationException();
         public Guid    GetSessionId()   => ArgonRequestContext.Current.SessionId ?? throw new InvalidOperationException();
+        // The token's sid, set by ArgonTransactionInterceptor; null for a token minted before the claim existed.
+        public Guid? GetCredentialSessionId()
+            => ArgonRequestContext.Current.Props.TryGetValue(Features.Auth.SessionRevocation.CredentialSessionProperty, out var csid)
+               && Guid.TryParse(csid, out var id) ? id : null;
         public string? GetClientId()    => ArgonRequestContext.Current.AppId;
         public string  GetUserCountry() => ArgonRequestContext.Current.Region;
         public string? GetUserIp()      => ArgonRequestContext.Current.Ip;

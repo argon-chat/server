@@ -26,6 +26,7 @@ public class SecurityGrain(
     IUserPresenceService presence,
     IArgonCacheDatabase cache,
     ISessionRevocationBroadcaster revocations,
+    SessionRegistryStore sessionRegistry,
     IFido2 fido2,
     IOptions<ClientAppsOptions> clientApps,
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
@@ -842,34 +843,72 @@ public class SecurityGrain(
         }
     }
 
-    public async Task<List<SessionInfo>> GetSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
+    public Task<List<SessionInfo>> GetSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
+        => ListSessionsAsync(currentSessionId, null, ct);
+
+    public Task<IRevokeSessionResult> RevokeSessionAsync(Guid sessionId, Guid currentSessionId, CancellationToken ct = default)
+        => RevokeOneSessionAsync(sessionId, currentSessionId, null, ct);
+
+    public Task<IRevokeSessionResult> RevokeAllSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
+        => RevokeOtherSessionsAsync(currentSessionId, null, ct);
+
+    // Registry rows first — every signed-in device, connected or not — then any presence session the
+    // registry does not cover (a bot, a token from before the registry existed), which is live by
+    // definition. sessionId stays the presence sid where there is one, so a row can be revoked by
+    // either of its ids.
+    public async Task<List<SessionInfo>> ListSessionsAsync(Guid currentSessionId, Guid? currentCredentialSessionId, CancellationToken ct = default)
     {
         try
         {
-            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
-            var result   = new List<SessionInfo>(sessions.Count);
+            var (rows, live) = await LoadDevicesAsync(ct);
+            var caller       = Caller.Of(rows, currentSessionId, currentCredentialSessionId);
+            var now          = DateTime.UtcNow;
+            var result       = new List<SessionInfo>(rows.Count + live.Count);
+            var covered      = new HashSet<Guid>();
 
-            foreach (var session in sessions)
+            foreach (var row in OnePerDevice(rows, caller))
             {
-                // A sid that will not parse is not a session this screen can offer to end — RevokeSession
-                // takes a guid — so listing it would put a row on the screen whose button cannot work.
-                if (!Guid.TryParse(session.SessionId, out var sessionId))
-                    continue;
+                UserSessionDescriptor? session = null;
 
-                var lastSeen = session.LastSeenAt ?? DateTime.UtcNow;
+                var online = row.PresenceSessionId is { } presence && live.TryGetValue(presence, out session);
+
+                if (online)
+                    covered.Add(row.PresenceSessionId!.Value);
+
+                var lastSeen = online ? session!.LastSeenAt ?? now : row.LastSeenAt.UtcDateTime;
 
                 result.Add(new SessionInfo(
-                    sessionId,
+                    row.PresenceSessionId ?? row.CredentialSessionId,
+                    row.ClientName,
+                    row.Region,
+                    lastSeen,
+                    caller.Is(row),
+                    row.AppId,
+                    !string.IsNullOrEmpty(row.AppName) ? row.AppName : clientApps.Value.Find(row.AppId)?.Name ?? "",
+                    row.AppVersion,
+                    row.Platform,
+                    row.OsName,
+                    row.DeviceName,
+                    row.Ip,
+                    row.City,
+                    row.CreatedAt.UtcDateTime,
+                    online));
+            }
+
+            foreach (var (sid, session) in live)
+            {
+                if (covered.Contains(sid))
+                    continue;
+
+                var lastSeen = session.LastSeenAt ?? now;
+
+                result.Add(new SessionInfo(
+                    sid,
                     session.ClientName ?? "",
                     session.ClientRegion ?? "",
                     lastSeen,
-                    sessionId == currentSessionId,
+                    sid == currentSessionId,
                     session.AppId ?? "",
-                    // The name resolved when the session connected, because it was resolved with the
-                    // client's whole self-description in hand (which is how an old desktop build
-                    // presenting the web id is still called a desktop). The registry only fills in
-                    // for a record written before names were recorded; a rename in configuration
-                    // reaches new sessions, and the record lives a day at most.
                     !string.IsNullOrEmpty(session.AppName) ? session.AppName : clientApps.Value.Find(session.AppId)?.Name ?? "",
                     session.AppVersion ?? "",
                     session.Platform,
@@ -877,14 +916,13 @@ public class SecurityGrain(
                     session.DeviceName ?? "",
                     session.Ip ?? "",
                     session.City ?? "",
-                    session.StartedAt ?? lastSeen));
+                    session.StartedAt ?? lastSeen,
+                    true));
             }
 
-            // Current first, then most recently seen: the row the user is least likely to want is the
-            // one they are least likely to hit by accident, and the rest sort into recognisability
-            // order — a session from ten minutes ago is far easier to place than one from Tuesday.
             return result
                .OrderByDescending(x => x.isCurrent)
+               .ThenByDescending(x => x.online)
                .ThenByDescending(x => x.lastSeenAt)
                .ToList();
         }
@@ -895,24 +933,37 @@ public class SecurityGrain(
         }
     }
 
-    public async Task<IRevokeSessionResult> RevokeSessionAsync(Guid sessionId, Guid currentSessionId, CancellationToken ct = default)
+    public async Task<IRevokeSessionResult> RevokeOneSessionAsync(Guid sessionId, Guid currentSessionId, Guid? currentCredentialSessionId, CancellationToken ct = default)
     {
-        if (sessionId == currentSessionId)
+        if (sessionId == currentSessionId || sessionId == currentCredentialSessionId)
             return new FailedRevokeSession(SessionError.CANNOT_REVOKE_CURRENT);
 
         try
         {
-            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
+            var (rows, live) = await LoadDevicesAsync(ct);
+            var caller       = Caller.Of(rows, currentSessionId, currentCredentialSessionId);
 
-            // Scoped to this user's own live sessions, so a guessed or copied sid from another account
-            // reads as NOT_FOUND rather than becoming a way to sign strangers out.
-            if (!sessions.Any(x => Guid.TryParse(x.SessionId, out var id) && id == sessionId))
+            var targets = rows
+               .Where(r => r.CredentialSessionId == sessionId || r.PresenceSessionId == sessionId)
+               .ToList();
+
+            if (targets.Any(r => caller.Is(r) || r.PresenceSessionId == currentSessionId))
+                return new FailedRevokeSession(SessionError.CANNOT_REVOKE_CURRENT);
+
+            var legacy = live.ContainsKey(sessionId) && targets.All(r => r.PresenceSessionId != sessionId);
+
+            if (targets.Count == 0 && !legacy)
                 return new FailedRevokeSession(SessionError.NOT_FOUND);
 
-            // The tombstone is what actually revokes, so its failure is the one failure that has to
-            // reach the caller — the rest of EndSessionAsync is presence tidying that a retry or a
-            // TTL will settle on its own.
-            if (!await EndSessionAsync(sessionId, ct))
+            var ended = true;
+
+            foreach (var target in targets)
+                ended &= await EndDeviceAsync(target, ct);
+
+            if (legacy)
+                ended &= await EndSessionAsync(sessionId, ct);
+
+            if (!ended)
                 return new FailedRevokeSession(SessionError.INTERNAL_ERROR);
 
             await NotifySecurityDetailsChangedAsync(ct);
@@ -926,33 +977,48 @@ public class SecurityGrain(
         }
     }
 
-    /// <summary>
-    /// Ends every session of this user except the caller's own.
-    /// </summary>
-    /// <remarks>
-    /// <para><b>Every session is attempted, whatever the ones before it did.</b> The loop used to be
-    /// wrapped in a single try/catch, so one transient store error on device two left devices three,
-    /// four and five fully signed in with ten-year refresh tokens — and reported total failure, which
-    /// tells the user the opposite of what happened (defect S8).</para>
-    ///
-    /// <para>The result is still binary, because the ion contract has no shape for "n of m": both
-    /// members of <c>IRevokeSessionResult</c> are all-or-nothing. So a partial outcome is reported as
-    /// <c>INTERNAL_ERROR</c> — the pessimistic reading, and the honest one, since some device is
-    /// still signed in and the user needs to know that pressing the button again is worth doing. The
-    /// count of each goes to the log, which is the only place that can currently carry it; a contract
-    /// that could say "these three are still signed in" is what would let the screen do better.</para>
-    /// </remarks>
-    public async Task<IRevokeSessionResult> RevokeAllSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
+    // Ends every device except the caller's. Every one is attempted whatever the ones before it did,
+    // and the result is binary because the contract has no shape for "n of m": a partial outcome is
+    // INTERNAL_ERROR, so the user knows pressing the button again is worth doing. No revocation
+    // floor: a floor cannot spare the caller's own token.
+    public async Task<IRevokeSessionResult> RevokeOtherSessionsAsync(Guid currentSessionId, Guid? currentCredentialSessionId, CancellationToken ct = default)
     {
         try
         {
-            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
-            var revoked  = 0;
-            var failed   = 0;
+            var (rows, live) = await LoadDevicesAsync(ct);
+            var caller       = Caller.Of(rows, currentSessionId, currentCredentialSessionId);
+            var revoked      = 0;
+            var failed       = 0;
+            var covered      = new HashSet<Guid>();
 
-            foreach (var session in sessions)
+            foreach (var row in rows)
             {
-                if (!Guid.TryParse(session.SessionId, out var sessionId) || sessionId == currentSessionId)
+                if (row.PresenceSessionId is { } presence)
+                    covered.Add(presence);
+
+                // Rows sharing the caller's presence sid are the caller's own launch (an earlier
+                // sign-in of it); ending their presence sid would end the caller.
+                if (caller.Is(row) || row.PresenceSessionId == currentSessionId)
+                    continue;
+
+                try
+                {
+                    if (await EndDeviceAsync(row, ct))
+                        revoked++;
+                    else
+                        failed++;
+                }
+                catch (Exception e)
+                {
+                    failed++;
+                    logger.LogError(e, "Failed to revoke credential {CredentialSessionId} for user {UserId} during sign-out-everywhere",
+                        row.CredentialSessionId, UserId);
+                }
+            }
+
+            foreach (var sessionId in live.Keys)
+            {
+                if (sessionId == currentSessionId || covered.Contains(sessionId))
                     continue;
 
                 try
@@ -964,25 +1030,12 @@ public class SecurityGrain(
                 }
                 catch (Exception e)
                 {
-                    // Per session, so the devices after this one in the list still get their turn.
                     failed++;
                     logger.LogError(e, "Failed to revoke session {SessionId} for user {UserId} during sign-out-everywhere",
                         sessionId, UserId);
                 }
             }
 
-            // No revocation floor here, on purpose. A floor is a timestamp and cannot make an
-            // exception for the caller's own refresh token, so writing one would sign them out of
-            // the screen they are standing on — the exact thing the spare below exists to avoid.
-            // The floor belongs to ChangePassword, where being signed out yourself is the point.
-            //
-            // The cost is that this reaches only sessions discovery can still see, and only refresh
-            // tokens minted since the sid claim existed.
-            //
-            // Deliberately spares the caller. The button that reaches here sits on the devices screen
-            // next to the phone's own row, and a user auditing their sessions is trying to remove the
-            // ones they do not recognise — signing themselves out as a side effect would cost them the
-            // screen they are working on. Signing out this device is what the sign-out button is for.
             logger.LogInformation("Revoked {Count} session(s) for user {UserId}", revoked, UserId);
 
             if (revoked > 0)
@@ -1002,6 +1055,104 @@ public class SecurityGrain(
             logger.LogError(e, "Failed to revoke all sessions for user {UserId}", UserId);
             return new FailedRevokeSession(SessionError.INTERNAL_ERROR);
         }
+    }
+
+    // Presence is read first and unguarded: an unreadable index has to fail the whole answer, not
+    // just the online marks, or a revoke would report NOT_FOUND for a device that is signed in.
+    private async Task<(IReadOnlyList<SessionRegistryRecord> Rows, Dictionary<Guid, UserSessionDescriptor> Live)> LoadDevicesAsync(CancellationToken ct)
+    {
+        var live = new Dictionary<Guid, UserSessionDescriptor>();
+
+        foreach (var session in await sessionDiscovery.GetUserSessionsAsync(UserId, ct))
+        {
+            if (Guid.TryParse(session.SessionId, out var sid))
+                live[sid] = session;
+        }
+
+        return (await sessionRegistry.ListAsync(UserId, ct), live);
+    }
+
+    // The caller's own row is the one carrying the token's sid. A token from before the registry, or
+    // one whose row has been superseded, has none, and then the presence sid names it.
+    private readonly record struct Caller(Guid PresenceSessionId, Guid? CredentialSessionId)
+    {
+        public static Caller Of(IReadOnlyList<SessionRegistryRecord> rows, Guid presenceSessionId, Guid? credentialSessionId)
+            => new(presenceSessionId, rows.Any(r => r.CredentialSessionId == credentialSessionId) ? credentialSessionId : null);
+
+        public bool Is(SessionRegistryRecord row)
+            => CredentialSessionId is { } credential
+                ? row.CredentialSessionId == credential
+                : row.PresenceSessionId == PresenceSessionId;
+    }
+
+    // Two rows on one presence sid are one launch that signed in twice; the screen shows the newer,
+    // or the caller's own if it is one of them. Revocation still reaches both through the sid.
+    private static IEnumerable<SessionRegistryRecord> OnePerDevice(IReadOnlyList<SessionRegistryRecord> rows, Caller caller)
+    {
+        var byPresence = new Dictionary<Guid, SessionRegistryRecord>();
+
+        foreach (var row in rows)
+        {
+            if (row.PresenceSessionId is not { } presence)
+            {
+                yield return row;
+                continue;
+            }
+
+            if (!byPresence.TryGetValue(presence, out var kept)
+                || caller.Is(row)
+                || (!caller.Is(kept) && row.CreatedAt > kept.CreatedAt))
+                byPresence[presence] = row;
+        }
+
+        foreach (var row in byPresence.Values)
+            yield return row;
+    }
+
+    // Ends a registry row: the credential's tombstone first, because that is what outlives everything
+    // else; then its presence sid the usual way, which takes the connection down; then the row.
+    private async Task<bool> EndDeviceAsync(SessionRegistryRecord row, CancellationToken ct)
+    {
+        var revokedKey = SessionRevocation.RevokedKey(UserId);
+
+        try
+        {
+            await cache.SetAddAsync(revokedKey, row.CredentialSessionId.ToString(), ct);
+            await cache.UpdateStringExpirationAsync(revokedKey, SessionRevocation.Window, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not tombstone credential {CredentialSessionId} for user {UserId}", row.CredentialSessionId, UserId);
+            return false;
+        }
+
+        var ended = true;
+
+        if (row.PresenceSessionId is { } presence && presence != Guid.AllBitsSet)
+            ended = await EndSessionAsync(presence, ct);
+
+        try
+        {
+            await revocations.PublishAsync(UserId, row.PresenceSessionId, [row.CredentialSessionId], ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not broadcast the revocation of credential {CredentialSessionId} for user {UserId}",
+                row.CredentialSessionId, UserId);
+        }
+
+        try
+        {
+            await sessionRegistry.RemoveAsync(UserId, [row.CredentialSessionId], ct);
+        }
+        catch (Exception e)
+        {
+            // The tombstone already keeps it off the list; the row goes with the next sweep.
+            logger.LogWarning(e, "Could not remove the registry row of credential {CredentialSessionId} for user {UserId}",
+                row.CredentialSessionId, UserId);
+        }
+
+        return ended;
     }
 
     /// <summary>

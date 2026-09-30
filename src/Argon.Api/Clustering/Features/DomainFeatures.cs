@@ -1,5 +1,6 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Auth;
 using Argon.Features.Cosmetics;
 using Argon.Features.Expressions;
 using Argon.Features.Integrations.Crawler;
@@ -95,11 +96,16 @@ public sealed class PresenceFeature : IArgonFeature
         => d.Describing("user presence tracking")
             .Requires<CacheFeature>()
             .Requires<RealtimeBusFeature>()
-            .Options<PresenceTimingOptions>(PresenceTimingOptions.SectionName);
+            .Options<PresenceTimingOptions>(PresenceTimingOptions.SectionName)
+            .Options<SessionRegistryOptions>(SessionRegistryOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
     {
         ctx.Builder.AddUserPresenceFeature();
+
+        // The Redis half of the signed-in sessions registry rides with presence: every host that
+        // describes a session (sign-in, refresh, hub connect, disconnect) writes through it.
+        ctx.Services.AddSingleton<ISessionRegistryTransit, SessionRegistryTransit>();
 
         // The one presence clock that belongs to Orleans, set from the one place that describes it.
         //
@@ -119,6 +125,18 @@ public sealed class PresenceFeature : IArgonFeature
         ctx.Services.Configure<Orleans.Hosting.ReminderOptions>(
             o => o.MinimumReminderPeriod = timings.ReminderFloor);
     }
+}
+
+public sealed class SessionRegistryFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Describing("signed-in sessions registry (database half)")
+            .Requires<PresenceFeature>()
+            .Requires<RepositoriesFeature>()
+            .Requires<RealtimeBusFeature>();
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddSingleton<SessionRegistryStore>();
 }
 
 public sealed class NotificationsFeature : IArgonFeature

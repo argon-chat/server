@@ -402,14 +402,17 @@ public class AccountSecurityTests : TestBase
 
         await Presence.SetSessionOnlineAsync(account.UserId, "not-a-session-id", ct);
 
-        var sessions = await Security(account.UserId).GetSessionsAsync(current, ct);
+        var sessions  = await Security(account.UserId).GetSessionsAsync(current, ct);
         var described = sessions.Single(s => s.sessionId == recent);
 
+        // The account's own sign-in is a signed-in device too: it is on the registry, it is not
+        // connected, so it comes after the three presence-only sessions above, which are live.
         Assert.Multiple(() =>
         {
-            Assert.That(sessions.Select(s => s.sessionId), Is.EqualTo(new[] { current, recent, older }),
-                "the current session first, then the most recently seen");
-            Assert.That(sessions.Select(s => s.isCurrent), Is.EqualTo(new[] { true, false, false }));
+            Assert.That(sessions.Select(s => s.sessionId), Is.EqualTo(new[] { current, recent, older, account.SessionId }),
+                "the current session first, then the live sessions by most recently seen, then the signed-in device that is not connected");
+            Assert.That(sessions.Select(s => s.isCurrent), Is.EqualTo(new[] { true, false, false, false }));
+            Assert.That(sessions.Select(s => s.online), Is.EqualTo(new[] { true, true, true, false }));
             Assert.That(described.appName, Is.EqualTo("Argon Desktop"));
             Assert.That(described.region, Is.EqualTo("NL"));
             Assert.That(described.platform, Is.EqualTo(ClientPlatform.WINDOWS));

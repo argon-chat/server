@@ -24,6 +24,7 @@ public class UserSessionGrain(
     ILogger<IUserSessionGrain> logger,
     IUserPresenceService presenceService,
     IArgonCacheDatabase cache,
+    ISessionRegistryTransit sessionRegistry,
     IOptions<PresenceTimingOptions> timingOptions)
     : Grain, IUserSessionGrain, IRemindable
 {
@@ -889,6 +890,11 @@ public class UserSessionGrain(
 
             stillOnline = await presenceService.IsUserOnlineAsync(_userId, ct);
         });
+
+        // The registry keeps the device after presence forgets it; this is its last-seen stamp.
+        if (Guid.TryParse(SessionId, out var presenceSid))
+            await BestEffortAsync("stamp the registry",
+                () => sessionRegistry.TouchSeenAsync(_userId, presenceSid, DateTimeOffset.UtcNow, ct));
 
         await BestEffortAsync("re-broadcast the aggregate",
             () => grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync(ct).AsTask());

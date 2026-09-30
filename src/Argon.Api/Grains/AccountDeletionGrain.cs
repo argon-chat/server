@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using System.Diagnostics;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
+using Argon.Features.Auth;
 using Argon.Features.Logic;
 using Argon.Features.Storage;
 using Argon.Services;
@@ -42,6 +43,7 @@ public class AccountDeletionGrain(
     IUserPresenceService presenceService,
     IArgonCacheDatabase revocationStore,
     ISessionRevocationBroadcaster revocations,
+    ISessionRegistryTransit sessionRegistry,
     IExportS3Service exportStorage,
     IOptions<AccountDeletionOptions> options,
     IOptions<Orleans.Hosting.ReminderOptions> reminderOptions,
@@ -1392,6 +1394,16 @@ public class AccountDeletionGrain(
             logger.LogWarning(ex, "Failed to clear the presence of some sessions for user {UserId}", UserId);
         }
 
+        // Unflushed registry changes, so the flush cannot recreate rows the private-data step erases.
+        try
+        {
+            await sessionRegistry.ForgetUserAsync(UserId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to clear the session registry transit for user {UserId}", UserId);
+        }
+
         logger.LogInformation("Invalidated {Count} sessions for user {UserId}", sessionIds.Count, UserId);
     }
 
@@ -1738,6 +1750,10 @@ public class AccountDeletionGrain(
         // the per-user observation cannot shed a device ban.
         await ctx.DeviceHistories
             .Where(d => d.UserId == userId)
+            .ExecuteDeleteAsync();
+
+        await ctx.UserSessions
+            .Where(s => s.UserId == userId)
             .ExecuteDeleteAsync();
 
         await ctx.DeviceObservations

@@ -634,18 +634,12 @@ public class PresenceRevocationTests : TestBase
     }
 
     /// <summary>
-    /// The devices screen lists the sessions that are connected and only those: a client that asked
-    /// for a realtime ticket but never connected is not a device, and a client that said goodbye
-    /// stops being one immediately.
+    /// Every signed-in device is listed; being connected is only the online mark. A client that
+    /// asked for a realtime ticket and never connected is signed in all the same, and a client that
+    /// said goodbye stays listed and merely drops its mark, immediately.
     /// </summary>
-    /// <remarks>
-    /// A ticket is minted by <c>IEventBus.PickTicket</c>, which is also where a session gets its name
-    /// and its description for this screen — so everything the screen needs to draw a row exists for
-    /// a session that never opened a connection. Listing it would put a device on the screen that is
-    /// not signed in anywhere, and the user's only reading of that is an intruder.
-    /// </remarks>
     [Test, CancelAfter(1000 * 60 * 3)]
-    public async Task The_devices_screen_lists_exactly_the_connected_sessions(CancellationToken ct = default)
+    public async Task The_devices_screen_marks_exactly_the_connected_sessions_online(CancellationToken ct = default)
     {
         var laptop     = await CreateSessionAsync(ct);
         var ticketOnly = await SecondDeviceAsync(laptop, ct);
@@ -656,36 +650,36 @@ public class PresenceRevocationTests : TestBase
         await using var onLaptop = await RealtimeClient.ConnectAsync(laptop, ct);
 
         var listed = await Poll.ForValueAsync(
-            async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
-            ids => ids.Contains(laptop.SessionId), PresenceWaits.Settle, ct: ct);
+            async () => (await laptop.Security.GetSessions(ct)).ToArray(),
+            rows => rows.Any(x => x.sessionId == laptop.SessionId && x.online), PresenceWaits.Settle, ct: ct);
+
+        var byId = listed.ToDictionary(x => x.sessionId);
 
         Assert.Multiple(() =>
         {
-            Assert.That(listed, Does.Contain(laptop.SessionId),
+            Assert.That(byId.ContainsKey(laptop.SessionId), Is.True,
                 "the connected device is missing from the devices screen");
-            Assert.That(listed, Does.Not.Contain(ticketOnly.SessionId),
-                "a session that asked for a ticket and never connected is shown as a signed-in device");
-            Assert.That(listed, Has.Length.EqualTo(1),
-                $"the devices screen shows sessions that are not connected: [{string.Join(", ", listed)}]");
+            Assert.That(byId.ContainsKey(ticketOnly.SessionId), Is.True,
+                "a signed-in device that asked for a ticket and never connected is missing from the devices screen");
+            Assert.That(byId.GetValueOrDefault(ticketOnly.SessionId)?.online, Is.False,
+                "a session that asked for a ticket and never connected is marked online");
+            Assert.That(listed.Count(x => x.online), Is.EqualTo(1),
+                $"the devices screen marks sessions online that are not connected: [{string.Join(", ", listed.Where(x => x.online).Select(x => x.sessionId))}]");
+            Assert.That(byId.GetValueOrDefault(laptop.SessionId)?.isCurrent, Is.True,
+                "the caller's own row is not marked as the current session");
         });
 
-        // The absence above has to be about liveness, not about a missing record: the screen has
-        // everything it needs to draw that row and correctly declines to.
         Assert.That(await probe.SessionMetaAsync(ticketOnly.UserId, ticketOnly.SessionId, ct), Is.Not.Null,
-            "the ticket-only session left no description behind, so its absence from the screen proves nothing");
-
-        var current = (await laptop.Security.GetSessions(ct)).Single(x => x.sessionId == laptop.SessionId);
-
-        Assert.That(current.isCurrent, Is.True, "the caller's own row is not marked as the current session");
+            "the ticket-only session left no description behind, so its offline mark proves nothing");
 
         await onLaptop.GoOffline(ct);
 
-        var gone = await Poll.UntilAsync(
-            async () => !(await laptop.Security.GetSessions(ct)).Any(x => x.sessionId == laptop.SessionId),
+        var offline = await Poll.UntilAsync(
+            async () => (await laptop.Security.GetSessions(ct)).Any(x => x.sessionId == laptop.SessionId && !x.online),
             PresenceWaits.Immediately, ct: ct);
 
-        Assert.That(gone, Is.True,
-            "a device that said goodbye is still listed as signed in a moment later — a deliberate "
+        Assert.That(offline, Is.True,
+            "a device that said goodbye is still marked online a moment later — a deliberate "
           + "sign-out has no grace and must be immediate");
     }
 

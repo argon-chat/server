@@ -117,11 +117,14 @@ public class SecurityInteractionImpl : ISecurityInteraction
     // GetSessionId() is read here rather than inside the grain: it is the caller's own session, and
     // the ion request context is the only place it exists.
     public async Task<IonArray<SessionInfo>> GetSessions(CancellationToken ct = default)
-        => new(await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetSessionsAsync(this.GetSessionId(), ct));
+        => new(await this.GetGrain<ISecurityGrain>(this.GetUserId())
+           .ListSessionsAsync(this.GetSessionId(), this.GetCredentialSessionId(), ct));
 
     public async Task<IRevokeSessionResult> RevokeSession(Guid sessionId, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RevokeSessionAsync(sessionId, this.GetSessionId(), ct);
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId())
+           .RevokeOneSessionAsync(sessionId, this.GetSessionId(), this.GetCredentialSessionId(), ct);
 
     public async Task<IRevokeSessionResult> RevokeAllSessions(CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RevokeAllSessionsAsync(this.GetSessionId(), ct);
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId())
+           .RevokeOtherSessionsAsync(this.GetSessionId(), this.GetCredentialSessionId(), ct);
 }

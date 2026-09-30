@@ -3,6 +3,8 @@ using Argon.Features.Clustering.Regions;
 
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Core.Features.CoreLogic.Passkeys;
+using Argon.Features.Logic;
+using Argon.Grains.Interfaces;
 using Microsoft.Extensions.Caching.Hybrid;
 using Services;
 using System.Diagnostics.Metrics;
@@ -19,7 +21,9 @@ public class ArgonAuthorizationService(
     IFido2 fido2,
     IPendingPasskeyStore pendingPasskeyStore,
     IArgonCacheDatabase cacheDatabase,
-    HybridCache cache
+    HybridCache cache,
+    ISessionRegistryTransit sessionRegistry,
+    IOptions<ClientAppsOptions> clientApps
 ) : IArgonAuthorizationService
 {
     /// <summary>
@@ -833,11 +837,65 @@ public class ArgonAuthorizationService(
         // Read straight out of the Orleans request context rather than through the Grain extension:
         // this is a plain service that happens to run inside a grain call, which is the same reason
         // CallerContext exists above.
-        await SessionRevocation.RememberCredentialSessionAsync(
-            cacheDatabase, logger, user.Id,
-            RequestContext.Get("$caller_session_id") as Guid?, credentialSessionId);
+        var presence = RequestContext.Get("$caller_session_id") as Guid?;
+
+        // Credentials already recorded under this presence sid are earlier sign-ins of the same
+        // launch; the client just replaced its token, so their rows leave the devices screen.
+        var superseded = presence is { } known && known != Guid.Empty && known != Guid.AllBitsSet
+            ? await SupersededCredentialsAsync(user.Id, known)
+            : [];
+
+        await SessionRevocation.RememberCredentialSessionAsync(cacheDatabase, logger, user.Id, presence, credentialSessionId);
+
+        await sessionRegistry.TouchAsync(user.Id, credentialSessionId, SessionTouch.Now(machineId, presence, DescribeCaller()));
+
+        foreach (var earlier in superseded)
+        {
+            if (earlier != credentialSessionId)
+                await sessionRegistry.MarkDeletedAsync(user.Id, earlier);
+        }
 
         return issued;
+    }
+
+    private async Task<List<Guid>> SupersededCredentialsAsync(Guid userId, Guid presenceSessionId)
+    {
+        try
+        {
+            return (await SessionRevocation.CredentialSessionsAsync(cacheDatabase, userId, presenceSessionId))
+               .Select(x => Guid.TryParse(x, out var id) ? id : Guid.Empty)
+               .Where(x => x != Guid.Empty)
+               .ToList();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not read the earlier credentials of session {SessionId} for {UserId}", presenceSessionId, userId);
+            return [];
+        }
+    }
+
+    // What the grain call carried about the caller. The user agent itself is not carried, so a
+    // browser is named by its family and everything else waits for the hub connect to fill it in.
+    private UserSessionMeta DescribeCaller()
+    {
+        var client  = ClientDescriptor.FromTransport(RequestContext.Get(CallerContext.ClientKey) as string);
+        var appId   = RequestContext.Get(CallerContext.AppIdKey) as string;
+        var country = RequestContext.Get("$caller_country") as string;
+        var now     = DateTime.UtcNow;
+
+        return new UserSessionMeta(
+            client.IsBrowser ? client.Browser : "",
+            string.IsNullOrEmpty(country) || country == GeoLocation.UnknownCountry ? "" : country,
+            now,
+            now,
+            AppId: appId,
+            AppName: ClientIdentity.AppName(clientApps.Value.Find(appId, client), client),
+            Platform: client.Platform,
+            OsName: client.OsName,
+            AppVersion: client.AppVersion,
+            DeviceName: client.DeviceName,
+            Ip: RequestContext.Get("$caller_user_ip") as string,
+            City: RequestContext.Get(CallerContext.CityKey) as string);
     }
 
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user)

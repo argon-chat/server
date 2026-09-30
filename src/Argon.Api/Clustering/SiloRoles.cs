@@ -59,6 +59,7 @@ public sealed class CoreRole : IArgonRole
         features.Add<ArchetypeCacheFeature>();
         features.Add<MessagesFeature>();
         features.Add<PresenceFeature>();
+        features.Add<SessionRegistryFeature>();
         features.Add<NotificationsFeature>();
         features.Add<OtpFeature>();
         features.Add<SocialFeature>();
@@ -258,6 +259,7 @@ public sealed class JobsRole : IArgonRole
         features.Add<NotificationsFeature>();
         features.Add<ArgonAuthorizationFeature>();
         features.Add<PresenceFeature>();
+        features.Add<SessionRegistryFeature>();
         features.Add<FileStorageFeature>();
         features.Add<OtpFeature>();
     }
@@ -277,8 +279,11 @@ public sealed class JobsRole : IArgonRole
         registry.AddToRef<AdminDirectoryGrain>();
         registry.AddToRef<AdminPlatformGrain>();
 
+        registry.AddToRef<SessionRegistryFlushGrain>();
+
         registry.AddStartupCall<IAutoDeleteSchedulerGrain>();
         registry.AddStartupCall<ITtlSweepGrain>();
+        registry.AddStartupCall<ISessionRegistryFlushGrain>();
 
         registry.AcceptRemote<IFileStorageGrain>("cleanup path only; media owns the storage stack");
         registry.AcceptRemote<IExpressionItemDirectoryGrain>("the admin user card only");

@@ -15,6 +15,7 @@ public class EventBusImpl(
     IUserPresenceService presence,
     IArgonCacheDatabase cache,
     IOptions<ClientAppsOptions> clientApps,
+    ISessionRegistryTransit sessionRegistry,
     IIonStreamContextAccessor streams,
     IonRealtimeHub realtime) : IEventBus, IIonStreamLifecycle
 {
@@ -117,11 +118,14 @@ public class EventBusImpl(
         try
         {
             var ctx       = this.GetRequestContext();
-            var described = await presence.TouchSessionMetaAsync(userId, sid.ToString(),
-                UserSessionMeta.Describe(ctx, clientApps.Value.Find(ctx.AppId, ctx.Client)), ct);
+            var meta      = UserSessionMeta.Describe(ctx, clientApps.Value.Find(ctx.AppId, ctx.Client));
+            var described = await presence.TouchSessionMetaAsync(userId, sid.ToString(), meta, ct);
 
             if (described)
                 await this.GetGrain<IUserGrain>(userId).UpdateUserDeviceHistory();
+
+            if (this.GetCredentialSessionId() is { } credential)
+                await sessionRegistry.TouchAsync(userId, credential, SessionTouch.Now(machineId, sid, meta), ct);
         }
         catch (Exception e)
         {

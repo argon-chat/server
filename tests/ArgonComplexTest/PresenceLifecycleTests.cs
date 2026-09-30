@@ -160,8 +160,10 @@ public class PresenceLifecycleTests : TestBase
                 "the user still reads online after their only session was finalized offline");
             Assert.That(activeAfterOffline, Does.Not.Contain(joiner.SessionId.ToString()),
                 "the finalized session is still in the live-session index");
-            Assert.That(sessionsAfterOffline.Values.Select(s => s.sessionId), Does.Not.Contain(joiner.SessionId),
-                "the devices screen still lists a session that was finalized offline");
+            // The device stays signed in when its connection goes: the devices screen keeps the row
+            // (it is what the user would sign out from another device) and only its online mark drops.
+            Assert.That(sessionsAfterOffline.Values.Any(s => s.sessionId == joiner.SessionId && !s.online), Is.True,
+                "the devices screen lost, or still marks online, a session that was finalized offline");
             Assert.That(snapshotAfterOffline, Is.EqualTo(UserStatus.Offline),
                 "the space snapshot disagrees with the Offline the space was just told");
         });

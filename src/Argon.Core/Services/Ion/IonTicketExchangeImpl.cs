@@ -10,6 +10,7 @@ public class IonTicketExchangeImpl(
     IServiceProvider provider,
     IUserPresenceService presence,
     IOptions<ClientAppsOptions> clientApps,
+    ISessionRegistryTransit sessionRegistry,
     ILogger<IonTicketExchangeImpl> logger) : IIonTicketExchange
 {
     public async Task<ReadOnlyMemory<byte>> OnExchangeCreateAsync(IIonCallContext callContext)
@@ -45,8 +46,12 @@ public class IonTicketExchangeImpl(
         // row. Recording it here rather than per request keeps a Redis write off the hot path, and
         // rather than in UserSessionGrain because the grain is reached through Orleans' request
         // context, which carries the ids but not the client name.
-        await presence.TouchSessionMetaAsync(ticket.userId, ticket.sessionId.ToString(),
-            UserSessionMeta.Describe(req, clientApps.Value.Find(req.AppId, req.Client)));
+        var meta = UserSessionMeta.Describe(req, clientApps.Value.Find(req.AppId, req.Client));
+
+        await presence.TouchSessionMetaAsync(ticket.userId, ticket.sessionId.ToString(), meta);
+
+        if (req.Props.TryGetValue(SessionRevocation.CredentialSessionProperty, out var csid) && Guid.TryParse(csid, out var credential))
+            await sessionRegistry.TouchAsync(ticket.userId, credential, SessionTouch.Now(req.MachineId, ticket.sessionId, meta));
 
         return ticketId.ToByteArray();
     }

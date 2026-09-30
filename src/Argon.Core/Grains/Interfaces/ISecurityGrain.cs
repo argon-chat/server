@@ -71,4 +71,17 @@ public interface ISecurityGrain : IGrainWithGuidKey
 
     [Alias(nameof(RevokeAllSessionsAsync))]
     Task<IRevokeSessionResult> RevokeAllSessionsAsync(Guid currentSessionId, CancellationToken ct = default);
+
+    // The same three with the caller's credential sid (the token's sid) as well, which is what names
+    // the caller's own row on the registry; the presence sid alone changes on every launch. The
+    // three above are kept for an older entrypoint and pass null.
+
+    [Alias(nameof(ListSessionsAsync))]
+    Task<List<SessionInfo>> ListSessionsAsync(Guid currentSessionId, Guid? currentCredentialSessionId, CancellationToken ct = default);
+
+    [Alias(nameof(RevokeOneSessionAsync))]
+    Task<IRevokeSessionResult> RevokeOneSessionAsync(Guid sessionId, Guid currentSessionId, Guid? currentCredentialSessionId, CancellationToken ct = default);
+
+    [Alias(nameof(RevokeOtherSessionsAsync))]
+    Task<IRevokeSessionResult> RevokeOtherSessionsAsync(Guid currentSessionId, Guid? currentCredentialSessionId, CancellationToken ct = default);
 }

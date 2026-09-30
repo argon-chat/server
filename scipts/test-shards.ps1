@@ -102,6 +102,7 @@ $presenceFixtures = @(
     'PresenceRevocationTests'
     'PresenceSessionGateTests'
     'PresenceSessionGrainTests'
+    'PresenceSessionRegistryTests'
     'PresenceVoiceAndCountsTests'
 )
 

@@ -1216,28 +1216,27 @@ public class PresenceSessionGrainTests : TestBase
     // ═════════════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// The devices screen lists sessions that are connected, and only those.
+    /// The devices screen lists every signed-in device and marks the connected ones online.
     /// </summary>
     /// <remarks>
     /// <para>This is the screen a user opens when they think somebody else is in their account, so
-    /// both errors are bad in a specific way. A row for a session that never connected — a ticket
-    /// picked up and abandoned, a client that crashed during startup — is an unexplained device on a
-    /// security screen, which is exactly the alarm that screen exists to raise honestly. A missing row
-    /// for a session that <em>is</em> connected is a device the user cannot sign out.</para>
+    /// both errors are bad in a specific way. A signed-in device that is missing because it is not
+    /// connected right now is a device the user cannot sign out; a row for a presence session that
+    /// was never signed in — a heartbeat with no credential behind it — that stays after it ended is
+    /// an unexplained device on a security screen.</para>
     ///
-    /// <para>The three states walked here are the three the list is built from: described but never
-    /// present (PickTicket writes the naming record and no presence), present, and deliberately
-    /// ended.</para>
+    /// <para>The three states walked here: signed in and described but never present (PickTicket
+    /// writes the naming record and no presence), present, and deliberately ended.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
-    public async Task The_devices_screen_lists_connected_sessions_and_only_those(CancellationToken ct = default)
+    public async Task The_devices_screen_lists_signed_in_devices_and_marks_connected_ones_online(CancellationToken ct = default)
     {
         var user = await CreateSessionAsync(ct);
 
         // A ticket is picked up and nothing ever connects with it.
         await user.Client.ForService<IEventBus>(FactoryAsp.Services).PickTicket(ct);
 
-        var afterTicketOnly = (await user.Security.GetSessions(ct)).Select(x => x.sessionId).ToList();
+        var afterTicketOnly = (await user.Security.GetSessions(ct)).ToList();
 
         // A session that actually connects.
         var connectedSid = Guid.CreateVersion7();
@@ -1254,12 +1253,11 @@ public class PresenceSessionGrainTests : TestBase
 
         Assert.Multiple(() =>
         {
-            // Empty rather than "does not contain the client's sid": the server may have recorded the
-            // ticket under a sid of its own choosing, and the promise is that no never-connected
-            // session appears at all, whatever it was called.
-            Assert.That(afterTicketOnly, Is.Empty,
-                $"a session that only asked for a ticket and never connected is listed as a device "
-              + $"(client sid {user.SessionId}, listed: {string.Join(", ", afterTicketOnly)})");
+            // The one signed-in device is the caller's own, and nothing about it is connected yet.
+            Assert.That(afterTicketOnly.Select(x => (x.sessionId, x.online, x.isCurrent)),
+                Is.EqualTo(new[] { (user.SessionId, false, true) }).AsCollection,
+                $"a signed-in device that asked for a ticket and never connected must be listed once, offline and "
+              + $"current (client sid {user.SessionId}, listed: {string.Join(", ", afterTicketOnly.Select(x => x.sessionId))})");
             Assert.That(whileConnected, Does.Contain(connectedSid),
                 "a connected session is missing from the devices screen — the user cannot sign it out");
             Assert.That(afterSignOut, Does.Not.Contain(connectedSid),
