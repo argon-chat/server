@@ -581,7 +581,7 @@ public partial class SpaceGrain(
     private static ArgonUserProfile PlaceholderProfile(Guid userId, string bio)
         => new(userId, null, null, null, null, bio, IonArray<string>.Empty,
             IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null,
-            IonArray<IWornCosmetic>.Empty, null);
+            IonArray<IWornCosmetic>.Empty, null, null);
 
     public async Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default)
     {

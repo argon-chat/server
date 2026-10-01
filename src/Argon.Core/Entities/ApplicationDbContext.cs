@@ -87,6 +87,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<DeviceKeyEntity>         DeviceKeys         => Set<DeviceKeyEntity>();
     // Signed-in devices, one row per credential session. See SessionRegistryStore.
     public DbSet<UserSessionEntity>       UserSessions       => Set<UserSessionEntity>();
+
+    public DbSet<UserConnectionEntity>        UserConnections        => Set<UserConnectionEntity>();
+    public DbSet<ConnectionTrophyGrantEntity> ConnectionTrophyGrants => Set<ConnectionTrophyGrantEntity>();
     public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
     public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
 

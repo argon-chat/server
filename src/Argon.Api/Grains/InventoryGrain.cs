@@ -138,7 +138,10 @@ public class InventoryGrain(
         return @case.Id;
     }
 
-    public async Task<bool> GiveCoinFor(Guid userId, string coinTemplateId, CancellationToken ct = default)
+    public Task<bool> GiveCoinFor(Guid userId, string coinTemplateId, CancellationToken ct = default)
+        => GiveCoinFor(userId, coinTemplateId, null, ct);
+
+    public async Task<bool> GiveCoinFor(Guid userId, string coinTemplateId, string? badgeId, CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
@@ -163,7 +166,7 @@ public class InventoryGrain(
 
         if (coin.IsAffectBadge)
         {
-            await AddBadgeToProfileAsync(ctx, userId, coin.TemplateId, ct);
+            await AddBadgeToProfileAsync(ctx, userId, badgeId ?? coin.TemplateId, ct);
             await ctx.SaveChangesAsync(ct);
         }
 

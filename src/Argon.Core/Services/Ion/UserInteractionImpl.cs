@@ -123,7 +123,7 @@ public class UserInteractionImpl(
     }
 
     public async Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default)
-        => await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyProfile();
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).GetProfileForAsync(this.GetUserId());
 
     /// <summary>
     /// Resolves a person the caller has standing to know, by id alone.
@@ -169,7 +169,7 @@ public class UserInteractionImpl(
 
         try
         {
-            return new SuccessLookupProfile(await this.GetGrain<IUserGrain>(userId).GetMyProfile());
+            return new SuccessLookupProfile(await this.GetGrain<IUserGrain>(userId).GetProfileForAsync(callerId));
         }
         catch (InvalidOperationException)
         {

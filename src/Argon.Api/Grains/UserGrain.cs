@@ -320,6 +320,15 @@ public class UserGrain(
         return await WithCosmeticsAsync(profile.ToDto());
     }
 
+    /// <inheritdoc cref="IUserGrain.GetProfileForAsync"/>
+    public async Task<ArgonUserProfile> GetProfileForAsync(Guid viewerId)
+    {
+        var profile     = await GetMyProfile();
+        var connections = await GrainFactory.GetGrain<IUserConnectionsGrain>(this.GetPrimaryKey()).GetVisibleForAsync(viewerId);
+
+        return profile with { connections = new IonArray<ProfileConnection>(connections) };
+    }
+
     public async Task<List<ArgonSpaceBase>> GetMyServers()
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -512,8 +521,18 @@ public class UserGrain(
     }
 
     /// <inheritdoc cref="IUserGrain.BroadcastPresenceAsync"/>
-    public ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId)
-        => GrainFactory.GetGrain<IUserPresenceGrain>(this.GetPrimaryKey()).BroadcastPresenceAsync(presence, sessionId);
+    public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId)
+    {
+        await GrainFactory.GetGrain<IUserPresenceGrain>(this.GetPrimaryKey()).BroadcastPresenceAsync(presence, sessionId);
+
+        // A bare LISTEN is the desktop reading the OS media session. If Spotify is linked and shown
+        // as status, its poller resolves the track now, one request per track change, instead of on
+        // its own clock. One-way: the poller answers nothing and may be mid-tick. Everyone else who
+        // listens to music costs one set read and no grain.
+        if (presence.kind == ActivityPresenceKind.LISTEN && presence.source is null
+         && (await presenceService.GetStatusProvidersAsync(this.GetPrimaryKey())).Contains("spotify"))
+            await GrainFactory.GetGrain<ISpotifyPresenceGrain>(this.GetPrimaryKey()).HintAsync(presence.titleName);
+    }
 
     /// <inheritdoc cref="IUserGrain.RemoveBroadcastPresenceAsync"/>
     public ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast)

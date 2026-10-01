@@ -876,7 +876,7 @@ public class PresenceAggregationTests : TestBase
     // ---------------------------------------------------------------------------------------------
 
     private static UserActivityPresence Activity(string title, ActivityPresenceKind kind, ulong startedAtSeconds)
-        => new(kind, startedAtSeconds, title);
+        => new(kind, startedAtSeconds, title, null, null, null, null);
 
     /// <summary>
     /// Two devices carry two activities, and the one the single-activity wire shows is the newest.

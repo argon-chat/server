@@ -3,6 +3,7 @@ namespace Argon.Api.Clustering;
 using Argon.Features.Auth;
 using Argon.Features.Cosmetics;
 using Argon.Features.Expressions;
+using Argon.Features.Integrations.Connections;
 using Argon.Features.Integrations.Crawler;
 using Argon.HealthChecks;
 using Argon.Features.Integrations.Phones;
@@ -265,6 +266,24 @@ public sealed class KlipyFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddKlipyFeature();
+}
+
+/// <summary>
+/// Linked external accounts, the silo half: the provider adapters, the token sealing key, the
+/// handshake store. Only ever on a silo role — the entry point gets <c>ConnectionsEndpointsFeature</c>,
+/// which binds none of the secrets in this section.
+/// </summary>
+public sealed class ConnectionsFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("connections")
+            .Describing("linked external accounts: adapters, token sealing, the OAuth handshake")
+            .Requires<HttpClientFeature>()
+            .Requires<CacheFeature>()
+            .Options<ConnectionsOptions>(ConnectionsOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Builder.AddConnectionsFeature();
 }
 
 /// <summary>

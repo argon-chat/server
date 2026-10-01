@@ -269,7 +269,7 @@ public class SocialGraphTests : TestBase
         Assert.DoesNotThrowAsync(async () =>
         {
             await GetUserService(scope.ServiceProvider).BroadcastPresence(
-                new UserActivityPresence(ActivityPresenceKind.GAME, (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), "Testing"), ct);
+                new UserActivityPresence(ActivityPresenceKind.GAME, (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), "Testing", null, null, null, null), ct);
             await GetUserService(scope.ServiceProvider).RemoveBroadcastPresence(ct);
         });
     }

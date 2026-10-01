@@ -17,8 +17,22 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         }, ct);
     }
 
-    public Task UpdateStringExpirationAsync(string key, TimeSpan expiration, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    /// <summary>
+    /// <c>EXPIRE</c> on a value that is there: re-written with the new lifetime, a no-op when gone.
+    /// </summary>
+    public async Task UpdateStringExpirationAsync(string key, TimeSpan expiration, CancellationToken ct = default)
+    {
+        await setAndGetGate.WaitAsync(ct);
+        try
+        {
+            if (await cache.GetStringAsync(key, ct) is { } value)
+                await StringSetAsync(key, value, expiration, ct);
+        }
+        finally
+        {
+            setAndGetGate.Release();
+        }
+    }
 
     public Task StringSetAsync(string key, string value, CancellationToken ct = default)
     {
@@ -42,8 +56,24 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         return !string.IsNullOrEmpty(r);
     }
 
-    public Task<long> StringIncrementAsync(string key, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    /// <summary><c>INCR</c> under the same gate as set-and-get; a missing key counts from zero, as in Redis.</summary>
+    public async Task<long> StringIncrementAsync(string key, CancellationToken ct = default)
+    {
+        await setAndGetGate.WaitAsync(ct);
+        try
+        {
+            var current = long.TryParse(await cache.GetStringAsync(key, ct), out var n) ? n : 0;
+            var next    = current + 1;
+
+            await StringSetAsync(key, next.ToString(System.Globalization.CultureInfo.InvariantCulture), ct);
+
+            return next;
+        }
+        finally
+        {
+            setAndGetGate.Release();
+        }
+    }
 
     public Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
         => throw new NotImplementedException();

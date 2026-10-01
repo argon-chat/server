@@ -70,6 +70,35 @@ public interface IUserPresenceService
     Task<bool> RemoveActivityPresence(Guid userId, string sessionId);
 
     /// <summary>
+    /// A provider-backed activity — Spotify, later Twitch — that belongs to the user rather than to
+    /// one of their devices.
+    /// </summary>
+    /// <remarks>
+    /// Kept beside the session entries under its own key and index, not as a pseudo-session: a
+    /// session in the live index counts towards the aggregate status, and a poller must never make a
+    /// signed-out user Online. Read together with the session activities, and only while the user
+    /// has a live session; renewed by the grain that polls the provider; removed with
+    /// <see cref="RemoveProviderActivity"/>.
+    /// </remarks>
+    Task SetProviderActivity(Guid userId, string provider, UserActivityPresence presence);
+
+    /// <summary>Removes a provider's activity. True if there was one.</summary>
+    Task<bool> RemoveProviderActivity(Guid userId, string provider);
+
+    /// <summary>
+    /// The providers this user shows as status (Spotify, Twitch), by slug — whose pollers a session
+    /// attach has reason to wake. Kept by <c>UserConnectionsGrain</c> next to the option it mirrors.
+    /// </summary>
+    /// <remarks>
+    /// One set read on a hot path instead of a grain activation and a database read per provider
+    /// for every user on every connect. A lost set costs a user their status until the next option
+    /// change or link, never a wrong status: the pollers re-check the connection themselves.
+    /// </remarks>
+    Task<string[]> GetStatusProvidersAsync(Guid userId, CancellationToken ct = default);
+
+    Task SetStatusProviderAsync(Guid userId, string provider, bool shown, CancellationToken ct = default);
+
+    /// <summary>
     /// Records the status one session reports, and nothing else.
     /// </summary>
     /// <remarks>
@@ -591,7 +620,9 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
     {
         // Fold over the user's live sessions (same O(1) index used for status) and read each session's
         // TTL'd activity entry. Expired/empty entries contribute nothing. No keyspace SCAN.
-        var activities = new List<UserActivityPresence>();
+        var activities   = new List<UserActivityPresence>();
+        var liveSessions = 0;
+
         foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId)))
         {
             if (!await cache.KeyExistsAsync(SessionKey(userId, sessionId)))
@@ -600,11 +631,64 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
                 continue;
             }
 
+            liveSessions++;
+
             if (ReadActivity(await cache.StringGetAsync(ActivitySessionKey(userId, sessionId))) is { } activity)
                 activities.Add(activity);
         }
 
+        // Provider slots count only for someone who is online: a Spotify entry that outlives the last
+        // session by its TTL must not show a signed-out user as listening — the same invariant the
+        // session fold keeps (PresenceActivityTests.An_offline_member_is_never_shown_with_an_activity).
+        if (liveSessions == 0)
+            return activities;
+
+        foreach (var provider in await cache.SetMembersAsync(ProvidersSetKey(userId)))
+        {
+            if (ReadActivity(await cache.StringGetAsync(ProviderActivityKey(userId, provider))) is { } activity)
+                activities.Add(activity);
+            else
+                await cache.SetRemoveAsync(ProvidersSetKey(userId), provider); // lapsed: prune the index
+        }
+
         return activities;
+    }
+
+    // A provider's activity, keyed by the provider rather than by a session, with its own index.
+    private static string ProviderActivityKey(Guid userId, string provider)
+        => $"activity:user:{userId}:provider:{provider}";
+
+    private static string ProvidersSetKey(Guid userId)
+        => $"activity:user:{userId}:providers";
+
+    public async Task SetProviderActivity(Guid userId, string provider, UserActivityPresence presence)
+    {
+        await cache.StringSetAsync(ProviderActivityKey(userId, provider), JsonConvert.SerializeObject(presence), ActivityTTL);
+        await cache.SetAddAsync(ProvidersSetKey(userId), provider);
+    }
+
+    private static string StatusProvidersKey(Guid userId)
+        => $"activity:user:{userId}:status-providers";
+
+    public Task<string[]> GetStatusProvidersAsync(Guid userId, CancellationToken ct = default)
+        => cache.SetMembersAsync(StatusProvidersKey(userId), ct);
+
+    public Task SetStatusProviderAsync(Guid userId, string provider, bool shown, CancellationToken ct = default)
+        => shown
+            ? cache.SetAddAsync(StatusProvidersKey(userId), provider, ct)
+            : cache.SetRemoveAsync(StatusProvidersKey(userId), provider, ct);
+
+    public async Task<bool> RemoveProviderActivity(Guid userId, string provider)
+    {
+        var key     = ProviderActivityKey(userId, provider);
+        var existed = !string.IsNullOrEmpty(await cache.StringGetAsync(key));
+
+        if (existed)
+            await cache.KeyDeleteAsync(key);
+
+        await cache.SetRemoveAsync(ProvidersSetKey(userId), provider);
+
+        return existed;
     }
 
     public async Task<Dictionary<Guid, UserActivityPresence>> BatchGetUsersActivityPresence(List<Guid> userIds)
@@ -622,11 +706,24 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
     public async Task<UserActivityPresence?> GetUsersActivityPresence(Guid userId)
         => PickRepresentativeActivity(await GetUserActivitiesAsync(userId));
 
-    // The single activity the current wire exposes = the most recently started one across sessions.
-    private static UserActivityPresence? PickRepresentativeActivity(List<UserActivityPresence> activities)
-        => activities.Count == 0
-            ? null
-            : activities.OrderByDescending(a => a.startTimestampSeconds).First();
+    // The single activity the current wire exposes: the most recently started one across kinds, as
+    // before — except that two of a kind resolve to the provider-backed one first. The desktop's own
+    // media-session LISTEN and the Spotify LISTEN describe the same track, and the one with the album
+    // art wins over the one with a window title.
+    public static UserActivityPresence? PickRepresentativeActivity(List<UserActivityPresence> activities)
+    {
+        if (activities.Count == 0)
+            return null;
+
+        return activities
+           .GroupBy(a => a.kind)
+           .SelectMany(kind => kind.Any(IsProviderBacked) ? kind.Where(IsProviderBacked) : kind)
+           .OrderByDescending(a => a.startTimestampSeconds)
+           .First();
+    }
+
+    private static bool IsProviderBacked(UserActivityPresence activity)
+        => activity.source is { } source && source != ArgonContracts.ActivitySource.CLIENT;
 
     public async Task<bool> RemoveActivityPresence(Guid userId, string sessionId)
     {

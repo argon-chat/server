@@ -12,16 +12,21 @@ public static class PrivacyKeys
     /// <summary>Who may draw on this user's shared screen (screencast drawing).</summary>
     public const string StreamDraw = "stream.draw";
 
+    /// <summary>Who sees this user's linked accounts on their profile card.</summary>
+    public const string ConnectionsVisibility = "connections.visibility";
+
     /// <summary>All known keys (for validation of incoming rule writes).</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>
     {
         StreamDraw,
+        ConnectionsVisibility,
     };
 
     /// <summary>Default disposition when a user has set no rule for a key.</summary>
     public static PrivacyMode DefaultModeFor(string key) => key switch
     {
-        StreamDraw => PrivacyMode.Everybody,
-        _          => PrivacyMode.Everybody,
+        StreamDraw            => PrivacyMode.Everybody,
+        ConnectionsVisibility => PrivacyMode.Everybody,
+        _                     => PrivacyMode.Everybody,
     };
 }

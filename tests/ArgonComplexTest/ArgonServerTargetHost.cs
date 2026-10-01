@@ -5,6 +5,10 @@ using Livekit.Server.Sdk.Dotnet;
 using Argon.Features.Clustering;
 using Argon.Features.EF;
 using Argon.Features.Integrations.Klipy;
+using Argon.Features.Integrations.Connections;
+using Argon.Features.Integrations.Connections.Providers;
+using Argon.Features.Integrations.Connections.Spotify;
+using Argon.Features.Integrations.Connections.Twitch;
 using Argon.Features.Expressions;
 using Argon.Features.Moderation;
 using Argon.Features.Testing;
@@ -79,6 +83,21 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
             services.AddSingleton<FakeKlipyApi>();
             services.AddHttpClient<IKlipyService, KlipyService>()
                .ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeKlipyApi>().CreateHandler());
+
+            // GitHub and Spotify answered in process for the connections fixtures. The shipped adapters
+            // and clients stay; only their sockets are replaced, and every provider client is pointed
+            // at the fake so that a provider with no route in it answers 404 rather than the internet.
+            services.AddSingleton<FakeConnectionsApi>();
+            services.AddHttpClient<GitHubConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<SteamConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<SpotifyConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<TwitterConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<TwitchConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<YouTubeConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<TelegramConnectionProvider>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<SpotifyPlayerClient>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient<TwitchEventSubClient>().ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
+            services.AddHttpClient(JwksKeyCache.HttpClientName).ConfigurePrimaryHttpMessageHandler(sp => sp.GetRequiredService<FakeConnectionsApi>().CreateHandler());
 
             // No model in the suite: allows everything, as the no-op the host would pick does,
             // except the objects a test flags.
@@ -190,6 +209,11 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("Storage:Cdn:Default:BaseUrl", "https://cdn.test.local");
         builder.UseSetting("Storage:Cdn:RedirectCacheSeconds", "300");
         builder.UseSetting("Storage:UseSsl", "false");
+
+        // Linked accounts, against FakeConnectionsApi. GitHub and Spotify are registered; the rest are
+        // left without a client id, which is the shape of a deployment that has not set them up.
+        foreach (var (key, value) in TestServerConfiguration.Connections)
+            builder.UseSetting(key, value);
 
         // Keys for the in-process Klipy (FakeKlipyApi); the host name resolves nowhere on purpose.
         builder.UseSetting("Klipy:BaseUrl", "https://api.klipy.test");

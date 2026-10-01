@@ -78,7 +78,7 @@ public class PresenceActivityTests : TestBase
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
         var announced = watcher.Mark();
-        var activity  = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Deep Rock Galactic");
+        var activity  = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Deep Rock Galactic", null, null, null, null);
 
         await player.Users.BroadcastPresence(activity, ct);
 
@@ -127,7 +127,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.SOFTWARE, StartedNow(), "Rider");
+        var activity = new UserActivityPresence(ActivityPresenceKind.SOFTWARE, StartedNow(), "Rider", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var beforeRemoval = watcher.Mark();
@@ -186,7 +186,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Elden Ring");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Elden Ring", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key            = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
@@ -252,7 +252,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Outer Wilds");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Outer Wilds", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key      = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
@@ -328,7 +328,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Subnautica");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Subnautica", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key       = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
@@ -412,7 +412,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Hollow Knight");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Hollow Knight", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key         = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
@@ -498,7 +498,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Factorio");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Factorio", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key         = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
@@ -578,8 +578,8 @@ public class PresenceActivityTests : TestBase
 
         await RequireLiveDevicesAsync(player.UserId, ct, player.SessionId, phone.SessionId);
 
-        var game  = new UserActivityPresence(ActivityPresenceKind.GAME, 100, "Factorio");
-        var music = new UserActivityPresence(ActivityPresenceKind.LISTEN, 200, "Rammstein - Sonne");
+        var game  = new UserActivityPresence(ActivityPresenceKind.GAME, 100, "Factorio", null, null, null, null);
+        var music = new UserActivityPresence(ActivityPresenceKind.LISTEN, 200, "Rammstein - Sonne", null, null, null, null);
 
         await AnnounceAndAwaitAsync(player, watcher, game, ct);
 
@@ -628,8 +628,8 @@ public class PresenceActivityTests : TestBase
 
         await RequireLiveDevicesAsync(player.UserId, ct, player.SessionId, phone.SessionId);
 
-        var game  = new UserActivityPresence(ActivityPresenceKind.GAME, 100, "Factorio");
-        var music = new UserActivityPresence(ActivityPresenceKind.LISTEN, 200, "Rammstein - Sonne");
+        var game  = new UserActivityPresence(ActivityPresenceKind.GAME, 100, "Factorio", null, null, null, null);
+        var music = new UserActivityPresence(ActivityPresenceKind.LISTEN, 200, "Rammstein - Sonne", null, null, null, null);
 
         await AnnounceAndAwaitAsync(player, watcher, game, ct);
 
@@ -701,7 +701,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.STREAMING, StartedNow(), "Some Stream");
+        var activity = new UserActivityPresence(ActivityPresenceKind.STREAMING, StartedNow(), "Some Stream", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var beforeGoodbye = watcher.Mark();
@@ -751,7 +751,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Deep Rock Galactic");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Deep Rock Galactic", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var beforeDrop = watcher.Mark();
@@ -803,7 +803,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Baldur's Gate 3");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Baldur's Gate 3", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var beforeDrop = watcher.Mark();
@@ -850,7 +850,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.LISTEN, StartedNow(), "Boards of Canada");
+        var activity = new UserActivityPresence(ActivityPresenceKind.LISTEN, StartedNow(), "Boards of Canada", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
@@ -911,7 +911,7 @@ public class PresenceActivityTests : TestBase
         var aliveBeforeAnnounce = await probe.IsSessionAliveAsync(player.UserId, player.SessionId, ct);
 
         var beforeAnnounce = watcher.Mark();
-        var activity       = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Nothing At All");
+        var activity       = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Nothing At All", null, null, null, null);
 
         await player.Users.BroadcastPresence(activity, ct);
 
@@ -988,7 +988,7 @@ public class PresenceActivityTests : TestBase
         await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
         await using var playing = await RealtimeClient.ConnectAsync(player, ct);
 
-        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Portal 2");
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Portal 2", null, null, null, null);
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         await playing.AbortAsync(ct: ct);

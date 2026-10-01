@@ -130,6 +130,10 @@ public sealed partial record ExportCursor
     [DataMember(Order = 18), Id(18)]
     public bool PasskeysDone { get; set; }
 
+    /// <summary>connections.json — linked external accounts: provider, handle, options, facts. Never a token.</summary>
+    [DataMember(Order = 21), Id(21)]
+    public bool ConnectionsDone { get; set; }
+
     [DataMember(Order = 19), Id(19)]
     public bool FilesDone { get; set; }
 }

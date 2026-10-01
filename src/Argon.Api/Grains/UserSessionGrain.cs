@@ -371,6 +371,10 @@ public class UserSessionGrain(
         if (preferred is not null)
             await grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync();
 
+        // The status pollers this user has asked for, and only those: one set read, then one-way
+        // wakes. A user with no connection shown as status costs nothing more here.
+        await WakeStatusPollersAsync();
+
         // Device history is no longer written from here: this grain is reached through the hub, whose
         // request context carries the ids but neither the address nor the country, so every row it
         // wrote said "unknown". PickTicket, which runs on the Ion path with the whole request in hand,
@@ -905,6 +909,13 @@ public class UserSessionGrain(
         await BestEffortAsync("clear the session's activity",
             () => grainFactory.GetGrain<IUserPresenceGrain>(_userId).RemoveBroadcastPresenceAsync(SessionId, alwaysBroadcast: false).AsTask());
 
+        // The Spotify poller's next read sees whether any session is left; one-way, nothing awaited.
+        await BestEffortAsync("nudge the Spotify poller", async () =>
+        {
+            if ((await presenceService.GetStatusProvidersAsync(_userId, ct)).Contains(StatusProviderSpotify))
+                await grainFactory.GetGrain<ISpotifyPresenceGrain>(_userId).SessionEndedAsync();
+        });
+
         // The user has no live session left anywhere, so they cannot be in a call either — defect
         // S15. Voice membership lives in ChannelGrain.Users and was emptied only by an explicit
         // DisconnectFromVoiceChannel, a moderator kick or the LiveKit webhook, so a client that quit,
@@ -930,6 +941,36 @@ public class UserSessionGrain(
     }
 
     /// <summary>Runs one cleanup step, and turns its failure into a log line instead of an ending.</summary>
+    private const string StatusProviderSpotify = "spotify";
+    private const string StatusProviderTwitch  = "twitch";
+
+    /// <summary>
+    /// Wakes the pollers of the providers this user shows as status. Never throws: a session that
+    /// starts without its Spotify card is a lesser fault than one that does not start.
+    /// </summary>
+    private async Task WakeStatusPollersAsync()
+    {
+        try
+        {
+            foreach (var provider in await presenceService.GetStatusProvidersAsync(_userId))
+            {
+                switch (provider)
+                {
+                    case StatusProviderSpotify:
+                        await grainFactory.GetGrain<ISpotifyPresenceGrain>(_userId).WakeAsync();
+                        break;
+                    case StatusProviderTwitch:
+                        await grainFactory.GetGrain<ITwitchPresenceGrain>(_userId).WakeAsync();
+                        break;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not wake the status pollers of user {userId}", _userId);
+        }
+    }
+
     private async Task BestEffortAsync(string what, Func<Task> step)
     {
         try

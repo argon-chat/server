@@ -65,5 +65,8 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             // serves the profile, from the cosmetics cache, and never read off this row.
             null,
             // customStatusEmoji: resolved from the item on every read, see StatusEmojiProfiles.
+            null,
+            // connections: stitched in by UserGrain.GetProfileForAsync for the reader asking; null is
+            // "not told", which is what a broadcast profile carries.
             null);
 }

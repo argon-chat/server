@@ -48,6 +48,13 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(GetMyProfile))]
     Task<ArgonUserProfile> GetMyProfile();
 
+    /// <summary>
+    /// The profile as <paramref name="viewerId"/> may see it: <see cref="GetMyProfile"/> plus the
+    /// linked accounts the owner shows to that reader (<c>IUserConnectionsGrain.GetVisibleForAsync</c>).
+    /// </summary>
+    [Alias(nameof(GetProfileForAsync))]
+    Task<ArgonUserProfile> GetProfileForAsync(Guid viewerId);
+
     [Alias(nameof(GetMyServers))]
     Task<List<ArgonSpaceBase>> GetMyServers();
 

@@ -269,6 +269,11 @@ public static class ArgonOrleansHosting
                    .GetGrain<ISessionRegistryFlushGrain>(ISessionRegistryFlushGrain.SingletonId)
                    .EnsureActiveAsync());
 
+            if (role.StartupCalls.Contains(typeof(IConnectionsMaintenanceGrain)))
+                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
+                   .GetGrain<IConnectionsMaintenanceGrain>(IConnectionsMaintenanceGrain.SingletonId)
+                   .EnsureActiveAsync());
+
             silo.AddDistributedGrainDirectory()
                .UseRedisClustering(x => x.ConfigurationOptions =
                     new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));

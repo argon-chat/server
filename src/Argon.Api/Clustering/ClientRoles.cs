@@ -45,6 +45,9 @@ public sealed class EntryPointRole : IArgonRole
 
         // The composer's link lookup (ILinkPreviewInteraction) talks to the crawler from here.
         features.Add<LinkPreviewFeature>();
+
+        // The OAuth callback pages for linked accounts: forwards to the handshake grain, holds no secret.
+        features.Add<ConnectionsEndpointsFeature>();
     }
 }
 

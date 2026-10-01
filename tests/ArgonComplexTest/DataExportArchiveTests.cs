@@ -67,7 +67,7 @@ public class DataExportArchiveTests : TestBase
     [
         "profile.json", "friends.json", "blocks.json", "settings.json",
         "stats.json", "devices.json", "subscriptions.json",
-        "friend-requests.json", "privacy.json", "saved-gifs.json", "passkeys.json", "files.json",
+        "friend-requests.json", "privacy.json", "saved-gifs.json", "passkeys.json", "connections.json", "files.json",
         "manifest.json"
     ];
 

@@ -149,6 +149,7 @@ $presenceFixtures = @(
 # PresenceSessionGateTests into the presence shard, and ChannelSendCapTests (NonParallelizable: it
 # changes the host's shared per-channel send cap) and AutoDeleteSchedulerTests (NonParallelizable: it
 # switches the host's auto-delete on) into topology.
+# ConnectionsTests and AdminConnectionsTests (added 2026-10-01, with linked external accounts) into the first shard.
 # VoiceModerationTests (NonParallelizable since 2026-09-29: it takes the Move capability off the shared SFU options
 # for one test, which made VoiceBroadcastTests fail with SFU_UNAVAILABLE when the two overlapped) into topology.
 $generalShards = @(
@@ -161,6 +162,7 @@ $generalShards = @(
         'AccountSecurityTests'
         'AdminAccountsTests'
         'AdminCatalogueTests'
+        'AdminConnectionsTests'
         'AdminConsoleTests'
         'AdminModerationWorkflowTests'
         'AdminOperatorsTests'
@@ -180,6 +182,7 @@ $generalShards = @(
         'ChannelModerationTests'
         'ChannelPinTests'
         'ChannelWebhookTests'
+        'ConnectionsTests'
         'CosmeticEquipTests'
         'DataExportTests'
         'DevTeamConsoleTests'

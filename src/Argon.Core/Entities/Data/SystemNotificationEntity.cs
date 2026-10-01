@@ -45,4 +45,5 @@ public static class SystemNotificationType
     public const string FriendRequestAccepted = "friend_request_accepted";
     public const string ItemReceived          = "item_received";
     public const string SystemAnnouncement    = "system_announcement";
+    public const string ConnectionNeedsReauth = "connection_needs_reauth";
 }

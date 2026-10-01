@@ -1697,6 +1697,32 @@ namespace Argon.Core.Migrations
                     b.ToTable("ChannelWebhooks", (string)null);
                 });
 
+            modelBuilder.Entity("Argon.Entities.ConnectionTrophyGrantEntity", b =>
+                {
+                    b.Property<int>("Provider")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<string>("TrophyId")
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Provider", "ExternalId", "TrophyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ConnectionTrophyGrants");
+                });
+
             modelBuilder.Entity("Argon.Entities.ContentViolationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3586,6 +3612,100 @@ namespace Argon.Core.Migrations
                     b.ToTable("AutoDeleteSettings");
                 });
 
+            modelBuilder.Entity("Argon.Entities.UserConnectionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AccessTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("AllowListenAlong")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset?>("DetailsRefreshedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DisplayAsStatus")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("DisplayOnProfile")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<string>("ExternalName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(512)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("LastErrorAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Scopes")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("SealedTokens")
+                        .HasColumnType("bytea");
+
+                    b.Property<bool>("ShowDetails")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TokenKeyVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessTokenExpiresAt");
+
+                    b.HasIndex("DetailsRefreshedAt");
+
+                    b.HasIndex("Provider", "ExternalId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Provider")
+                        .IsUnique();
+
+                    b.ToTable("UserConnections");
+                });
+
             modelBuilder.Entity("Argon.Entities.UserDeviceHistoryEntity", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -4576,6 +4696,15 @@ namespace Argon.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Argon.Entities.UserConnectionEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.UserEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Argon.Entities.UserDeviceHistoryEntity", b =>

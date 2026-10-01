@@ -150,6 +150,27 @@ public static class TestServerConfiguration
     /// shared by the whole suite. Raised rather than slept around; the limiter's own configuration is
     /// covered by its unit tests.
     /// </remarks>
+    /// <summary>
+    /// Linked accounts for the connections fixtures: GitHub and Spotify registered against
+    /// <c>FakeConnectionsApi</c>, a fixed sealing key, and the Spotify poller on its shortest clock.
+    /// </summary>
+    public static IEnumerable<(string Setting, string Value)> Connections { get; } =
+    [
+        ("Connections:PublicCallbackBase", "https://api.test.local"),
+        ("Connections:WebAppUrl", "https://app.test.local"),
+        ("Connections:TokenKey", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="),
+        ("Connections:BeginConnectPerMinute", "1000"),
+        ("Connections:RefreshCooldown", "00:00:00"),
+        ("Connections:GitHub:ClientId", "test-github-client"),
+        ("Connections:GitHub:ClientSecret", "test-github-secret"),
+        ("Connections:GitHub:ServerToken", "test-github-server-token"),
+        ("Connections:GitHub:ContributorRepos:0", "argon-chat/server"),
+        ("Connections:Spotify:ClientId", "test-spotify-client"),
+        ("Connections:Spotify:ClientSecret", "test-spotify-secret"),
+        ("Connections:Spotify:PlayingPollMax", "00:00:05"),
+        ("Connections:Spotify:ListenAlongPoll", "00:00:05")
+    ];
+
     public static IEnumerable<KeyValuePair<string, string?>> Aegis { get; } = new Dictionary<string, string?>
     {
         ["AegisRateLimits:Auth:Permits"]   = "100000",

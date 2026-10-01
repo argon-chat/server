@@ -132,6 +132,17 @@ public interface IUserPresenceGrain : IGrainWithGuidKey
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
     ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast);
 
+    /// <summary>
+    /// The same as <see cref="BroadcastPresenceAsync"/> for an activity a server-side poller found —
+    /// Spotify — stored under a provider slot rather than a device's session.
+    /// </summary>
+    [Alias(nameof(BroadcastProviderPresenceAsync))]
+    ValueTask BroadcastProviderPresenceAsync(UserActivityPresence presence, string provider);
+
+    /// <summary>The same as <see cref="RemoveBroadcastPresenceAsync"/> for a provider slot.</summary>
+    [Alias(nameof(RemoveProviderPresenceAsync))]
+    ValueTask RemoveProviderPresenceAsync(string provider, bool alwaysBroadcast);
+
     /// <summary>Stops announcing this user to a space they are no longer a member of.</summary>
     /// <remarks>
     /// The activation keeps the user's spaces in memory for its fan-outs; a join reaches it through

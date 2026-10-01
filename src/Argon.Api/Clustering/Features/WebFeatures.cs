@@ -434,6 +434,34 @@ public sealed class InviteCardFeature : IArgonFeature
 }
 
 /// <summary>
+/// The OAuth callback and its same-site continuation for linked accounts.
+/// </summary>
+/// <remarks>
+/// Binds no configuration: everything the pages show, the web client's address included, comes
+/// back from the handshake grain, so nothing of the <c>Connections</c> section — least of all a
+/// client secret — is materialised on this role. The web session feature is what lets the page
+/// read who the browser is; the template engine renders it; the cache carries the per-address
+/// throttle.
+/// </remarks>
+public sealed class ConnectionsEndpointsFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("connections-endpoints")
+            .Describing("OAuth callback pages for linked accounts")
+            .Requires<WebSessionFeature>()
+            .Requires<TemplateEngineFeature>()
+            .Requires<CacheFeature>()
+            .After<RoutingFeature>();
+
+    /// <summary>The listener-to-host pointer the Ion service reads for Leave and GetState; the host grain writes it.</summary>
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddSingleton<Argon.Features.Integrations.Connections.Spotify.ListenAlongDirectory>();
+
+    public void Map(ArgonEndpointContext ctx)
+        => Argon.Features.Integrations.Connections.ConnectionsEndpoints.MapConnections(ctx.App);
+}
+
+/// <summary>
 /// The public address of a file, and the object-storage settings that describe where files live.
 /// </summary>
 /// <remarks>

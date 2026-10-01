@@ -73,6 +73,7 @@ public sealed class CoreRole : IArgonRole
         features.Add<OperatorAuthFeature>();
         features.Add<CosmeticsFeature>();
         features.Add<ExpressionsFeature>();
+        features.Add<ConnectionsFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
@@ -119,6 +120,18 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<BotCommandsGrain>();
         registry.AddToRef<BotDirectoryGrain>();
 
+        registry.AddToRef<ConnectionHandshakeGrain>();
+        registry.AddToRef<UserConnectionsGrain>();
+        registry.AddToRef<ConnectionTrophiesGrain>();
+        registry.AddToRef<ConnectionsMaintenanceGrain>();
+        registry.AddToRef<SpotifyPresenceGrain>();
+        registry.AddToRef<ListenAlongGrain>();
+        registry.AddToRef<TwitchEventSubGrain>();
+        registry.AddToRef<TwitchPresenceGrain>();
+
+        registry.AddStartupCall<IConnectionsMaintenanceGrain>();
+
+        registry.AcceptRemote<IInventoryGrain>("the contributor coin, paid from ConnectionTrophiesGrain; inventory stays on commerce");
         registry.AcceptRemote<IContentModerationGrain>("hosting it here makes core resident the ONNX models");
         registry.AcceptRemote<IFileStorageGrain>("hosting it here drags ImageSharp and the S3 client into core");
         registry.AcceptRemote<IVoiceControlGrain>("join path only; keeps the SFU wiring out of core");
@@ -287,6 +300,7 @@ public sealed class JobsRole : IArgonRole
 
         registry.AcceptRemote<IFileStorageGrain>("cleanup path only; media owns the storage stack");
         registry.AcceptRemote<IExpressionItemDirectoryGrain>("the admin user card only");
+        registry.AcceptRemote<IUserConnectionsGrain>("account deletion purges linked accounts through the owner's grain, which revokes at the provider");
         registry.AcceptRemote<IUserGrain>(
             "reached through the authorization stack the deletion path needs; co-hosting it would " +
             "put a second copy of core's busiest worker on a role that runs batch work");

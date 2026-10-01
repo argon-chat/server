@@ -139,8 +139,7 @@ public class UserPresenceGrain(
         // the fold answers nothing for an announcement that has just been stored.
         var representative = await presenceService.GetUsersActivityPresence(userId) ?? presence;
 
-        await Task.WhenAll((await GetMyServersIdsAsync()).Select(spaceId =>
-            appHubServer.BroadcastSpace(new OnUserPresenceActivityChanged(spaceId, userId, representative), spaceId)));
+        await FanOutActivityAsync(userId, representative);
     }
 
     /// <inheritdoc cref="IUserPresenceGrain.RemoveBroadcastPresenceAsync"/>
@@ -160,12 +159,53 @@ public class UserPresenceGrain(
             userId, sessionId, hadActivity);
 
         // Another device may still have an activity — fall back to it; otherwise clear.
-        var representative = await presenceService.GetUsersActivityPresence(userId);
+        await FanOutActivityAsync(userId, await presenceService.GetUsersActivityPresence(userId));
+    }
 
+    /// <inheritdoc cref="IUserPresenceGrain.BroadcastProviderPresenceAsync"/>
+    public async ValueTask BroadcastProviderPresenceAsync(UserActivityPresence presence, string provider)
+    {
+        var userId = this.GetPrimaryKey();
+
+        await presenceService.SetProviderActivity(userId, provider, presence);
+
+        await FanOutActivityAsync(userId, await presenceService.GetUsersActivityPresence(userId) ?? presence);
+    }
+
+    /// <inheritdoc cref="IUserPresenceGrain.RemoveProviderPresenceAsync"/>
+    public async ValueTask RemoveProviderPresenceAsync(string provider, bool alwaysBroadcast)
+    {
+        var userId      = this.GetPrimaryKey();
+        var hadActivity = await presenceService.RemoveProviderActivity(userId, provider);
+
+        if (!hadActivity && !alwaysBroadcast)
+            return;
+
+        await FanOutActivityAsync(userId, await presenceService.GetUsersActivityPresence(userId));
+    }
+
+    /// <summary>
+    /// The representative activity (or its removal) to every space the user is in and to every
+    /// friend. Spaces as before; friends the way statuses already reach them, so a friend you share
+    /// no space with sees "Listening to Spotify" in the DM list.
+    /// </summary>
+    private async Task FanOutActivityAsync(Guid userId, UserActivityPresence? representative)
+    {
         await Task.WhenAll((await GetMyServersIdsAsync()).Select(spaceId =>
             representative is not null
                 ? appHubServer.BroadcastSpace(new OnUserPresenceActivityChanged(spaceId, userId, representative), spaceId)
                 : appHubServer.BroadcastSpace(new OnUserPresenceActivityRemoved(spaceId, userId), spaceId)));
+
+        var sessions = await FriendSessionsAsync(userId, CancellationToken.None);
+
+        if (sessions.Count == 0)
+            return;
+
+        // There is no space this is about; the client keys the update on the user id alone.
+        if (representative is not null)
+            await notifier.NotifySessionsAsync(sessions, new OnUserPresenceActivityChanged(Guid.Empty, userId, representative));
+        else
+            await notifier.NotifySessionsAsync(sessions, new OnUserPresenceActivityRemoved(Guid.Empty, userId));
     }
 
     /// <summary>Announces the status to each space's group, directly.</summary>
@@ -211,26 +251,7 @@ public class UserPresenceGrain(
     /// </remarks>
     private async Task BroadcastStatusToFriendsAsync(Guid userId, UserStatus status, CancellationToken ct)
     {
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        var friendIds = await ctx.Friends
-           .AsNoTracking()
-           .Where(x => x.UserId == userId)
-           .Select(x => x.FriendId)
-           .ToListAsync(ct);
-
-        if (friendIds.Count == 0)
-            return;
-
-        var sessions = new List<UserSessionDescriptor>();
-
-        foreach (var chunk in friendIds.Chunk(FriendFanOutConcurrency))
-        {
-            var perFriend = await Task.WhenAll(
-                chunk.Select(friendId => sessionDiscovery.GetUserSessionsAsync(friendId, ct)));
-
-            sessions.AddRange(perFriend.SelectMany(x => x));
-        }
+        var sessions = await FriendSessionsAsync(userId, ct);
 
         if (sessions.Count == 0)
             return;
@@ -240,6 +261,33 @@ public class UserPresenceGrain(
             sessions,
             new UserChangedStatus(Guid.Empty, userId, status, new IonArray<string>([""])),
             ct);
+    }
+
+    /// <summary>Every live session of every friend, looked up a bounded number at a time.</summary>
+    private async Task<List<UserSessionDescriptor>> FriendSessionsAsync(Guid userId, CancellationToken ct)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var friendIds = await ctx.Friends
+           .AsNoTracking()
+           .Where(x => x.UserId == userId)
+           .Select(x => x.FriendId)
+           .ToListAsync(ct);
+
+        var sessions = new List<UserSessionDescriptor>();
+
+        if (friendIds.Count == 0)
+            return sessions;
+
+        foreach (var chunk in friendIds.Chunk(FriendFanOutConcurrency))
+        {
+            var perFriend = await Task.WhenAll(
+                chunk.Select(friendId => sessionDiscovery.GetUserSessionsAsync(friendId, ct)));
+
+            sessions.AddRange(perFriend.SelectMany(x => x));
+        }
+
+        return sessions;
     }
 
     /// <summary>The spaces this user is a member of.</summary>

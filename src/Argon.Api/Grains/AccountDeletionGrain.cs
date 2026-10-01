@@ -1588,6 +1588,17 @@ public class AccountDeletionGrain(
 
         await ctx.SaveChangesAsync();
 
+        // Linked accounts go through the owner's grain, which revokes at the provider where it can
+        // before dropping the rows; a failure there must not stop the deletion.
+        try
+        {
+            await GrainFactory.GetGrain<IUserConnectionsGrain>(userId).PurgeAsync();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Linked accounts of {UserId} could not be purged through the grain", userId);
+        }
+
         logger.LogInformation("Anonymized user entity and profile for user {UserId}", userId);
     }
 

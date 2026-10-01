@@ -103,6 +103,26 @@ public class AdminConsoleImpl(
     public Task<UserActionResult> UnbanDevice(Guid deviceId, CancellationToken ct = default)
         => AuditedAsync(() => AdminUsers.UnbanDeviceAsync(deviceId, ct), "UnbanDevice", "Device", deviceId);
 
+    // ===== Linked accounts =====
+    //
+    // Through the owner's IUserConnectionsGrain, which is the only writer of the rows and the only
+    // place a token is opened — force-unlinking revokes at the provider from there.
+
+    public async Task<AdminUserConnectionList> GetUserConnections(Guid userId, CancellationToken ct = default)
+        => new(new IonArray<AdminUserConnection>(await grainFactory.GetGrain<IUserConnectionsGrain>(userId).GetForOperatorAsync(ct)));
+
+    public Task<UserActionResult> SetConnectionSuspended(Guid userId, ConnectionProvider provider, bool suspended, CancellationToken ct = default)
+        => AuditedAsync(async () => await grainFactory.GetGrain<IUserConnectionsGrain>(userId).SetSuspendedAsync(provider, suspended, ct)
+                ? new UserActionResult(true, null)
+                : new UserActionResult(false, "No such connection"),
+            suspended ? "SuspendConnection" : "UnsuspendConnection", "User", userId, $"Provider={provider}");
+
+    public Task<UserActionResult> ForceUnlinkConnection(Guid userId, ConnectionProvider provider, CancellationToken ct = default)
+        => AuditedAsync(async () => await grainFactory.GetGrain<IUserConnectionsGrain>(userId).UnlinkAsync(provider, ct)
+                ? new UserActionResult(true, null)
+                : new UserActionResult(false, "No such connection"),
+            "ForceUnlinkConnection", "User", userId, $"Provider={provider}");
+
     public async Task<UserActionResult> GrantXp(Guid userId, int amount, CancellationToken ct = default)
     {
         try

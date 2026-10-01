@@ -45,7 +45,7 @@ public class CosmeticGrainSerializationTests
 
     private static ArgonUserProfile Profile(IonArray<IWornCosmetic>? cosmetics)
         => new(Guid.NewGuid(), "away", null, null, null, "bio", IonArray<string>.Empty, IonArray<SpaceMemberArchetype>.Empty,
-            null, null, null, null, null, null, DateTime.UtcNow, cosmetics, null);
+            null, null, null, null, null, null, DateTime.UtcNow, cosmetics, null, null);
 
     private static CosmeticCatalogue Catalogue()
         => new(new IonArray<string>(["profile.frame"]),

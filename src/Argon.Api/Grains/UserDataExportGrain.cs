@@ -489,6 +489,11 @@ public class UserDataExportGrain(
             await CollectPasskeysAsync(exportId);
             cursor.PasskeysDone = true;
         }
+        else if (!cursor.ConnectionsDone)
+        {
+            await CollectConnectionsAsync(exportId);
+            cursor.ConnectionsDone = true;
+        }
         else if (!cursor.FilesDone)
         {
             await CollectFilesAsync(exportId);
@@ -695,6 +700,39 @@ public class UserDataExportGrain(
     /// rows were neither disclosed on request nor erased on request; the ignore list is the newest
     /// user-keyed table and was uncovered from the day it landed.
     /// </remarks>
+    /// <summary>
+    /// Linked external accounts: what the person linked, how it is shown and what the provider said
+    /// about it. The sealed tokens stay out — they are the provider's credential, not the person's data.
+    /// </summary>
+    private async Task CollectConnectionsAsync(Guid exportId)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var connections = await db.UserConnections
+            .AsNoTracking()
+            .Where(c => c.UserId == UserId)
+            .OrderBy(c => c.Provider)
+            .Select(c => new
+            {
+                Provider = c.Provider.ToString(),
+                c.ExternalId,
+                c.ExternalName,
+                c.ExternalUrl,
+                Status = c.Status.ToString(),
+                c.DisplayOnProfile,
+                c.ShowDetails,
+                c.DisplayAsStatus,
+                c.AllowListenAlong,
+                c.Scopes,
+                c.Details,
+                c.DetailsRefreshedAt,
+                LinkedAt = c.CreatedAt
+            })
+            .ToListAsync();
+
+        await UploadJsonAsync(exportId, "connections.json", connections, connections.Count);
+    }
+
     private async Task CollectPrivacyAsync(Guid exportId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
