@@ -6,6 +6,8 @@ using AccountContracts;
 using Argon.Core.Entities.Data;
 using Argon.Core.Services.Validators;
 using Argon.Entities;
+using Argon.Features.Apps;
+using Argon.Features.Cosmetics;
 using Grains.Interfaces;
 using ion.runtime;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -78,7 +80,8 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                 a.VerificationKey,
                 a.CreatedAt.Date,
                 new IonArray<ScopeKeyValue>([]),
-                new IonArray<string>(a.AllowedRedirects))).ToArray();
+                new IonArray<string>(a.AllowedRedirects),
+                null)).ToArray();
 
         return new TeamDetails(
             team.TeamId,
@@ -414,7 +417,8 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             botEntity.VerificationKey,
             now,
             new IonArray<ScopeKeyValue>(AvailableScopesFor(botEntity)),
-            new IonArray<string>([]));
+            new IonArray<string>([]),
+            new IonArray<AppTextEntry>([]));
     }
 
     public async Task<AppDetails> CreateClientAppAsync(
@@ -495,6 +499,8 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                .AsNoTracking()
                .Include(x => x.BotAsUser)
                .ThenInclude(x => x.Profile)
+               .Include(x => x.Texts)
+               .AsSplitQuery()
                .FirstAsync(x => x.AppId == appId, ct);
 
             return (AppManagementError.NONE, Describe(botEntity));
@@ -504,6 +510,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         {
             var appEntity = await db.AppClientEntities
                .AsNoTracking()
+               .Include(x => x.Texts)
                .FirstAsync(x => x.AppId == appId, ct);
 
             return (AppManagementError.NONE, Describe(appEntity));
@@ -771,6 +778,80 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         return AppManagementError.NONE;
     }
 
+    public async Task<ISetAppTextResult> SetAppTextAsync(
+        Guid teamId, Guid appId, string key, List<LocaleValue> values, CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        var app = await db.AppEntities
+           .AsNoTracking()
+           .Where(a => a.AppId == appId && a.TeamId == teamId)
+           .Select(a => new { a.AppType })
+           .FirstOrDefaultAsync(ct);
+
+        if (app is null)
+            return new FailedSetAppText(AppTextError.NOT_FOUND, null);
+
+        if (AppTextKeys.Find(key, app.AppType) is not { } rules)
+            return new FailedSetAppText(AppTextError.UNKNOWN_KEY, null);
+
+        var (error, locale, normalized) = AppTextRules.Normalize(rules, values);
+
+        if (error != AppTextError.NONE)
+            return new FailedSetAppText(error, locale);
+
+        var rows    = await db.AppTexts.Where(t => t.AppId == appId && t.Key == key).ToListAsync(ct);
+        var changed = false;
+
+        foreach (var row in rows)
+        {
+            if (!normalized.TryGetValue(row.Locale, out var value))
+            {
+                db.AppTexts.Remove(row);
+                changed = true;
+            }
+            else if (row.Value != value)
+            {
+                row.Value = value;
+                changed   = true;
+            }
+        }
+
+        foreach (var (loc, value) in normalized.Where(x => rows.All(r => r.Locale != x.Key)))
+        {
+            db.AppTexts.Add(new DevAppTextEntity
+            {
+                AppId  = appId,
+                Key    = key,
+                Locale = loc,
+                Value  = value
+            });
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await db.SaveChangesAsync(ct);
+
+            // After the rows, so a reader never holds the new version beside the old texts.
+            await db.AppEntities
+               .Where(a => a.AppId == appId)
+               .ExecuteUpdateAsync(s => s
+                   .SetProperty(a => a.TextsVersion, a => a.TextsVersion + 1)
+                   .SetProperty(a => a.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+            await cache.RemoveAsync(AppTextRules.CacheKey(new AppById(appId)), ct);
+
+            if (app.AppType == DevAppType.Bot)
+            {
+                var botUserId = await db.BotEntities.Where(b => b.AppId == appId).Select(b => b.BotAsUserId).FirstAsync(ct);
+                await cache.RemoveAsync(AppTextRules.CacheKey(new AppByBotUser(botUserId)), ct);
+            }
+        }
+
+        return new SuccessSetAppText(new IonArray<LocaleValue>(LocaleValues(normalized)));
+    }
+
     // ── mapping ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -808,7 +889,8 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             bot.VerificationKey,
             bot.CreatedAt.Date,
             new IonArray<ScopeKeyValue>(AvailableScopesFor(bot)),
-            new IonArray<string>(bot.AllowedRedirects));
+            new IonArray<string>(bot.AllowedRedirects),
+            DescribeTexts(bot));
 
     private static AppDetails Describe(ClientAppEntity app)
         => new(app.AppId,
@@ -823,7 +905,21 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             app.VerificationKey,
             app.CreatedAt.Date,
             new IonArray<ScopeKeyValue>(AvailableScopesFor(app)),
-            new IonArray<string>(app.AllowedRedirects));
+            new IonArray<string>(app.AllowedRedirects),
+            DescribeTexts(app));
+
+    private static IonArray<AppTextEntry> DescribeTexts(DevAppEntity app)
+        => new(app.Texts
+           .OrderBy(t => t.Key, StringComparer.Ordinal)
+           .ThenBy(t => t.Locale != CosmeticLocale.Fallback)
+           .ThenBy(t => t.Locale, StringComparer.Ordinal)
+           .Select(t => new AppTextEntry(t.Key, t.Locale, t.Value)));
+
+    private static IEnumerable<LocaleValue> LocaleValues(IDictionary<string, string> values)
+        => values
+           .OrderBy(x => x.Key != CosmeticLocale.Fallback)
+           .ThenBy(x => x.Key, StringComparer.Ordinal)
+           .Select(x => new LocaleValue(x.Key, x.Value));
 
     private static BotDetails MapBot(BotEntity bot)
         => new(requiresOAuth2: bot.RequiresOAuth2,

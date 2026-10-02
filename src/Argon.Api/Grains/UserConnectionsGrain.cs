@@ -466,7 +466,9 @@ public sealed class UserConnectionsGrain(
         if (token is null)
             return null;
 
-        var premium = row.Details.Any(d => d.key == ConnectionDetailKeys.SpotifyPremium && d.value == "true");
+        var premium = row.Details.FirstOrDefault(d => d.key == ConnectionDetailKeys.SpotifyPremium) is { } flag
+            ? flag.value == "true"
+            : (bool?)null;
 
         return new ListenerGrant(token, premium, token.HasScope("user-modify-playback-state"));
     }

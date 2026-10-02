@@ -6,12 +6,22 @@ using ArgonContracts;
 using Argon.Core.Features.Logic;
 using Argon.Core.Entities.Data;
 using Argon.Core.Grains.Interfaces;
+using Argon.Features.Apps;
 using ion.runtime;
+using Microsoft.Extensions.Caching.Hybrid;
 
 public class UserInteractionImpl(
-    ILogger<IUserInteraction> logger) : IUserInteraction
+    ILogger<IUserInteraction> logger,
+    HybridCache cache,
+    IGrainFactory grains) : IUserInteraction
 
 {
+    private static readonly HybridCacheEntryOptions AppTextsCacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromMinutes(30),
+        LocalCacheExpiration = TimeSpan.FromMinutes(1)
+    };
+
     public async Task<ArgonUser> GetMe(CancellationToken ct = default)
     {
         var user = await this.GetGrain<IUserGrain>(this.GetUserId()).GetMe();
@@ -176,6 +186,28 @@ public class UserInteractionImpl(
             // No profile row: the id is well-formed but nobody is behind it.
             return new FailedLookupProfile(LookupError.NOT_FOUND);
         }
+    }
+
+    public async Task<ILookupAppTextsResult> LookupAppTexts(IAppRef app, IonArray<string> keys, int? known, CancellationToken ct = default)
+    {
+        var texts = await cache.GetOrCreateAsync(
+            AppTextRules.CacheKey(app),
+            (grains, app),
+            static async (state, _) => await state.grains.GetGrain<IAppTextsGrain>(Guid.Empty).GetAsync(state.app),
+            AppTextsCacheOptions,
+            cancellationToken: ct);
+
+        if (texts is null)
+            return new FailedLookupAppTexts(LookupError.NOT_FOUND);
+
+        if (texts.version == known)
+            return new SuccessLookupAppTexts(texts with { texts = null });
+
+        var wanted = keys.ToHashSet(StringComparer.Ordinal);
+
+        return new SuccessLookupAppTexts(wanted.Count == 0
+            ? texts
+            : texts with { texts = new IonArray<LocalizedText>(Enumerable.Where<LocalizedText>(texts.texts!, t => wanted.Contains(t.key))) });
     }
 
     /// <summary>

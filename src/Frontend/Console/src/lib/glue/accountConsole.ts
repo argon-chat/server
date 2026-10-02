@@ -230,6 +230,19 @@ export interface AddRedirectResult {
 };
 
 
+export interface AppTextEntry {
+  key: string;
+  locale: string;
+  value: string;
+};
+
+
+export interface LocaleValue {
+  locale: string;
+  value: string;
+};
+
+
 export interface MyInvitesInfo {
   from: ShortUserDetails;
   date: datetime;
@@ -258,6 +271,7 @@ export interface AppDetails {
   createdAt: datetime;
   requiredScopes: IonArray<ScopeKeyValue>;
   allowedRedirects: IonArray<string>;
+  texts: IonArray<AppTextEntry> | null;
 };
 
 
@@ -427,6 +441,44 @@ export const Ion_ClientAppPlatform_OpenEnum = {
    */
   unknownValue(value: ClientAppPlatform): u4 | undefined {
     return declaredClientAppPlatform.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
+
+export enum AppTextError
+{
+  NONE = 0,
+  NO_PERMISSION = 1,
+  NOT_FOUND = 2,
+  UNKNOWN_KEY = 3,
+  ENGLISH_REQUIRED = 4,
+  TOO_LONG = 5,
+  INVALID_LOCALE = 6,
+  DUPLICATE_LOCALE = 7,
+  TOO_MANY_LOCALES = 8,
+}
+
+const declaredAppTextError: ReadonlySet<unknown> = new Set<unknown>([AppTextError.NONE, AppTextError.NO_PERMISSION, AppTextError.NOT_FOUND, AppTextError.UNKNOWN_KEY, AppTextError.ENGLISH_REQUIRED, AppTextError.TOO_LONG, AppTextError.INVALID_LOCALE, AppTextError.DUPLICATE_LOCALE, AppTextError.TOO_MANY_LOCALES]);
+
+/**
+ * Open-enum helpers for {@link AppTextError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_AppTextError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: AppTextError): boolean {
+    return declaredAppTextError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: AppTextError): u4 | undefined {
+    return declaredAppTextError.has(value) ? undefined : (value as unknown as u4);
   },
 } as const;
 
@@ -692,6 +744,109 @@ IonFormatterStorage.register("FailedUploadAvatarFile", {
   write(writer: CborWriter, value: FailedUploadAvatarFile): void {
     writer.writeStartArray(1);
     IonFormatterStorage.get<UploadFileError>('UploadFileError').write(writer, value.error);
+    writer.writeEndArray();
+  }
+});
+
+
+
+export abstract class ISetAppTextResult implements IIonUnion<ISetAppTextResult>
+{
+  abstract UnionKey: string;
+  abstract UnionIndex: number;
+  
+  
+  
+  
+  public isSuccessSetAppText(): this is SuccessSetAppText {
+    return this.UnionKey === "SuccessSetAppText";
+  }
+  public isFailedSetAppText(): this is FailedSetAppText {
+    return this.UnionKey === "FailedSetAppText";
+  }
+
+}
+
+
+export class SuccessSetAppText extends ISetAppTextResult
+{
+  constructor(public values: IonArray<LocaleValue>) { super(); }
+
+  UnionKey: string = "SuccessSetAppText";
+  UnionIndex: number = 0;
+}
+
+export class FailedSetAppText extends ISetAppTextResult
+{
+  constructor(public error: AppTextError, public locale: string | null) { super(); }
+
+  UnionKey: string = "FailedSetAppText";
+  UnionIndex: number = 1;
+}
+
+
+
+IonFormatterStorage.register("ISetAppTextResult", {
+  read(reader: CborReader): ISetAppTextResult {
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "ISetAppTextResult", 2);
+    let value: ISetAppTextResult = null as any;
+
+    if (false)
+    {}
+        else if (unionIndex == 0)
+      value = IonFormatterStorage.get<SuccessSetAppText>("SuccessSetAppText").read(reader);
+    else if (unionIndex == 1)
+      value = IonFormatterStorage.get<FailedSetAppText>("FailedSetAppText").read(reader);
+
+    else IonFormatterStorage.invalidUnionIndex("ISetAppTextResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
+    return value!;
+  },
+  write(writer: CborWriter, value: ISetAppTextResult): void {
+    writer.writeStartArray(2);
+    writer.writeUInt32(value.UnionIndex);
+    if (false)
+    {}
+        else if (value.UnionIndex == 0) {
+        IonFormatterStorage.get<SuccessSetAppText>("SuccessSetAppText").write(writer, value as SuccessSetAppText);
+    }
+    else if (value.UnionIndex == 1) {
+        IonFormatterStorage.get<FailedSetAppText>("FailedSetAppText").write(writer, value as FailedSetAppText);
+    }
+  
+    else throw new Error(`Ion union 'ISetAppTextResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
+    writer.writeEndArray();
+  }
+});
+
+
+IonFormatterStorage.register("SuccessSetAppText", {
+  read(reader: CborReader): SuccessSetAppText {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "SuccessSetAppText");
+    const values = IonFormatterStorage.readArray<LocaleValue>(reader, 'LocaleValue');
+    reader.readEndArrayAndSkip(arraySize - 1);
+    return new SuccessSetAppText(values);
+  },
+  write(writer: CborWriter, value: SuccessSetAppText): void {
+    writer.writeStartArray(1);
+    IonFormatterStorage.writeArray<LocaleValue>(writer, value.values, 'LocaleValue');
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("FailedSetAppText", {
+  read(reader: CborReader): FailedSetAppText {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 2, "FailedSetAppText");
+    const error = IonFormatterStorage.get<AppTextError>('AppTextError').read(reader);
+    const locale = IonFormatterStorage.readNullable<string>(reader, 'string');
+    reader.readEndArrayAndSkip(arraySize - 2);
+    return new FailedSetAppText(error, locale);
+  },
+  write(writer: CborWriter, value: FailedSetAppText): void {
+    writer.writeStartArray(2);
+    IonFormatterStorage.get<AppTextError>('AppTextError').write(writer, value.error);
+    IonFormatterStorage.writeNullable<string>(writer, value.locale, 'string');
     writer.writeEndArray();
   }
 });
@@ -1321,6 +1476,40 @@ IonFormatterStorage.register("AddRedirectResult", {
   }
 });
 
+IonFormatterStorage.register("AppTextEntry", {
+  read(reader: CborReader): AppTextEntry {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 3, "AppTextEntry");
+    const key = IonFormatterStorage.get<string>('string').read(reader);
+    const locale = IonFormatterStorage.get<string>('string').read(reader);
+    const value = IonFormatterStorage.get<string>('string').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 3);
+    return { key, locale, value };
+  },
+  write(writer: CborWriter, value: AppTextEntry): void {
+    writer.writeStartArray(3);
+    IonFormatterStorage.get<string>('string').write(writer, value.key);
+    IonFormatterStorage.get<string>('string').write(writer, value.locale);
+    IonFormatterStorage.get<string>('string').write(writer, value.value);
+    writer.writeEndArray();
+  }
+});
+
+IonFormatterStorage.register("LocaleValue", {
+  read(reader: CborReader): LocaleValue {
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 2, "LocaleValue");
+    const locale = IonFormatterStorage.get<string>('string').read(reader);
+    const value = IonFormatterStorage.get<string>('string').read(reader);
+    reader.readEndArrayAndSkip(arraySize - 2);
+    return { locale, value };
+  },
+  write(writer: CborWriter, value: LocaleValue): void {
+    writer.writeStartArray(2);
+    IonFormatterStorage.get<string>('string').write(writer, value.locale);
+    IonFormatterStorage.get<string>('string').write(writer, value.value);
+    writer.writeEndArray();
+  }
+});
+
 IonFormatterStorage.register("ShortUserDetails", {
   read(reader: CborReader): ShortUserDetails {
     const arraySize = IonFormatterStorage.readStartMessage(reader, 4, "ShortUserDetails");
@@ -1409,7 +1598,7 @@ IonFormatterStorage.register("AppKind", {
 
 IonFormatterStorage.register("AppDetails", {
   read(reader: CborReader): AppDetails {
-    const arraySize = IonFormatterStorage.readStartMessage(reader, 13, "AppDetails");
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 14, "AppDetails");
     const appId = IonFormatterStorage.get<guid>('guid').read(reader);
     const teamId = IonFormatterStorage.get<guid>('guid').read(reader);
     const name = IonFormatterStorage.get<string>('string').read(reader);
@@ -1423,11 +1612,12 @@ IonFormatterStorage.register("AppDetails", {
     const createdAt = IonFormatterStorage.get<datetime>('datetime').read(reader);
     const requiredScopes = IonFormatterStorage.readArray<ScopeKeyValue>(reader, 'ScopeKeyValue');
     const allowedRedirects = IonFormatterStorage.readArray<string>(reader, 'string');
-    reader.readEndArrayAndSkip(arraySize - 13);
-    return { appId, teamId, name, desc, botDetails, clientAppDetails, kind, clientId, clientSecret, verificationKey, createdAt, requiredScopes, allowedRedirects };
+    const texts = IonFormatterStorage.readNullableArray<AppTextEntry>(reader, 'AppTextEntry');
+    reader.readEndArrayAndSkip(arraySize - 14);
+    return { appId, teamId, name, desc, botDetails, clientAppDetails, kind, clientId, clientSecret, verificationKey, createdAt, requiredScopes, allowedRedirects, texts };
   },
   write(writer: CborWriter, value: AppDetails): void {
-    writer.writeStartArray(13);
+    writer.writeStartArray(14);
     IonFormatterStorage.get<guid>('guid').write(writer, value.appId);
     IonFormatterStorage.get<guid>('guid').write(writer, value.teamId);
     IonFormatterStorage.get<string>('string').write(writer, value.name);
@@ -1441,6 +1631,7 @@ IonFormatterStorage.register("AppDetails", {
     IonFormatterStorage.get<datetime>('datetime').write(writer, value.createdAt);
     IonFormatterStorage.writeArray<ScopeKeyValue>(writer, value.requiredScopes, 'ScopeKeyValue');
     IonFormatterStorage.writeArray<string>(writer, value.allowedRedirects, 'string');
+    IonFormatterStorage.writeNullableArray<AppTextEntry>(writer, value.texts, 'AppTextEntry');
     writer.writeEndArray();
   }
 });
@@ -1609,6 +1800,16 @@ IonFormatterStorage.register("InviteUserError", {
   }
 });
 
+IonFormatterStorage.register("AppTextError", {
+  read(reader: CborReader): AppTextError {
+    return IonFormatterStorage.readOpenEnum<AppTextError>(reader, 'u4');
+  },
+  write(writer: CborWriter, value: AppTextError): void {
+    const casted: u4 = value;
+    IonFormatterStorage.get<u4>('u4').write(writer, casted);
+  }
+});
+
 IonFormatterStorage.register("CheckBotUsernameValid", {
   read(reader: CborReader): CheckBotUsernameValid {
     return IonFormatterStorage.readOpenEnum<CheckBotUsernameValid>(reader, 'u4');
@@ -1687,6 +1888,7 @@ export interface IAppManagement extends IIonService
   SuspendBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
   UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<IAppManagementResult>;
   SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<IAppManagementResult>;
+  SetAppText(teamId: guid, appId: guid, key: string, values: IonArray<LocaleValue>): Promise<ISetAppTextResult>;
 }
 
 
@@ -1737,6 +1939,7 @@ export interface IAppManagement extends IIonService
   SuspendBot(teamId: guid, appId: guid): Promise<IAppManagementResult>;
   UpdateBotEntitlements(teamId: guid, appId: guid, entitlements: u8): Promise<IAppManagementResult>;
   SetBotOAuth(teamId: guid, appId: guid, enabled: bool): Promise<IAppManagementResult>;
+  SetAppText(teamId: guid, appId: guid, key: string, values: IonArray<LocaleValue>): Promise<ISetAppTextResult>;
 }
 
 
@@ -2206,6 +2409,22 @@ export class AppManagement_Executor extends ServiceExecutor<IAppManagement> impl
     writer.writeEndArray();
           
     return await req.callAsyncT<IAppManagementResult>("IAppManagementResult", writer.data, this.signal);
+  }
+  async SetAppText(teamId: guid, appId: guid, key: string, values: IonArray<LocaleValue>): Promise<ISetAppTextResult> {
+    const req = new IonRequest(this.ctx, "IAppManagement", "SetAppText");
+          
+    const writer = new CborWriter();
+      
+    writer.writeStartArray(4);
+          
+    IonFormatterStorage.get<guid>('guid').write(writer, teamId);
+    IonFormatterStorage.get<guid>('guid').write(writer, appId);
+    IonFormatterStorage.get<string>('string').write(writer, key);
+    IonFormatterStorage.writeArray<LocaleValue>(writer, values, 'LocaleValue');
+      
+    writer.writeEndArray();
+          
+    return await req.callAsyncT<ISetAppTextResult>("ISetAppTextResult", writer.data, this.signal);
   }
 
 }

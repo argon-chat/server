@@ -150,6 +150,7 @@ public class AppManagementTests : TestBase
             ["SuspendBot"]            = async c => await c.Apps.SuspendBot(attackerTeam.teamId, bot.appId, ct),
             ["UpdateBotEntitlements"] = async c => await c.Apps.UpdateBotEntitlements(attackerTeam.teamId, bot.appId, ulong.MaxValue, ct),
             ["SetBotOAuth"]           = async c => await c.Apps.SetBotOAuth(attackerTeam.teamId, bot.appId, false, ct),
+            ["SetAppText"]            = async c => await c.Apps.SetAppText(attackerTeam.teamId, bot.appId, "motd", Values(("en", "pwned")), ct),
             ["UpdateScope"]           = async c => await c.Apps.UpdateScope(attackerTeam.teamId, client.appId, new ScopeKeyValue(true, "email", false), ct),
             ["RemoveRedirect"]        = async c => await c.Apps.RemoveRedirect(attackerTeam.teamId, client.appId, "https://x.test.local/cb", ct)
         };
@@ -158,7 +159,8 @@ public class AppManagementTests : TestBase
         {
             new FailedAppDetails(AppManagementError.NOT_FOUND),
             new FailedRegenerateBotToken(AppManagementError.NOT_FOUND),
-            new FailedAppManagement(AppManagementError.NOT_FOUND)
+            new FailedAppManagement(AppManagementError.NOT_FOUND),
+            new FailedSetAppText(AppTextError.NOT_FOUND, null)
         };
 
         foreach (var (name, call) in attempts)
@@ -171,6 +173,7 @@ public class AppManagementTests : TestBase
             Assert.That(after.botDetails!.botToken, Is.EqualTo(bot.botDetails!.botToken));
             Assert.That(after.botDetails.lifecycleState, Is.EqualTo(AppLifecycle.Development));
             Assert.That(after.botDetails.requiresOAuth2, Is.True);
+            Assert.That(after.texts, Is.Empty);
         });
     }
 
@@ -769,7 +772,151 @@ public class AppManagementTests : TestBase
         });
     }
 
+    // ── localized strings ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A one-line key is stored flattened, per locale, with empty values dropped, and the console reads
+    /// it back English first.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_localized_string_is_stored_one_line_per_locale(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var team  = await CreateTeamAsync(owner, "motd");
+        var bot   = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Motd Bot", BotUsername("motd"), ct).Ok());
+
+        var stored = await As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "motd", Values(
+            ("RU", "Привет"),
+            ("en", "  Hello\r\n  there\t "),
+            ("de", "   ")), ct).Ok());
+
+        var read = await As(owner, c => c.Apps.GetAppDetails(team.teamId, bot.appId, ct).Ok());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored, Is.EqualTo(new[] { new LocaleValue("en", "Hello there"), new LocaleValue("ru", "Привет") }));
+            Assert.That(read.texts, Is.EqualTo(new[] { new AppTextEntry("motd", "en", "Hello there"), new AppTextEntry("motd", "ru", "Привет") }));
+        });
+    }
+
+    /// <summary>
+    /// Anything at all needs English, each locale appears once and is shaped like one, a value is at
+    /// most its key's length as a person counts it — an emoji is one — and only keys the kind of
+    /// application has are taken: a client app has no MOTD, and a reserved key is not open yet.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_localized_string_is_refused_without_english_over_its_limit_or_under_a_foreign_key(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var team   = await CreateTeamAsync(owner, "motdrule");
+        var bot    = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Rules Bot", BotUsername("motdrule"), ct).Ok());
+        var client = await As(owner, c => c.Apps.CreateClientApp(team.teamId, "Rules App", ClientAppPlatform.WebBased, ct).Ok());
+
+        Task<ISetAppTextResult> Set(params (string Locale, string Text)[] values)
+            => As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "motd", Values(values), ct));
+
+        var noEnglish   = await Set(("ru", "Привет"));
+        var blankEn     = await Set(("en", " "), ("ru", "Привет"));
+        var tooLong     = await Set(("en", "ok"), ("ru", new string('я', MotdLimit + 1)));
+        var badLocale   = await Set(("en", "ok"), ("english!", "hi"));
+        var duplicate   = await Set(("en", "ok"), ("EN", "again"));
+        var emoji       = await Set(("en", string.Concat(Enumerable.Repeat("👨‍👩‍👧", MotdLimit))));
+        var cleared     = await Set();
+        var clientMotd  = await As(owner, c => c.Apps.SetAppText(team.teamId, client.appId, "motd", Values(("en", "hi")), ct));
+        var reserved    = await As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "description", Values(("en", "hi")), ct));
+        var invented    = await As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "anything", Values(("en", "hi")), ct));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(noEnglish, Is.EqualTo(new FailedSetAppText(AppTextError.ENGLISH_REQUIRED, "en")));
+            Assert.That(blankEn, Is.EqualTo(new FailedSetAppText(AppTextError.ENGLISH_REQUIRED, "en")));
+            Assert.That(tooLong, Is.EqualTo(new FailedSetAppText(AppTextError.TOO_LONG, "ru")));
+            Assert.That(badLocale, Is.EqualTo(new FailedSetAppText(AppTextError.INVALID_LOCALE, "english!")));
+            Assert.That(duplicate, Is.EqualTo(new FailedSetAppText(AppTextError.DUPLICATE_LOCALE, "en")));
+            Assert.That(emoji, Is.InstanceOf<SuccessSetAppText>(), "a hundred emoji were counted as more than a hundred characters");
+            Assert.That(cleared, Is.InstanceOf<SuccessSetAppText>());
+            Assert.That(clientMotd, Is.EqualTo(new FailedSetAppText(AppTextError.UNKNOWN_KEY, null)), "a client app was given a MOTD");
+            Assert.That(reserved, Is.EqualTo(new FailedSetAppText(AppTextError.UNKNOWN_KEY, null)), "a reserved key was written");
+            Assert.That(invented, Is.EqualTo(new FailedSetAppText(AppTextError.UNKNOWN_KEY, null)));
+        });
+    }
+
+    /// <summary>
+    /// Anyone reads an application's strings by version, naming it by app id or, for a bot, by the
+    /// user it acts as: the texts come back while the caller's version is stale, nothing while it is
+    /// current, and every edit — clearing included — moves the version under both names. Saving the
+    /// same values again moves nothing.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task App_texts_are_read_by_version_under_either_name(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var reader = await CreateSessionAsync(ct);
+        var team   = await CreateTeamAsync(owner, "motdread");
+        var bot    = await As(owner, c => c.Apps.CreateBotApp(team.teamId, "Read Bot", BotUsername("motdread"), ct).Ok());
+        var byUser = new AppByBotUser(await BotUserIdAsync(bot.appId, ct));
+        var byApp  = new AppById(bot.appId);
+        var motd   = new IonArray<string>(["motd"]);
+
+        Task<AppTexts> Read(IAppRef app, int? known)
+            => reader.Users.LookupAppTexts(app, motd, known, ct).Ok();
+
+        var initial    = await Read(byUser, null);
+        var initialApp = await Read(byApp, null);
+
+        await As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "motd", Values(("en", "Type /help"), ("ru", "Напиши /help")), ct).Ok());
+
+        var first    = await Read(byUser, initial.version);
+        var firstApp = await Read(byApp, initialApp.version);
+        var current  = await Read(byUser, first.version);
+        var other    = await reader.Users.LookupAppTexts(byUser, new IonArray<string>(["description"]), null, ct).Ok();
+
+        await As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "motd", Values(("ru", "Напиши /help"), ("en", "Type /help")), ct).Ok());
+
+        var unchanged = await Read(byUser, first.version);
+
+        await As(owner, c => c.Apps.SetAppText(team.teamId, bot.appId, "motd", Values(), ct).Ok());
+
+        var cleared    = await Read(byUser, first.version);
+        var clearedApp = await Read(byApp, firstApp.version);
+        var person     = await reader.Users.LookupAppTexts(new AppByBotUser(owner.UserId), motd, null, ct);
+        var nothing    = await reader.Users.LookupAppTexts(new AppById(Guid.NewGuid()), motd, null, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(initial.version, Is.Zero);
+            Assert.That(initial.texts, Is.Empty);
+            Assert.That(first.version, Is.GreaterThan(initial.version), "an edit did not move the version");
+            Assert.That(first.texts, Is.EquivalentTo(new[]
+            {
+                new LocalizedText("motd", "en", "Type /help"),
+                new LocalizedText("motd", "ru", "Напиши /help")
+            }));
+            Assert.That(firstApp.texts, Is.EquivalentTo(first.texts!), "the same app read by its id disagreed");
+            Assert.That(current.texts, Is.Null, "texts were sent to a reader whose version is current");
+            Assert.That(other.texts, Is.Empty, "a key nobody asked for came back");
+            Assert.That(unchanged.texts, Is.Null, "saving the same values again moved the version");
+            Assert.That(cleared.version, Is.GreaterThan(first.version), "clearing did not move the version");
+            Assert.That(cleared.texts, Is.Empty);
+            Assert.That(clearedApp.texts, Is.Empty, "the app id kept serving a cleared MOTD");
+            Assert.That(person, Is.EqualTo(new FailedLookupAppTexts(LookupError.NOT_FOUND)));
+            Assert.That(nothing, Is.EqualTo(new FailedLookupAppTexts(LookupError.NOT_FOUND)));
+        });
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
+
+    private const int MotdLimit = 100;
+
+    private static IonArray<LocaleValue> Values(params (string Locale, string Text)[] values)
+        => new(values.Select(e => new LocaleValue(e.Locale, e.Text)));
+
+    private static async Task<Guid> BotUserIdAsync(Guid appId, CancellationToken ct)
+    {
+        await using var db = await AccountSeed.NewDbAsync(ct);
+
+        return await db.BotEntities.Where(b => b.AppId == appId).Select(b => b.BotAsUserId).SingleAsync(ct);
+    }
 
     /// <summary>The <c>{hex(reversed app id)}</c> half of a token the authentication handler parses.</summary>
     private static string TokenPrefixOf(Guid appId)

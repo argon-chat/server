@@ -99,11 +99,15 @@ public class ProviderParsingTests
 
         var free = SpotifyConnectionProvider.Parse(Json("""{"id":"u","product":"free"}"""));
 
+        // What a Development-mode app has been told since February 2026: no product, no followers.
+        var untold = SpotifyConnectionProvider.Parse(Json("""{"id":"dev","display_name":"Dev"}"""));
+
         Assert.Multiple(() =>
         {
             Assert.That(Detail(free, SpotifyPremium), Is.EqualTo("false"));
             Assert.That(free.Identity.Name, Is.EqualTo("u"), "no display name falls back to the id");
             Assert.That(free.Identity.Url, Is.EqualTo("https://open.spotify.com/user/u"));
+            Assert.That(untold.Details, Is.Empty, "an absent product is not a free account");
         });
     }
 

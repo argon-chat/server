@@ -178,6 +178,43 @@
         }
       ]
     },
+    "AppTextEntry": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "locale",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "value",
+          "type": "string"
+        }
+      ]
+    },
+    "LocaleValue": {
+      "kind": "Msg",
+      "nextIndex": 2,
+      "fields": [
+        {
+          "index": 0,
+          "name": "locale",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "value",
+          "type": "string"
+        }
+      ]
+    },
     "MyInvitesInfo": {
       "kind": "Msg",
       "nextIndex": 3,
@@ -222,7 +259,7 @@
     },
     "AppDetails": {
       "kind": "Msg",
-      "nextIndex": 13,
+      "nextIndex": 14,
       "fields": [
         {
           "index": 0,
@@ -288,6 +325,11 @@
           "index": 12,
           "name": "allowedRedirects",
           "type": "Array\u003Cstring\u003E"
+        },
+        {
+          "index": 13,
+          "name": "texts",
+          "type": "Maybe\u003CArray\u003CAppTextEntry\u003E\u003E"
         }
       ]
     },
@@ -566,6 +608,21 @@
       },
       "baseType": "u4"
     },
+    "AppTextError": {
+      "kind": "Enum",
+      "members": {
+        "NONE": "0",
+        "NO_PERMISSION": "1",
+        "NOT_FOUND": "2",
+        "UNKNOWN_KEY": "3",
+        "ENGLISH_REQUIRED": "4",
+        "TOO_LONG": "5",
+        "INVALID_LOCALE": "6",
+        "DUPLICATE_LOCALE": "7",
+        "TOO_MANY_LOCALES": "8"
+      },
+      "baseType": "u4"
+    },
     "CheckBotUsernameValid": {
       "kind": "Enum",
       "members": {
@@ -639,6 +696,39 @@
               "index": 0,
               "name": "error",
               "type": "UploadFileError"
+            }
+          ]
+        }
+      ]
+    },
+    "SetAppTextResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessSetAppText",
+          "fields": [
+            {
+              "index": 0,
+              "name": "values",
+              "type": "Array\u003CLocaleValue\u003E"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "name": "FailedSetAppText",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "AppTextError"
+            },
+            {
+              "index": 1,
+              "name": "locale",
+              "type": "Maybe\u003Cstring\u003E"
             }
           ]
         }
@@ -1188,6 +1278,32 @@
             }
           ],
           "returns": "AppManagementResult",
+          "modifiers": []
+        },
+        "SetAppText": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "key",
+              "type": "string"
+            },
+            {
+              "index": 3,
+              "name": "values",
+              "type": "Array\u003CLocaleValue\u003E"
+            }
+          ],
+          "returns": "SetAppTextResult",
           "modifiers": []
         }
       }

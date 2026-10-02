@@ -119,6 +119,7 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<DevTeamsGrain>();
         registry.AddToRef<BotCommandsGrain>();
         registry.AddToRef<BotDirectoryGrain>();
+        registry.AddToRef<AppTextsGrain>();
 
         registry.AddToRef<ConnectionHandshakeGrain>();
         registry.AddToRef<UserConnectionsGrain>();

@@ -185,6 +185,11 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
     /// </summary>
     public bool AllowMagicLink { get; set; }
 
+    /// <summary>Bumped on every change to <see cref="Texts"/>; clients cache the texts by it.</summary>
+    public int TextsVersion { get; set; }
+
+    public virtual ICollection<DevAppTextEntity> Texts { get; set; } = new List<DevAppTextEntity>();
+
     public void Configure(EntityTypeBuilder<DevAppEntity> builder)
     {
         builder.ToTable("DevApps");

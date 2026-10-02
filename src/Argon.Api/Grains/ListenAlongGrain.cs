@@ -52,7 +52,7 @@ public sealed class ListenAlongGrain(
             return ListenAlongJoin.Refused(ListenAlongError.SPOTIFY_NOT_LINKED);
         if (!grant.CanControlPlayback)
             return ListenAlongJoin.Refused(ListenAlongError.SCOPE_MISSING);
-        if (!grant.Premium)
+        if (grant.Premium == false)
             return ListenAlongJoin.Refused(ListenAlongError.PREMIUM_REQUIRED);
 
         // Joining here leaves any other party first; one pointer per listener.

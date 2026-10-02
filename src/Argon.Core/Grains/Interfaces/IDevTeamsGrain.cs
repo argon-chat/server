@@ -130,6 +130,9 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
 
     [Alias(nameof(SetBotOAuthAsync))]
     Task<AppManagementError> SetBotOAuthAsync(Guid teamId, Guid appId, bool enabled, CancellationToken ct = default);
+
+    [Alias(nameof(SetAppTextAsync))]
+    Task<ISetAppTextResult> SetAppTextAsync(Guid teamId, Guid appId, string key, List<LocaleValue> values, CancellationToken ct = default);
 }
 
 /// <summary>

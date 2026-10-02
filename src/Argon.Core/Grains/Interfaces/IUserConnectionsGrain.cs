@@ -31,8 +31,12 @@ public enum LinkOutcome
 /// <summary>What a status poller (Spotify) may do on the user's behalf right now.</summary>
 public sealed record ActivityGrant(ProviderToken Token, bool AllowListenAlong);
 
-/// <summary>What a would-be listener brings to a listen-along: a token, and whether it can drive playback.</summary>
-public sealed record ListenerGrant(ProviderToken Token, bool Premium, bool CanControlPlayback);
+/// <summary>
+/// What a would-be listener brings to a listen-along: a token, whether it can drive playback, and
+/// whether the account is Premium — null when Spotify did not say, which it no longer does for
+/// Development-mode apps; the play command's own PREMIUM_REQUIRED answers it then.
+/// </summary>
+public sealed record ListenerGrant(ProviderToken Token, bool? Premium, bool CanControlPlayback);
 
 /// <summary>What one maintenance pass did to a row's token.</summary>
 public enum TokenUpkeep

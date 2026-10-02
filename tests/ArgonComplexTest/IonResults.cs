@@ -49,6 +49,12 @@ internal static class IonResults
     public static async Task Ok(this Task<IAppManagementResult> call)
         => _ = await call switch { SuccessAppManagement ok => ok, var other => throw Refused(other) };
 
+    public static async Task<IonArray<LocaleValue>> Ok(this Task<ISetAppTextResult> call)
+        => await call switch { SuccessSetAppText ok => ok.values, var other => throw Refused(other) };
+
+    public static async Task<AppTexts> Ok(this Task<ILookupAppTextsResult> call)
+        => await call switch { SuccessLookupAppTexts ok => ok.texts, var other => throw Refused(other) };
+
     private static AssertionException Refused(object result)
         => new($"expected the call to succeed, it was refused: {result}");
 }

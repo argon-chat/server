@@ -79,6 +79,41 @@ service AppManagement(teamId: guid) {
     SuspendBot(appId: guid): AppManagementResult;
     UpdateBotEntitlements(appId: guid, entitlements: u8): AppManagementResult;
     SetBotOAuth(appId: guid, enabled: bool): AppManagementResult;
+
+    // Replaces every locale of one localized string ("motd"). An empty list clears it; otherwise
+    // English is required.
+    SetAppText(appId: guid, key: string, values: LocaleValue[]): SetAppTextResult;
+}
+
+msg AppTextEntry {
+    key: string;
+    locale: string;
+    value: string;
+}
+
+msg LocaleValue {
+    locale: string;
+    value: string;
+}
+
+enum AppTextError {
+    NONE,
+    NO_PERMISSION,
+    NOT_FOUND,
+    // Not a key this kind of application has.
+    UNKNOWN_KEY,
+    ENGLISH_REQUIRED,
+    TOO_LONG,
+    INVALID_LOCALE,
+    DUPLICATE_LOCALE,
+    TOO_MANY_LOCALES
+}
+
+union SetAppTextResult {
+    // The values as stored: trimmed, flattened to one line where the key is one, empty ones dropped.
+    SuccessSetAppText(values: LocaleValue[]),
+    // locale names the offending value, when there is one.
+    FailedSetAppText(error: AppTextError, locale: string?)
 }
 
 enum CheckBotUsernameValid {
@@ -116,6 +151,8 @@ msg AppDetails {
     createdAt: datetime;
     requiredScopes: ScopeKeyValue[];
     allowedRedirects: string[];
+    // Every localized string, every locale.
+    texts: AppTextEntry[]?;
 }
 
 msg ScopeKeyValue {

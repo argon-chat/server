@@ -127,6 +127,14 @@ public sealed class AppManagementService(
         return Managed(await Teams.SetBotOAuthAsync(teamId, appId, enabled, ct));
     }
 
+    public async Task<ISetAppTextResult> SetAppText(Guid teamId, Guid appId, string key, IonArray<LocaleValue> values, CancellationToken ct = default)
+    {
+        if (!await IsMemberAsync(teamId, ct))
+            return new FailedSetAppText(AppTextError.NO_PERMISSION, null);
+
+        return await Teams.SetAppTextAsync(teamId, appId, key, values.ToList(), ct);
+    }
+
     public Task<IUploadAvatarResult> BeginUploadAppAvatar(Guid teamId, CancellationToken ct = default)
         => throw new NotImplementedException();
 

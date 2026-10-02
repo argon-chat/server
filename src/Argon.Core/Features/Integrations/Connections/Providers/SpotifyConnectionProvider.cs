@@ -45,10 +45,12 @@ public sealed class SpotifyConnectionProvider(HttpClient http, IOptions<Connecti
             me.Object("external_urls")?.String("spotify") ?? $"https://open.spotify.com/user/{id}",
             avatar);
 
-        var details = new List<ConnectionDetail>
-        {
-            Flag(SpotifyPremium, string.Equals(me.String("product"), "premium", StringComparison.OrdinalIgnoreCase))
-        };
+        var details = new List<ConnectionDetail>();
+
+        // Since the February 2026 migration Development-mode apps get neither `product` nor
+        // `followers` from /me. An absent field is "not told", never "not Premium".
+        if (me.String("product") is { } product)
+            details.Add(Flag(SpotifyPremium, string.Equals(product, "premium", StringComparison.OrdinalIgnoreCase)));
 
         if (me.Object("followers")?.Number("total") is { } followers)
             details.Add(Number(SpotifyFollowers, followers));

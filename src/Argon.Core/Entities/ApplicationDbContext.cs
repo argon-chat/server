@@ -72,6 +72,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ClientAppEntity>     AppClientEntities  => Set<ClientAppEntity>();
     public DbSet<DevTeamMemberInvite> TeamInvites        => Set<DevTeamMemberInvite>();
     public DbSet<BotCommandEntity>    BotCommands        => Set<BotCommandEntity>();
+    public DbSet<DevAppTextEntity>    AppTexts           => Set<DevAppTextEntity>();
 
 #endregion
 
