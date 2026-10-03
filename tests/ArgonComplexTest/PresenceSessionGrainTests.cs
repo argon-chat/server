@@ -656,6 +656,50 @@ public class PresenceSessionGrainTests : TestBase
         });
     }
 
+    /// <summary>
+    /// Two windows of one session that report different statuses hold the stronger one instead of
+    /// taking turns.
+    /// </summary>
+    /// <remarks>
+    /// A browser's sid is its <c>ArgonSecure</c> cookie, so every tab lands on one session grain, and
+    /// each tab runs its own idle detector: a background tab goes Away while the tab in use stays
+    /// Online. The grain kept whichever status arrived last, so the user flickered Away/Online on
+    /// every heartbeat of either tab.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task Two_windows_of_one_session_reporting_different_statuses_do_not_flap_it(CancellationToken ct = default)
+    {
+        var user = await CreateSessionAsync(ct);
+        var sid  = NewSid();
+
+        var grain = await StartSessionAsync(user.UserId, sid, "active", UserStatus.Online, ct);
+        await grain.AttachConnectionAsync("background");
+
+        var observed = new List<UserStatus>();
+
+        for (var i = 0; i < 3; i++)
+        {
+            await grain.HeartBeatAsync("background", UserStatus.Away);
+            observed.Add(await Presence.GetAggregatedStatusAsync(user.UserId, ct));
+
+            await grain.HeartBeatAsync("active", UserStatus.Online);
+            observed.Add(await Presence.GetAggregatedStatusAsync(user.UserId, ct));
+        }
+
+        // The tab in use closes; the background one is all that is left.
+        await grain.DetachConnectionAsync("active");
+
+        var afterClose = await AwaitAggregateAsync(user.UserId, UserStatus.Away, PresenceWaits.Settle, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(observed, Is.All.EqualTo(UserStatus.Online),
+                $"the session took turns between its windows' statuses: {string.Join(", ", observed)}");
+            Assert.That(afterClose, Is.EqualTo(UserStatus.Away),
+                $"the remaining window's Away did not take over once the active one closed (read {afterClose})");
+        });
+    }
+
     // ═════════════════════════════════════════════════════════════════════════════════════════════
     //  H11 — the status-change token bucket
     // ═════════════════════════════════════════════════════════════════════════════════════════════

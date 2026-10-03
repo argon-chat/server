@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, Copy, Trash2, Plus, Check,
   Shield, ShieldCheck, ShieldX, Globe,
   MessageSquare, Lock, Unlock, Bot, Link,
-  Rocket, Ban, Circle, ToggleLeft, ToggleRight, Megaphone,
+  Rocket, Ban, Circle, ToggleLeft, ToggleRight, Megaphone, X,
 } from "@lucide/vue"
 import { useToast } from "@/composables/useToast"
 import { useApi } from "@/store/apiStore"
@@ -500,16 +500,17 @@ async function copyToClipboard(value: string, fieldKey?: string) {
       <template #hint>A short line shown under the header when someone opens a DM with your bot.</template>
       <template #preview="{ value }">
         <!-- Drawn like the strip in the app -->
-        <div class="relative h-14 rounded-lg border border-glass-border bg-black/20 overflow-hidden">
+        <div class="relative h-16 rounded-lg border border-glass-border bg-black/20 overflow-hidden">
           <div class="absolute inset-x-0 top-0 h-6 border-b border-glass-border bg-white/3" />
           <div
             v-if="value"
-            class="absolute top-6 left-1/2 -translate-x-1/2 w-max max-w-[calc(100%-2rem)] flex items-start gap-1.5 px-3 py-1.5 rounded-b-[10px] border border-glass-border border-t-0 bg-black/40 text-xs text-text-secondary"
+            class="absolute top-6 left-1/2 -translate-x-1/2 w-max max-w-[calc(100%-2rem)] flex items-start gap-2 px-5 py-[10.5px] rounded-b-xl border border-indigo-400/35 border-t-0 bg-[color-mix(in_oklab,var(--color-indigo-400)_16%,#09090b)] text-[10.5px] font-medium leading-snug text-indigo-200 shadow-md"
           >
-            <Megaphone class="w-3 h-3 shrink-0 mt-0.5" />
+            <Megaphone class="size-3.25 shrink-0 mt-px text-indigo-400" />
             <span dir="auto" class="min-w-0 truncate">{{ value }}</span>
+            <X class="size-3 shrink-0 -mr-1.5 mt-px text-indigo-200/60" />
           </div>
-          <p v-else class="absolute inset-x-0 top-8 text-center text-[11px] text-text-muted">No MOTD — nothing is shown.</p>
+          <p v-else class="absolute inset-x-0 top-9 text-center text-[11px] text-text-muted">No MOTD — nothing is shown.</p>
         </div>
       </template>
     </AppTextEditor>

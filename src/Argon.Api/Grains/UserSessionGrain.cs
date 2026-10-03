@@ -639,10 +639,11 @@ public class UserSessionGrain(
         return activation.State.Connections.Add(connectionId);
     }
 
-    /// <summary>Forgets a connection, stamp and all.</summary>
+    /// <summary>Forgets a connection, stamp and status and all.</summary>
     private bool DropConnection(string connectionId)
     {
         activation.State.ConnectionsLastSeen.Remove(connectionId);
+        activation.State.ConnectionStatuses.Remove(connectionId);
         return activation.State.Connections.Remove(connectionId);
     }
 
@@ -651,6 +652,26 @@ public class UserSessionGrain(
     {
         activation.State.Connections.Clear();
         activation.State.ConnectionsLastSeen.Clear();
+        activation.State.ConnectionStatuses.Clear();
+    }
+
+    /// <summary>The strongest status any attached connection reported, or null if none has.</summary>
+    /// <remarks>
+    /// Browser tabs share one sid (the cookie) and each runs its own idle detector, so a background
+    /// tab says Away while the one in use says Online. Taking the last report made the session flap
+    /// between the two on every heartbeat; the fold uses the same ladder as the user aggregate.
+    /// </remarks>
+    private UserStatus? FoldConnectionStatuses()
+    {
+        UserStatus? best = null;
+
+        foreach (var status in activation.State.ConnectionStatuses.Values)
+        {
+            if (best is null || UserPresenceService.Rank(status) > UserPresenceService.Rank(best.Value))
+                best = status;
+        }
+
+        return best;
     }
 
     public async ValueTask<bool> HeartBeatAsync(string connectionId, UserStatus status)
@@ -679,9 +700,12 @@ public class UserSessionGrain(
         if (MarkConnectionSeen(connectionId))
             await CancelGraceAsync();
 
+        if (reported is { } named)
+            activation.State.ConnectionStatuses[connectionId] = named;
+
         EnsureRefreshTimer();
 
-        await HeartBeatCoreAsync(reported);
+        await HeartBeatCoreAsync(reported, FoldConnectionStatuses() ?? reported);
         return true;
     }
 
@@ -691,10 +715,11 @@ public class UserSessionGrain(
     /// </summary>
     /// <remarks>
     /// Split out for defect S10 so <see cref="TouchAsync"/> can reach it without joining
-    /// <c>Connections</c>. Takes the <em>reported</em> status — null meaning "the client said
-    /// nothing", which is what an Offline beat is read as.
+    /// <c>Connections</c>. <paramref name="reported"/> is what arrived — null meaning "the client
+    /// said nothing", which is what an Offline beat is read as; <paramref name="sessionStatus"/> is
+    /// what the session should now show.
     /// </remarks>
-    private async Task HeartBeatCoreAsync(UserStatus? reported)
+    private async Task HeartBeatCoreAsync(UserStatus? reported, UserStatus? sessionStatus)
     {
         if (DateTime.UtcNow - (activation.State.LastDebouncedHeartbeatTime ?? DateTime.MinValue) > timings.HeartbeatDebounce)
         {
@@ -707,29 +732,34 @@ public class UserSessionGrain(
         UserSessionGrainInstrument.Heartbeats.Add(1,
             new KeyValuePair<string, object?>("status", reported is { } beat ? Tag(beat) : Tag(UserStatus.Offline)));
 
-        if (reported is { } named && activation.State.PreferredStatus != named)
-        {
-            // Rate-limit status churn. On throttle, drop the change WITHOUT touching activation.State.PreferredStatus or
-            // Redis, so the next heartbeat re-detects the mismatch and propagates the final state once
-            // the bucket refills — a burst can't amplify into a broadcast storm.
-            if (!TryConsumeStatusToken())
-            {
-                logger.LogDebug("Throttled status change for session {sid} (user {userId})", SessionId, _userId);
-            }
-            else
-            {
-                UserSessionGrainInstrument.StatusChanges.Add(1,
-                    new KeyValuePair<string, object?>("from_status", Tag(activation.State.PreferredStatus ?? UserStatus.Online)),
-                    new KeyValuePair<string, object?>("to_status", Tag(named)));
-
-                activation.State.PreferredStatus = named;
-                await presenceService.SetSessionStatusAsync(_userId, SessionId, named);
-                await grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync();
-                await presenceService.HeartbeatAsync(_userId, SessionId);
-            }
-        }
+        await ApplySessionStatusAsync(sessionStatus);
 
         this.DelayDeactivation(timings.DeactivationDelay);
+    }
+
+    /// <summary>Writes and announces <paramref name="status"/> if it differs from what the session shows.</summary>
+    private async Task ApplySessionStatusAsync(UserStatus? status)
+    {
+        if (status is not { } named || !activation.State.SessionStarted || activation.State.PreferredStatus == named)
+            return;
+
+        // Rate-limit status churn. On throttle, drop the change WITHOUT touching activation.State.PreferredStatus or
+        // Redis, so the next heartbeat re-detects the mismatch and propagates the final state once
+        // the bucket refills — a burst can't amplify into a broadcast storm.
+        if (!TryConsumeStatusToken())
+        {
+            logger.LogDebug("Throttled status change for session {sid} (user {userId})", SessionId, _userId);
+            return;
+        }
+
+        UserSessionGrainInstrument.StatusChanges.Add(1,
+            new KeyValuePair<string, object?>("from_status", Tag(activation.State.PreferredStatus ?? UserStatus.Online)),
+            new KeyValuePair<string, object?>("to_status", Tag(named)));
+
+        activation.State.PreferredStatus = named;
+        await presenceService.SetSessionStatusAsync(_userId, SessionId, named);
+        await grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync();
+        await presenceService.HeartbeatAsync(_userId, SessionId);
     }
 
     /// <inheritdoc cref="IUserSessionGrain.TouchAsync"/>
@@ -754,8 +784,9 @@ public class UserSessionGrain(
         // HeartBeatAsync leaves it to AppHub.
         //
         // The whole of the fix: a unary RPC has no lifetime a detach can hang on, so it never joins
-        // the transport set. Everything else a heartbeat does, it does.
-        await HeartBeatCoreAsync(reported);
+        // the transport set. Everything else a heartbeat does, it does. A connection that reports a
+        // status outranks it, as it does a heartbeat that reports none.
+        await HeartBeatCoreAsync(reported, FoldConnectionStatuses() ?? reported);
         return true;
     }
 
@@ -763,7 +794,11 @@ public class UserSessionGrain(
     {
         DropConnection(connectionId);
         if (activation.State.Connections.Count > 0)
-            return; // other connections of this session are still live — no status change
+        {
+            // Other connections of this session are still live; what they report is the status now.
+            await ApplySessionStatusAsync(FoldConnectionStatuses());
+            return;
+        }
 
         await BeginGraceAsync();
     }
@@ -813,7 +848,10 @@ public class UserSessionGrain(
         // activation and put them straight back — an Offline/Online pair every observer's roster
         // reacted to. Mirrors the guard DetachConnectionAsync already has.
         if (activation.State.Connections.Count > 0)
+        {
+            await ApplySessionStatusAsync(FoldConnectionStatuses());
             return;
+        }
 
         // Last connection of the session: an explicit sign-out is immediate, with no grace. The
         // caller's own transport closing a moment later arrives as DetachConnectionAsync for an id
@@ -1113,6 +1151,8 @@ public class UserSessionGrain(
 
         if (activation.State.Connections.Count == 0)
             await BeginGraceAsync();
+        else
+            await ApplySessionStatusAsync(FoldConnectionStatuses());
     }
 
     [OneWay]
@@ -1207,6 +1247,10 @@ public sealed record UserSessionActivationState
     /// </remarks>
     [Id(10)]
     public DateTime? LastFriendPushAt { get; set; }
+
+    /// <summary>The last status each attached connection reported; see <c>FoldConnectionStatuses</c>.</summary>
+    [Id(11)]
+    public Dictionary<string, UserStatus> ConnectionStatuses { get; set; } = [];
 
     /// <summary>
     /// Whether this session is counted in the silo's active-sessions gauge.

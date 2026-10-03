@@ -888,7 +888,7 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
     /// not a normalisation — so an unknown member is written to the aggregate verbatim and a client
     /// that knows it renders it.
     /// </remarks>
-    private static int Rank(UserStatus status) => status switch
+    public static int Rank(UserStatus status) => status switch
     {
         UserStatus.Offline      => 0,
         UserStatus.Snooze       => 1,
