@@ -14,31 +14,24 @@ public class ExportPumpGrain(
     [PersistentState("export-pump-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ExportPumpGrainState> state,
     IGrainFactory grainFactory,
-    ILogger<ExportPumpGrain> logger) : Grain, IExportPumpGrain, IRemindable
+    ILogger<ExportPumpGrain> logger) : Grain, IExportPumpGrain, IRemindable, IReminderJob
 {
     private const string ReminderName = "export-pump";
 
-    public override async Task OnActivateAsync(CancellationToken cancellationToken)
-    {
-        if (state.State.ActiveExports.Count > 0)
-        {
-            await this.RegisterOrUpdateReminder(
-                ReminderName,
-                dueTime: TimeSpan.FromMinutes(1),
-                period: TimeSpan.FromMinutes(2));
-        }
-    }
+    private static readonly ReminderSchedule PumpSchedule = new(TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2));
+
+    string IReminderJob.ReminderName => ReminderName;
+
+    // Nothing to pump means no reminder: an activation that finds the set empty drops one left behind.
+    ReminderSchedule? IReminderJob.Schedule
+        => state.State.ActiveExports.Count > 0 ? PumpSchedule : null;
 
     public async ValueTask RegisterActiveExportAsync(Guid userId)
     {
         state.State.ActiveExports.Add(userId);
         await state.WriteStateAsync();
 
-        // ensure pump reminder is active
-        await this.RegisterOrUpdateReminder(
-            ReminderName,
-            dueTime: TimeSpan.FromMinutes(1),
-            period: TimeSpan.FromMinutes(2));
+        await this.RegisterOrUpdateReminder(ReminderName, PumpSchedule.FirstDelay, PumpSchedule.Period);
     }
 
     public async ValueTask UnregisterExportAsync(Guid userId)
@@ -47,17 +40,7 @@ public class ExportPumpGrain(
         await state.WriteStateAsync();
 
         if (state.State.ActiveExports.Count == 0)
-        {
-            try
-            {
-                if (await this.GetReminder(ReminderName) is { } r)
-                    await this.UnregisterReminder(r);
-            }
-            catch (ReminderException)
-            {
-                // reminder already gone
-            }
-        }
+            await this.DropReminderAsync(ReminderName);
     }
 
     public async Task ReceiveReminder(string reminderName, TickStatus status)
@@ -67,12 +50,7 @@ public class ExportPumpGrain(
 
         if (state.State.ActiveExports.Count == 0)
         {
-            try
-            {
-                if (await this.GetReminder(ReminderName) is { } r)
-                    await this.UnregisterReminder(r);
-            }
-            catch (ReminderException) { }
+            await this.DropReminderAsync(ReminderName);
             return;
         }
 
@@ -103,14 +81,7 @@ public class ExportPumpGrain(
             await state.WriteStateAsync();
 
             if (state.State.ActiveExports.Count == 0)
-            {
-                try
-                {
-                    if (await this.GetReminder(ReminderName) is { } r)
-                        await this.UnregisterReminder(r);
-                }
-                catch (ReminderException) { }
-            }
+                await this.DropReminderAsync(ReminderName);
         }
     }
 }

@@ -106,6 +106,11 @@ public static class OtelFeature
                 .AddMeter("Microsoft.Orleans")
                 .AddMeter("Npgsql")
                 .AddMeter("Microsoft.EntityFrameworkCore")
+                // Orleans 10.4 emits request latency as a plain histogram; buckets are the app's to pick.
+                .AddView("orleans-app-requests-latency", new ExplicitBucketHistogramConfiguration
+                {
+                    Boundaries = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000]
+                })
                 .AddOtlpExporter(options => {
                     options.Endpoint = metricsEndpoint;
                     options.Protocol = OtlpExportProtocol.HttpProtobuf;

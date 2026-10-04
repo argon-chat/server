@@ -25,7 +25,7 @@ public class TtlSweepGrain(
     TtlSweepState state,
     RoleDescriptor role,
     ILogger<TtlSweepGrain> logger)
-    : Grain, ITtlSweepGrain, IRemindable
+    : Grain, ITtlSweepGrain, IRemindable, IReminderJob
 {
     private const string ReminderName = "ttl-sweep";
 
@@ -42,25 +42,14 @@ public class TtlSweepGrain(
 
     private TtlSweepOptions Options => TtlSweepOptions.FromConfiguration(configuration);
 
-    /// <summary>
-    /// Registers the reminder — unless the sweeper is off, in which case it makes sure there is none.
-    /// </summary>
-    /// <remarks>
-    /// Read on every activation rather than cached, because a reminder is persistent: one registered by
-    /// a pod that has since been replaced keeps firing against configuration nobody can see any more.
-    /// Turning <c>Mode</c> to <c>Off</c> has to be able to actually stop it, which means unregistering
-    /// and not merely returning early from the tick.
-    /// </remarks>
-    public async override Task OnActivateAsync(CancellationToken cancellationToken)
-    {
-        if (Options.Mode is TtlSweepMode.Off)
-        {
-            await StopReminderAsync();
-            return;
-        }
+    string IReminderJob.ReminderName => ReminderName;
 
-        await this.RegisterOrUpdateReminder(ReminderName, FirstSweepDelay, Options.Interval);
-    }
+    /// <summary>
+    /// Off means no reminder at all, not an early return from the tick: a reminder registered by a pod
+    /// that has since been replaced keeps firing against configuration nobody can see any more.
+    /// </summary>
+    ReminderSchedule? IReminderJob.Schedule
+        => Options.Mode is TtlSweepMode.Off ? null : new(FirstSweepDelay, Options.Interval);
 
     public ValueTask EnsureSweeperActiveAsync()
         => ValueTask.CompletedTask; // activation itself registers the reminder
@@ -76,7 +65,7 @@ public class TtlSweepGrain(
         if (Options.Mode is TtlSweepMode.Off)
         {
             logger.LogInformation("The TTL sweeper is off; unregistering its reminder");
-            await StopReminderAsync();
+            await this.DropReminderAsync(ReminderName);
             return;
         }
 
@@ -104,11 +93,5 @@ public class TtlSweepGrain(
             logger.LogError(e, "TTL sweep failed; the next tick will re-derive from scratch");
             state.Publish(TtlSweepReport.Faulted(e));
         }
-    }
-
-    private async Task StopReminderAsync()
-    {
-        if (await this.GetReminder(ReminderName) is { } reminder)
-            await this.UnregisterReminder(reminder);
     }
 }

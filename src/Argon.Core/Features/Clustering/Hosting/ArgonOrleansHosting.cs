@@ -282,6 +282,7 @@ public static class ArgonOrleansHosting
         builder.Services.AddSingleton<ISiloDrainService, SiloDrainService>();
         builder.Services.AddSiloHealthChecks();
         builder.Services.AddDrainAwarePlacementFilter();
+        builder.Services.AddReminderJobs();
 
         return builder;
     }

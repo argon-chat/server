@@ -10,14 +10,16 @@ public class SessionRegistryFlushGrain(
     IArgonCacheDatabase cache,
     IOptions<SessionRegistryOptions> options,
     ILogger<SessionRegistryFlushGrain> logger)
-    : Grain, ISessionRegistryFlushGrain, IRemindable
+    : Grain, ISessionRegistryFlushGrain, IRemindable, IReminderJob
 {
     private const string ReminderName = "session-registry-flush";
 
     private DateTimeOffset lastSweepAt = DateTimeOffset.MinValue;
 
-    public async override Task OnActivateAsync(CancellationToken cancellationToken)
-        => await this.RegisterOrUpdateReminder(ReminderName, options.Value.FlushInterval, options.Value.FlushInterval);
+    string IReminderJob.ReminderName => ReminderName;
+
+    ReminderSchedule? IReminderJob.Schedule
+        => new(options.Value.FlushInterval, options.Value.FlushInterval);
 
     public ValueTask EnsureActiveAsync()
         => ValueTask.CompletedTask;

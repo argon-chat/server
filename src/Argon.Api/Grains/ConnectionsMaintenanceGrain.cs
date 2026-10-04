@@ -9,7 +9,7 @@ public sealed class ConnectionsMaintenanceGrain(
     IConnectionProviderRegistry providers,
     TokenSealer sealer,
     IOptions<ConnectionsOptions> options,
-    ILogger<ConnectionsMaintenanceGrain> logger) : Grain, IConnectionsMaintenanceGrain, IRemindable
+    ILogger<ConnectionsMaintenanceGrain> logger) : Grain, IConnectionsMaintenanceGrain, IRemindable, IReminderJob
 {
     private const string ReminderName = "connections-maintenance";
 
@@ -18,16 +18,10 @@ public sealed class ConnectionsMaintenanceGrain(
 
     private ConnectionsOptions Options => options.Value;
 
-    public async override Task OnActivateAsync(CancellationToken cancellationToken)
-    {
-        if (!Options.Enabled)
-        {
-            await StopReminderAsync();
-            return;
-        }
+    string IReminderJob.ReminderName => ReminderName;
 
-        await this.RegisterOrUpdateReminder(ReminderName, FirstDelay, Options.MaintenanceInterval);
-    }
+    ReminderSchedule? IReminderJob.Schedule
+        => Options.Enabled ? new(FirstDelay, Options.MaintenanceInterval) : null;
 
     public ValueTask EnsureActiveAsync() => ValueTask.CompletedTask;
 
@@ -38,7 +32,7 @@ public sealed class ConnectionsMaintenanceGrain(
 
         if (!Options.Enabled)
         {
-            await StopReminderAsync();
+            await this.DropReminderAsync(ReminderName);
             return;
         }
 
@@ -145,11 +139,5 @@ public sealed class ConnectionsMaintenanceGrain(
         }
 
         return new ConnectionsMaintenanceReport(refreshed, resealed, reauth, details, failed);
-    }
-
-    private async Task StopReminderAsync()
-    {
-        if (await this.GetReminder(ReminderName) is { } reminder)
-            await this.UnregisterReminder(reminder);
     }
 }
