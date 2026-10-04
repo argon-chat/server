@@ -349,6 +349,64 @@ public class FriendGraphRulesTests : TestBase
         });
     }
 
+    [TestCase(0), TestCase(1), TestCase(2), CancelAfter(120_000)]
+    public async Task Equal_timestamp_friend_lists_page_in_unique_id_order(int list, CancellationToken ct = default)
+    {
+        var alice = await CreateSessionAsync(ct);
+        var peers = Enumerable.Range(1, 105)
+            .Select(i => Guid.Parse($"00000000-0000-0000-0000-{i:D12}"))
+            .ToArray();
+        var timestamp = DateTimeOffset.UtcNow;
+
+        await using (var db = await SocialHarness.DbAsync(ct))
+        {
+            // Insert out of order: the timestamp alone must not decide page boundaries.
+            foreach (var peer in peers.Reverse())
+            {
+                if (list == 2)
+                    db.Friends.Add(new FriendshipEntity { UserId = alice.UserId, FriendId = peer, CreatedAt = timestamp });
+                else
+                    db.FriendRequest.Add(new FriendRequestEntity
+                    {
+                        RequesterId = list == 0 ? peer : alice.UserId,
+                        TargetId = list == 0 ? alice.UserId : peer,
+                        RequestedAt = timestamp,
+                        ExpiredAt = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30))
+                    });
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
+        async Task<Guid[]> PageAsync(int limit, int offset)
+            => list switch
+            {
+                0 => (await alice.Friends.GetMyFriendPendingList(limit, offset, ct)).Values.Select(x => x.requesterId).ToArray(),
+                1 => (await alice.Friends.GetMyFriendOutgoingList(limit, offset, ct)).Values.Select(x => x.targetId).ToArray(),
+                _ => (await alice.Friends.GetMyFriendships(limit, offset, ct)).Values.Select(x => x.friendId).ToArray()
+            };
+
+        var first = await PageAsync(2, 0);
+        var second = await PageAsync(2, 2);
+        var third = await PageAsync(1, 4);
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.Concat(second).Concat(third), Is.EqualTo(peers.Take(5)), "ties cannot repeat or omit a row between pages");
+            Assert.That(third.Length, Is.EqualTo(1));
+        });
+        Assert.That(await PageAsync(2, 0), Is.EqualTo(first), "the same page has a stable order");
+        Assert.That(await PageAsync(0, 0), Is.Empty, "zero still requests an empty page");
+        Assert.That(await PageAsync(2, -1), Is.EqualTo(first), "negative offsets normalize to the first page");
+        var all = await PageAsync(int.MaxValue, 0);
+        var requested = await PageAsync(100, 0);
+        var remaining = await PageAsync(100, 100);
+        Assert.Multiple(() =>
+        {
+            Assert.That(all, Is.EqualTo(peers), "existing clients may request the whole list without paging");
+            Assert.That(requested.Length, Is.EqualTo(100), "the requested limit is respected");
+            Assert.That(requested.Concat(remaining), Is.EqualTo(peers));
+        });
+    }
+
     // ── Ignoring ────────────────────────────────────────────────────────────────────────────────
 
     [Test, CancelAfter(120_000)]

@@ -107,24 +107,30 @@ public partial class ChannelGrain : IChannelInsightsGrain
         return results;
     }
 
-    /// <summary>Counts every post from one read of the members' read marks, and keeps the counts for <see cref="ReadCountTtl"/>.</summary>
+    /// <summary>Aggregates readers in the database and keeps the counts for <see cref="ReadCountTtl"/>.</summary>
     private async Task<Dictionary<long, ReadCount>> CountReadersAsync(ApplicationDbContext ctx, List<(long Id, Guid Author)> posts,
         CancellationToken ct)
     {
         var spaceId   = SpaceId;
         var channelId = this.GetPrimaryKey();
-        var oldest    = posts.Min(p => p.Id);
+        var ids       = posts.Select(p => p.Id).ToArray();
 
         var members = await ctx.UsersToServerRelations.CountAsync(m => m.SpaceId == spaceId, ct);
 
-        // Current members only, and only marks that reach the oldest post asked about.
-        var marks = members < ReadCountMinMembers
-            ? null
-            : await ctx.ChannelReadStates.AsNoTracking()
-               .Where(r => r.ChannelId == channelId && r.LastReadMessageId >= oldest)
-               .Where(r => ctx.UsersToServerRelations.Any(m => m.SpaceId == spaceId && m.UserId == r.UserId))
-               .Select(r => new { r.UserId, r.LastReadMessageId })
-               .ToListAsync(ct);
+        // COUNT is a correlated SQL aggregate: only one integer per requested post crosses
+        // the wire, regardless of the number of member cursors. EXISTS keeps former members out.
+        var readersByPost = members < ReadCountMinMembers
+            ? new Dictionary<long, int>()
+            : await ctx.Messages.AsNoTracking()
+               .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && ids.Contains(m.MessageId))
+               .Select(m => new
+               {
+                   m.MessageId,
+                   Readers = ctx.ChannelReadStates.Count(r => r.ChannelId == channelId
+                       && r.LastReadMessageId >= m.MessageId && r.UserId != m.CreatorId
+                       && ctx.UsersToServerRelations.Any(member => member.SpaceId == spaceId && member.UserId == r.UserId))
+               })
+               .ToDictionaryAsync(m => m.MessageId, m => m.Readers, ct);
 
         if (readCounts.Count + posts.Count > ReadCountCacheSize)
             readCounts.Clear();
@@ -135,7 +141,7 @@ public partial class ChannelGrain : IChannelInsightsGrain
         foreach (var (id, author) in posts)
         {
             // Never the author, who has read their own post by writing it.
-            var readers = marks?.Count(r => r.LastReadMessageId >= id && r.UserId != author) ?? 0;
+            var readers = readersByPost.GetValueOrDefault(id);
             counted[id] = readCounts[id] = new ReadCount(author, readers, members, now);
         }
 

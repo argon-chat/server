@@ -29,6 +29,9 @@ public record FriendshipEntity : IEntityTypeConfiguration<FriendshipEntity>, IMa
         // The key covers lookups by UserId; this is the other direction.
         builder.HasIndex(x => x.FriendId)
            .HasDatabaseName("idx_friendships_friend");
+
+        builder.HasIndex(x => new { x.UserId, x.CreatedAt, x.FriendId })
+           .HasDatabaseName("idx_friendships_user_created");
     }
 
     public static Friendship Map(scoped in FriendshipEntity self)

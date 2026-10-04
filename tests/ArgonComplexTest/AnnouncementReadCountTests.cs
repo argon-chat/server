@@ -3,6 +3,7 @@ namespace ArgonComplexTest.Tests;
 using Argon.Grains.Interfaces;
 using ArgonContracts;
 using ion.runtime;
+using Microsoft.EntityFrameworkCore;
 using static ChannelTestKit;
 
 /// <summary>
@@ -124,6 +125,43 @@ public class AnnouncementReadCountTests : TestBase
             Assert.That(byMod.readers, Is.EqualTo(1));
             Assert.That(byOwner.members, Is.EqualTo(5));
             Assert.That((unknown as FailedReadCount)?.error, Is.EqualTo(ReadCountError.MESSAGE_NOT_FOUND));
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_post_without_readers_is_included_and_other_channel_marks_do_not_count(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var reader = await CreateSessionAsync(ct);
+        var spaceId = await CreateSpaceAsync(owner, ct);
+        await JoinAsync(owner, reader, spaceId, ct);
+        for (var i = 0; i < 3; i++)
+            await JoinAsync(owner, await CreateSessionAsync(ct), spaceId, ct);
+
+        var channelId = await CreateChannelAsync(owner, spaceId, "news", ChannelType.Announcement, ct);
+        var otherChannelId = await CreateChannelAsync(owner, spaceId, "other-news", ChannelType.Announcement, ct);
+        var post = await PostAsync(owner, spaceId, channelId, "unread news", ct);
+        var otherPost = await PostAsync(owner, spaceId, otherChannelId, "read elsewhere", ct);
+        await reader.Users.AckChannel(otherChannelId, otherPost, ct);
+
+        // Wait for the unrelated cursor to persist before making the first count request:
+        // a cached zero must not hide a query accidentally reading another channel's marks.
+        var persisted = await PollAsync(async () =>
+        {
+            await using var db = await DbAsync(ct);
+            return await db.ChannelReadStates.AnyAsync(r => r.ChannelId == otherChannelId
+                && r.UserId == reader.UserId && r.LastReadMessageId >= otherPost, ct);
+        }, value => value, Window, ct);
+        Assert.That(persisted, Is.True);
+
+        var batch = await Insights(owner).GetReadCounts(spaceId, channelId, new IonArray<long>([post, otherPost]), ct);
+        var single = await Insights(owner).GetReadCount(spaceId, channelId, post, ct);
+        Assert.Multiple(() =>
+        {
+            Assert.That(batch.Values.Select(e => e.messageId), Is.EqualTo(new[] { post }));
+            Assert.That(batch.Values.Single().readers, Is.Zero, "zero-reader aggregates must be returned");
+            Assert.That(batch.Values.Single().members, Is.EqualTo(5));
+            Assert.That((single as SuccessReadCount)?.readers, Is.Zero, "another channel's cursor must not count");
         });
     }
 

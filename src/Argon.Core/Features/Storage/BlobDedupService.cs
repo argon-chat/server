@@ -169,12 +169,38 @@ public sealed class BlobDedupService(
            .Take(batch)
            .ToListAsync(ct);
 
+        if (due.Count == 0)
+            return 0;
+
+        var ids = due.Select(b => b.Id).ToArray();
+        var liveCounts = await db.Files
+           .Where(f => f.BlobId != null && ids.Contains(f.BlobId.Value))
+           .GroupBy(f => f.BlobId!.Value)
+           .Select(g => new { BlobId = g.Key, Count = g.LongCount() })
+           .ToDictionaryAsync(g => g.BlobId, g => g.Count, ct);
+
         var removed = 0;
 
         foreach (var blob in due)
         {
-            // The count is the guard; Links only says when to look.
-            var live = await db.Files.CountAsync(f => f.BlobId == blob.Id, ct);
+            // Links is only a hint. Recount the batch from live files, excluding tombstones.
+            var live = liveCounts.GetValueOrDefault(blob.Id);
+            if (live == 0 && await db.Files.AnyAsync(f => f.BlobId == blob.Id, ct))
+            {
+                // A file may have appeared while an earlier object's S3 deletion was awaited.
+                // Keep the destructive guard immediately before deletion, as in the old sweep.
+                if (blob.CanonicalId is { } racedCanonicalId)
+                {
+                    await MergeAsync(blob.Id, racedCanonicalId, ct);
+                    continue;
+                }
+
+                live = await db.Files.LongCountAsync(f => f.BlobId == blob.Id, ct);
+                blob.Links       = live;
+                blob.DeleteAfter = null;
+                continue;
+            }
+
             if (live > 0)
             {
                 if (blob.CanonicalId is { } canonicalId)

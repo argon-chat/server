@@ -61,7 +61,7 @@ public static class TestEnvironmentOptions
     public static string DatabaseImage
         => Read(DatabaseImageVariable) ?? DatabaseKind switch
         {
-            TestDatabaseKind.Cockroach => "cockroachdb/cockroach:latest-v24.3",
+            TestDatabaseKind.Cockroach => "cockroachdb/cockroach:latest-v26.2",
             _                          => "postgres:17-alpine"
         };
 

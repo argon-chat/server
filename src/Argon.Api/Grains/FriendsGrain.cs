@@ -47,14 +47,19 @@ public class FriendsGrain(
         return result.Select(x => x.ToDto()).ToList();
     }
 
+    // The public contract uses offsets. Matching indexes avoid a sort, but a deep offset still
+    // scans skipped rows; cursor pagination requires a coordinated client/contract change.
     public async Task<List<FriendRequest>> GetMyFriendPendingListAsync(int limit, int offset, CancellationToken ct = default)
     {
+        limit = Math.Max(limit, 0);
+        offset = Math.Max(offset, 0);
         var             meUserId = this.GetUserId();
         await using var ctx      = await context.CreateDbContextAsync(ct);
         var result = await ctx.FriendRequest
            .AsNoTracking()
            .Where(x => x.TargetId == meUserId)
            .OrderByDescending(x => x.RequestedAt)
+           .ThenBy(x => x.RequesterId)
            .Skip(offset)
            .Take(limit)
            .ToListAsync(ct);
@@ -64,6 +69,8 @@ public class FriendsGrain(
 
     public async Task<List<FriendRequest>> GetMyFriendOutgoingListAsync(int limit, int offset, CancellationToken ct = default)
     {
+        limit = Math.Max(limit, 0);
+        offset = Math.Max(offset, 0);
         var             meUserId = this.GetUserId();
         await using var ctx      = await context.CreateDbContextAsync(ct);
 
@@ -71,6 +78,7 @@ public class FriendsGrain(
            .AsNoTracking()
            .Where(x => x.RequesterId == meUserId)
            .OrderByDescending(x => x.RequestedAt)
+           .ThenBy(x => x.TargetId)
            .Skip(offset)
            .Take(limit)
            .ToListAsync(ct);
@@ -80,6 +88,8 @@ public class FriendsGrain(
 
     public async Task<List<Friendship>> GetMyFriendshipsAsync(int limit, int offset, CancellationToken ct = default)
     {
+        limit = Math.Max(limit, 0);
+        offset = Math.Max(offset, 0);
         var             meUserId = this.GetUserId();
         await using var ctx      = await context.CreateDbContextAsync(ct);
 
@@ -87,6 +97,7 @@ public class FriendsGrain(
            .AsNoTracking()
            .Where(x => x.UserId == meUserId)
            .OrderBy(x => x.CreatedAt)
+           .ThenBy(x => x.FriendId)
            .Skip(offset)
            .Take(limit)
            .ToListAsync(ct);

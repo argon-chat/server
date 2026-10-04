@@ -11,6 +11,7 @@ using Argon.Services.L1L2;
 using Argon.Grains.Interfaces;
 using Orleans.Concurrency;
 using Core.Entities.Data;
+using Argon.Features.EF;
 
 [StatelessWorker]
 public class UserChatGrain(
@@ -424,29 +425,28 @@ public class UserChatGrain(
 
                     ctx.DirectMessages.Add(entity);
 
-                    // Update sender's chat (no unread increment)
-                    await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, token);
-
                     if (blockedByReceiver)
                     {
+                        await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, token);
                         await ctx.SaveChangesAsync(token);
                         inserted = entity;
                         return entity;
                     }
 
-                    // Update conversation metadata
-                    conversation.LastMessageAt = now;
-                    conversation.LastMessageText = previewText;
-                    conversation.LastMessageSenderId = senderId;
-                    ctx.Conversations.Update(conversation);
+                    await ctx.Conversations.Where(x => x.Id == conversation.Id)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(x => x.LastMessageAt, now)
+                            .SetProperty(x => x.LastMessageText, previewText)
+                            .SetProperty(x => x.LastMessageSenderId, senderId), token);
 
                     // An ignored sender still gets through — the chat stays honest on both sides — but
                     // they do not raise the receiver's unread count.
                     var ignoredByReceiver = await ctx.UserIgnorelist
                         .AnyAsync(x => x.UserId == receiverId && x.IgnoredId == senderId, token);
 
-                    // Update receiver's chat (increment unread unless they ignore the sender)
-                    await UpdateUserConversationAsync(ctx, receiverId, senderId, conversation, previewText, now, !ignoredByReceiver, token);
+                    // Both metadata rows share one round trip, in the same order for either send direction.
+                    await UserConversationWrites.RecordParticipantsAsync(ctx, senderId, receiverId,
+                        conversation.Id, previewText, now, !ignoredByReceiver, token);
 
                     await ctx.SaveChangesAsync(token);
 
@@ -535,10 +535,10 @@ public class UserChatGrain(
 
         await ExecuteInTransactionAsync(ctx, async () =>
         {
-            // Update conversation
-            conversation.LastMessageAt = timestamp;
-            conversation.LastMessageText = previewText;
-            ctx.Conversations.Update(conversation);
+            await ctx.Conversations.Where(x => x.Id == conversation.Id)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.LastMessageAt, timestamp)
+                    .SetProperty(x => x.LastMessageText, previewText), ct);
 
             // Update user conversation
             await UpdateUserConversationAsync(ctx, userId, peerId, conversation, previewText, timestamp, false, ct);
@@ -554,7 +554,7 @@ public class UserChatGrain(
         ));
     }
 
-    private static async Task UpdateUserConversationAsync(
+    private static Task UpdateUserConversationAsync(
         ApplicationDbContext ctx,
         Guid userId,
         Guid peerId,
@@ -563,41 +563,8 @@ public class UserChatGrain(
         DateTimeOffset timestamp,
         bool incrementUnread,
         CancellationToken ct)
-    {
-        var record = await ctx.UserConversations
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.ConversationId == conversation.Id, ct);
-
-        if (record is null)
-        {
-            record = new UserConversationEntity
-            {
-                UserId = userId,
-                ConversationId = conversation.Id,
-                PeerId = peerId,
-                LastMessageAt = timestamp,
-                LastMessageText = previewText,
-                IsPinned = false,
-                PinnedAt = null,
-                UnreadCount = incrementUnread ? 1 : 0
-            };
-
-            ctx.UserConversations.Add(record);
-        }
-        else
-        {
-            record.LastMessageAt = timestamp;
-            record.LastMessageText = previewText;
-            // A deleted (archived) chat comes back with the next message, on either side.
-            record.IsArchived = false;
-
-            if (incrementUnread)
-            {
-                record.UnreadCount++;
-            }
-
-            ctx.UserConversations.Update(record);
-        }
-    }
+        => UserConversationWrites.RecordMessageAsync(ctx, userId, peerId, conversation.Id,
+            previewText, timestamp, incrementUnread, ct);
 
     private async Task NotifyAsync<T>(Guid userId, T payload) where T : IArgonEvent
     {

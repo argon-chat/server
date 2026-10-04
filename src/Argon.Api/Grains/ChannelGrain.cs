@@ -2035,19 +2035,7 @@ public partial class ChannelGrain(
         var massUsers = messageOptions.Value.AnnouncementMassUserMentions;
 
         await using var ctx = await context.CreateDbContextAsync();
-        var recent = await ctx.Messages
-           .IgnoreQueryFilters()
-           .AsNoTracking()
-           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.CreatedAt >= since && m.MessageId < before)
-           .Select(m => new { m.MessageId, m.CreatorId, m.CreatedAt, m.Entities })
-           .ToListAsync();
-
-        return recent
-           .Where(m => m.Entities.Any(e => e is MessageEntityMentionEveryone or MessageEntityMentionRole)
-                    || m.Entities.OfType<MessageEntityMention>().Select(u => u.userId).Where(u => u != m.CreatorId).Distinct().Count() > massUsers)
-           .OrderByDescending(m => m.MessageId)
-           .Take(perHour)
-           .ToDictionary(m => m.MessageId, m => m.CreatedAt);
+        return await ctx.RecentMassPingsAsync(SpaceId, channelId, since, before, massUsers, perHour);
     }
 
     /// <summary>
@@ -2918,17 +2906,28 @@ public partial class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync();
         var channelId = this.GetPrimaryKey();
 
-        var messages = await ctx.Messages
+        // Read only the keys: vanished rows are ignored, and none of the message's text or JSON
+        // payload needs to make a round trip just to replace the buffered reaction list.
+        var existingIds = await ctx.Messages
            .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && messageIds.Contains(m.MessageId))
+           .Select(m => m.MessageId)
            .ToListAsync();
 
-        foreach (var message in messages)
+        foreach (var messageId in existingIds)
         {
-            var reactions = _reactionCache[message.MessageId];
-            message.Reactions = reactions.Count == 0 ? null : reactions.ToList();
+            var reactions = _reactionCache[messageId];
+            var message = new ArgonMessageEntity
+            {
+                SpaceId = SpaceId,
+                ChannelId = channelId,
+                MessageId = messageId,
+                Text = string.Empty,
+                Reactions = reactions.Count == 0 ? null : reactions.ToList()
+            };
+            ctx.Attach(message).Property(m => m.Reactions).IsModified = true;
 
             // A pinned copy outlives the reaction cache entry, which may be evicted once this is written.
-            if (pinnedMessages.TryGetValue(message.MessageId, out var pinned))
+            if (pinnedMessages.TryGetValue(messageId, out var pinned))
                 pinned.Reactions = message.Reactions;
         }
 

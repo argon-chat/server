@@ -3,6 +3,8 @@ namespace Argon.Features.Auth;
 using Argon.Core.Features.Transport;
 using Argon.Entities;
 using Argon.Services;
+using Microsoft.EntityFrameworkCore.Query;
+using System.Linq.Expressions;
 
 // The database half of the signed-in sessions registry. Grains and the flush grain only; the Ion
 // layer writes through ISessionRegistryTransit.
@@ -99,8 +101,22 @@ public sealed class SessionRegistryStore(
         if (live.Count == 0)
             return dead.Count;
 
-        var userIds  = live.Select(r => r.UserId).Distinct().ToList();
-        var existing = await db.UserSessions.Where(x => userIds.Contains(x.UserId)).ToListAsync(ct);
+        // Keep each user's credential ids together: independent UserId/credential IN lists
+        // would also read cross-product pairs that are not in this flush batch.
+        var parameter = Expression.Parameter(typeof(UserSessionEntity), "session");
+        Expression predicate = Expression.Constant(false);
+        foreach (var group in live.GroupBy(r => r.UserId))
+        {
+            var userId = group.Key;
+            var ids = group.Select(r => r.CredentialSessionId).Distinct().ToArray();
+            Expression<Func<UserSessionEntity, bool>> forUser =
+                x => x.UserId == userId && ids.Contains(x.CredentialSessionId);
+            predicate = Expression.OrElse(predicate,
+                ReplacingExpressionVisitor.Replace(forUser.Parameters[0], parameter, forUser.Body));
+        }
+
+        var matchingKeys = Expression.Lambda<Func<UserSessionEntity, bool>>(predicate, parameter);
+        var existing = await db.UserSessions.Where(matchingKeys).ToListAsync(ct);
         var byKey    = existing.ToDictionary(x => new SessionRegistryKey(x.UserId, x.CredentialSessionId));
 
         foreach (var record in live)

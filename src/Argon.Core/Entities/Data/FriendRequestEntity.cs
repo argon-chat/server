@@ -32,8 +32,14 @@ public record FriendRequestEntity : IEntityTypeConfiguration<FriendRequestEntity
            .HasDefaultValueSql("now()")
            .ValueGeneratedOnAdd();
 
-        builder.HasIndex(x => x.TargetId)
-           .HasDatabaseName("idx_friend_requests_target");
+        // Match the list order, including a unique tie breaker for equal timestamps.
+        builder.HasIndex(x => new { x.TargetId, x.RequestedAt, x.RequesterId })
+           .IsDescending(false, true, false)
+           .HasDatabaseName("idx_friend_requests_target_requested");
+
+        builder.HasIndex(x => new { x.RequesterId, x.RequestedAt, x.TargetId })
+           .IsDescending(false, true, false)
+           .HasDatabaseName("idx_friend_requests_requester_requested");
 
         builder.Property(x => x.ExpiredAt)
            .AsTTlField();

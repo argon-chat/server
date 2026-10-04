@@ -3,14 +3,20 @@ namespace ArgonComplexTest.Tests;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Data.Common;
 using Argon.Api.Grains.Interfaces;
 using Argon.Entities;
+using Argon.Features.EF;
 using Argon.Features.Storage;
 using ArgonComplexTest.Infrastructure;
 using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Shared objects under files: two uploads of the same bytes end up on one object, a copy of a file
@@ -260,6 +266,152 @@ public class FileDedupTests : TestBase
 
         Assert.That(() => Files(owner.UserId).LinkAsync(source.FileId, new FileUploadRequest(FilePurpose.Banner, "", 0, spaceId), null, ct),
             Throws.InstanceOf<InvalidOperationException>());
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_referenced_due_batch_is_recounted_with_one_grouped_query(CancellationToken ct = default)
+    {
+        await using var holder = await NewDbAsync(ct);
+        await using var lease = await AcquireGcLeaseAsync(holder, ct);
+        await using var db = await NewDbAsync(ct);
+        var blobs = Enumerable.Range(0, 4).Select(i => new BlobEntity
+        {
+            S3Key = $"dedup-batch-test/{Guid.NewGuid()}", Links = 0,
+            DeleteAfter = new DateTimeOffset(2000, 1, 1, 0, 0, i, TimeSpan.Zero),
+        }).ToArray();
+        db.Blobs.AddRange(blobs);
+        foreach (var blob in blobs)
+            db.Files.Add(SweepFile(blob.Id));
+        db.Files.Add(SweepFile(blobs[0].Id));
+        await db.SaveChangesAsync(ct);
+
+        var observer = new SweepReadObserver();
+        var store = new SweepStorage();
+        var dedup = ObservedDedup(db, observer, store);
+        var removed = await dedup.SweepDeletableAsync(blobs.Length, ct);
+
+        db.ChangeTracker.Clear();
+        var ids = blobs.Select(b => b.Id).ToArray();
+        var rows = await db.Blobs.Where(b => ids.Contains(b.Id)).ToListAsync(ct);
+        Assert.Multiple(() =>
+        {
+            Assert.That(removed, Is.Zero);
+            Assert.That(store.DeletedKeys, Is.Empty);
+            Assert.That(observer.ReadCommands, Is.EqualTo(2), "one due-batch query and one live-count query suffice");
+            Assert.That(observer.GroupedCounts, Is.EqualTo(1));
+            Assert.That(rows, Has.Count.EqualTo(4));
+            Assert.That(rows.All(b => b.DeleteAfter == null), Is.True);
+            Assert.That(rows.Single(b => b.Id == blobs[0].Id).Links, Is.EqualTo(2));
+            Assert.That(rows.Where(b => b.Id != blobs[0].Id).All(b => b.Links == 1), Is.True);
+        });
+    }
+
+    [TestCase(false), TestCase(true), CancelAfter(120_000)]
+    public async Task The_sweep_ignores_tombstones_but_checks_new_live_files_before_deleting(bool lateReference, CancellationToken ct = default)
+    {
+        await using var holder = await NewDbAsync(ct);
+        await using var lease = await AcquireGcLeaseAsync(holder, ct);
+        await using var db = await NewDbAsync(ct);
+        var first = new BlobEntity { S3Key = $"dedup-guard-test/{Guid.NewGuid()}", Links = 99,
+            DeleteAfter = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero) };
+        var second = new BlobEntity { S3Key = $"dedup-guard-test/{Guid.NewGuid()}", Links = 99,
+            DeleteAfter = first.DeleteAfter.Value.AddSeconds(1) };
+        db.Blobs.AddRange(first, second);
+        db.Files.Add(SweepFile(second.Id) with { IsDeleted = true });
+        await db.SaveChangesAsync(ct);
+
+        var observer = new SweepReadObserver();
+        var store = new SweepStorage();
+        if (lateReference)
+            store.OnDelete = async key =>
+            {
+                if (key != first.S3Key) return;
+                await using var raced = await NewDbAsync(ct);
+                raced.Files.Add(SweepFile(second.Id));
+                await raced.SaveChangesAsync(ct);
+            };
+        var removed = await ObservedDedup(db, observer, store).SweepDeletableAsync(2, ct);
+
+        var secondRow = await BlobAsync(second.Id, ct);
+        Assert.Multiple(() =>
+        {
+            Assert.That(removed, Is.EqualTo(lateReference ? 1 : 2));
+            Assert.That(store.DeletedKeys, Is.EquivalentTo(lateReference ? new[] { first.S3Key } : new[] { first.S3Key, second.S3Key }));
+            Assert.That(observer.GroupedCounts, Is.EqualTo(1));
+            Assert.That(secondRow.IsDeleted, Is.EqualTo(!lateReference));
+            if (lateReference)
+            {
+                Assert.That(secondRow.Links, Is.EqualTo(1));
+                Assert.That(secondRow.DeleteAfter, Is.Null);
+            }
+        });
+    }
+
+    private static async Task<SchemaReconcileLease> AcquireGcLeaseAsync(ApplicationDbContext holder, CancellationToken ct)
+    {
+        // The hosted collector must not consume the synthetic due rows before the observed sweep.
+        // Hold its own lease through setup, sweep and assertions, on a separate open connection.
+        await holder.Database.OpenConnectionAsync(ct);
+        SchemaReconcileLease? lease;
+        while ((lease = await SchemaReconcileLease.TryAcquireAsync(holder.Database.GetDbConnection(),
+                   NullLogger.Instance, "file-dedup-sweep-test", TimeSpan.FromMinutes(5), FileGcService.LockTable, ct)) is null)
+            await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+        return lease;
+    }
+
+    private FileEntity SweepFile(Guid blobId) => new()
+    {
+        BlobId = blobId, OwnerId = owner.UserId, Purpose = FilePurpose.ChannelAttachment,
+        BucketName = "dedup-sweep-test", Finalized = true,
+    };
+
+    private BlobDedupService ObservedDedup(ApplicationDbContext source, SweepReadObserver observer, SweepStorage store)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>(
+            (DbContextOptions<ApplicationDbContext>)source.GetService<IDbContextOptions>()).AddInterceptors(observer).Options;
+        return new(new SweepDbFactory(options, FactoryAsp.Services.GetRequiredService<IOptions<DatabaseRegionOptions>>()),
+            store, Options.Create(new DedupOptions()), NullLogger<BlobDedupService>.Instance);
+    }
+
+    private sealed class SweepDbFactory(DbContextOptions<ApplicationDbContext> options,
+        IOptions<DatabaseRegionOptions> regions) : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => new(options, regions);
+    }
+
+    private sealed class SweepReadObserver : DbCommandInterceptor
+    {
+        public int ReadCommands { get; private set; }
+        public int GroupedCounts { get; private set; }
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+                ReadCommands++;
+            if (command.CommandText.Contains("GROUP BY", StringComparison.OrdinalIgnoreCase))
+                GroupedCounts++;
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class SweepStorage : IS3StorageService
+    {
+        public List<string> DeletedKeys { get; } = [];
+        public Func<string, Task>? OnDelete { get; set; }
+        public async Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default)
+        {
+            DeletedKeys.Add(objectKey);
+            if (OnDelete is { } callback) await callback(objectKey);
+            return true;
+        }
+        public Task<bool> FileExistsAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Stream?> OpenReadAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null,
+            CancellationToken ct = default) => throw new NotSupportedException();
+        public string GetFileDownloadUrl(Guid fileId) => throw new NotSupportedException();
+        public string GetDownloadUrl(string objectKey) => throw new NotSupportedException();
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────

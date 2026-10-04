@@ -235,6 +235,8 @@ $generalShards = @(
         'ChannelMentionTests'
         'ChannelMessagingTests'
         'ChannelReactionTests'
+        'DirectChatMetadataTests'
+        'MassMentionQueryTests'
         'ClusterTopologyTests'
         'DataExportArchiveTests'
         'DataExportEdgeTests'

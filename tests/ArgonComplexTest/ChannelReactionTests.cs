@@ -1,6 +1,8 @@
 namespace ArgonComplexTest.Tests;
 
 using ArgonContracts;
+using Argon.Features.BotApi;
+using Microsoft.EntityFrameworkCore;
 using ion.runtime;
 using static ChannelTestKit;
 
@@ -35,6 +37,67 @@ public class ChannelReactionTests : TestBase
     {
         var entries = await session.Channels.BatchGetReactions(spaceId, channelId, new IonArray<long>([messageId]), ct);
         return entries.Values.FirstOrDefault(e => e.messageId == messageId)?.reactions.Values.ToList() ?? [];
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Flushing_reactions_preserves_the_message_payload_and_clears_the_last_reaction(CancellationToken ct = default)
+    {
+        var (owner, spaceId, channelId) = await RoomAsync(ct);
+        var messageId = await owner.Channels.SendMessage(spaceId, channelId, "original text", NoEntities, NextRandomId(), null, ct).Ok();
+
+        await using (var db = await DbAsync(ct))
+        {
+            var message = await db.Messages.SingleAsync(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId == messageId, ct);
+            message.Text = "preserve this text";
+            message.Entities = [new MessageEntityBold(EntityType.Bold, 0, 8, 1)];
+            message.Controls = [new ControlRowV1([new BotControlV1
+            {
+                Type = Argon.Features.BotApi.ControlType.Button,
+                Label = "keep this button",
+                Id = "button-id"
+            }])];
+            await db.SaveChangesAsync(ct);
+        }
+
+        Assert.That(await owner.Channels.AddReaction(spaceId, channelId, messageId, "👍", ct), Is.InstanceOf<SuccessAddReaction>());
+        var stored = await PollAsync(() => StoredMessageAsync(spaceId, channelId, messageId, ct),
+            m => m?.Reactions is { Count: 1 }, TimeSpan.FromSeconds(30), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stored!.Text, Is.EqualTo("preserve this text"));
+            Assert.That(stored.Entities.Single(), Is.EqualTo(new MessageEntityBold(EntityType.Bold, 0, 8, 1)));
+            Assert.That(stored.Controls!.Single().Controls.Single().Id, Is.EqualTo("button-id"));
+            Assert.That(stored.Controls.Single().Controls.Single().Label, Is.EqualTo("keep this button"));
+            Assert.That(stored.CreatorId, Is.EqualTo(owner.UserId));
+            Assert.That(stored.IsDeleted, Is.False);
+        });
+
+        Assert.That(await owner.Channels.RemoveReaction(spaceId, channelId, messageId, "👍", ct), Is.InstanceOf<SuccessRemoveReaction>());
+        var cleared = await PollAsync(() => StoredMessageAsync(spaceId, channelId, messageId, ct),
+            m => m is { Reactions: null }, TimeSpan.FromSeconds(30), ct);
+        Assert.That(cleared!.Text, Is.EqualTo("preserve this text"));
+        Assert.That(cleared.Entities, Has.Count.EqualTo(1));
+        Assert.That(cleared.Controls, Has.Count.EqualTo(1));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_row_removed_before_flush_is_not_recreated_or_allowed_to_block_other_reactions(CancellationToken ct = default)
+    {
+        var (owner, spaceId, channelId) = await RoomAsync(ct);
+        var missing = await owner.Channels.SendMessage(spaceId, channelId, "removed directly", NoEntities, NextRandomId(), null, ct).Ok();
+        var live = await owner.Channels.SendMessage(spaceId, channelId, "still here", NoEntities, NextRandomId(), null, ct).Ok();
+
+        Assert.That(await owner.Channels.AddReaction(spaceId, channelId, missing, "👍", ct), Is.InstanceOf<SuccessAddReaction>());
+        await using (var db = await DbAsync(ct))
+            await db.Messages.Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId == missing).ExecuteDeleteAsync(ct);
+
+        Assert.That(await owner.Channels.AddReaction(spaceId, channelId, live, "🎉", ct), Is.InstanceOf<SuccessAddReaction>());
+        var stored = await PollAsync(() => StoredMessageAsync(spaceId, channelId, live, ct),
+            m => m?.Reactions is { Count: 1 }, TimeSpan.FromSeconds(30), ct);
+
+        Assert.That(stored!.Reactions!.Single().Emoji, Is.EqualTo("🎉"));
+        Assert.That(await StoredMessageAsync(spaceId, channelId, missing, ct), Is.Null);
     }
 
     [Test, CancelAfter(120_000)]
@@ -133,6 +196,7 @@ public class ChannelReactionTests : TestBase
 
         var warm = await owner.Channels.SendMessage(spaceId, channelId, "reacted, then deleted", NoEntities, NextRandomId(), null, ct).Ok();
         var cold = await owner.Channels.SendMessage(spaceId, channelId, "deleted before anyone reacted", NoEntities, NextRandomId(), null, ct).Ok();
+        var live = await owner.Channels.SendMessage(spaceId, channelId, "flush companion", NoEntities, NextRandomId(), null, ct).Ok();
 
         // One whose reactions the grain already holds in memory, one it has never loaded: the delete
         // has to reach both the database read and the buffer.
@@ -156,6 +220,17 @@ public class ChannelReactionTests : TestBase
             Assert.That(batch.Values.Select(e => e.messageId), Is.Empty,
                 "reactions of deleted messages are still served");
         });
+
+        // Wait for a real flush of the same activation, then check the deleted rows directly.
+        await owner.Channels.AddReaction(spaceId, channelId, live, "🎉", ct);
+        await PollAsync(() => StoredMessageAsync(spaceId, channelId, live, ct),
+            m => m?.Reactions is { Count: 1 }, TimeSpan.FromSeconds(30), ct);
+        await using var db = await DbAsync(ct);
+        var deleted = await db.Messages.IgnoreQueryFilters()
+           .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && (m.MessageId == warm || m.MessageId == cold))
+           .ToListAsync(ct);
+        Assert.That(deleted, Has.Count.EqualTo(2));
+        Assert.That(deleted.All(m => m.IsDeleted), Is.True, "a reaction flush resurrected a deleted message");
     }
 
     [Test, CancelAfter(120_000)]

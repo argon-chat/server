@@ -2,12 +2,18 @@ namespace ArgonComplexTest.Tests;
 
 using Argon.Entities;
 using Argon.Features.Auth;
+using Argon.Features.EF;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime.client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using System.Data.Common;
 
 /// <summary>
 /// The devices screen lists every signed-in device, connected or not, from the sessions registry
@@ -187,6 +193,110 @@ public class PresenceSessionRegistryTests : TestBase
         var rows = await db.UserSessions.Where(x => x.UserId == laptop.UserId).ToListAsync(ct);
 
         Assert.That(rows, Has.Count.EqualTo(1), "the superseded sign-in kept a row in the database");
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Flush_reads_only_exact_batch_keys_and_preserves_bare_updates_and_tombstones(CancellationToken ct = default)
+    {
+        var first = await CreateSessionAsync(ct);
+        var second = await CreateSessionAsync(ct);
+        var firstCredential = Guid.NewGuid();
+        var secondCredential = Guid.NewGuid();
+        var deadCredential = Guid.NewGuid();
+        var missingBareCredential = Guid.NewGuid();
+        // Use whole seconds, so database timestamp precision does not affect the assertions.
+        var created = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 3600);
+        var seen = created.AddMinutes(10);
+        var presence = Guid.NewGuid();
+
+        UserSessionEntity Row(Guid user, Guid credential) => new()
+        {
+            UserId = user, CredentialSessionId = credential, CreatedAt = created,
+            LastSeenAt = seen, MachineId = "original-machine", ClientName = "original-client",
+        };
+
+        await using var source = await NewDbAsync(ct);
+        source.UserSessions.AddRange(
+            Row(first.UserId, firstCredential), Row(first.UserId, secondCredential),
+            Row(second.UserId, secondCredential), Row(second.UserId, firstCredential),
+            Row(first.UserId, deadCredential));
+        await source.SaveChangesAsync(ct);
+
+        var observer = new SessionReadObserver();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>(
+            (DbContextOptions<ApplicationDbContext>)source.GetService<IDbContextOptions>())
+            .AddInterceptors(observer).Options;
+        var factory = new ObservedSessionDbFactory(options,
+            FactoryAsp.Services.GetRequiredService<IOptions<DatabaseRegionOptions>>());
+        // Upsert only depends on the context factory and logger; the other collaborators belong
+        // to the list/revocation paths and are deliberately outside this persistence test.
+        var store = new SessionRegistryStore(factory, null!, null!, null!, NullLogger<SessionRegistryStore>.Instance);
+
+        var written = await store.UpsertAsync([
+            new() { UserId = first.UserId, CredentialSessionId = firstCredential, Bare = true,
+                PresenceSessionId = presence, LastSeenAt = seen.AddMinutes(5) },
+            new() { UserId = second.UserId, CredentialSessionId = secondCredential,
+                CreatedAt = created.AddMinutes(30), LastSeenAt = seen.AddMinutes(-5), ClientName = "updated-client" },
+            new() { UserId = first.UserId, CredentialSessionId = missingBareCredential, Bare = true, LastSeenAt = seen },
+            new() { UserId = first.UserId, CredentialSessionId = deadCredential, Deleted = true },
+        ], ct);
+
+        source.ChangeTracker.Clear();
+        var rows = await source.UserSessions.AsNoTracking()
+            .Where(x => x.UserId == first.UserId || x.UserId == second.UserId).ToListAsync(ct);
+        var updatedFirst = rows.Single(x => x.UserId == first.UserId && x.CredentialSessionId == firstCredential);
+        var updatedSecond = rows.Single(x => x.UserId == second.UserId && x.CredentialSessionId == secondCredential);
+        var unrelated = rows.Where(x => (x.UserId == first.UserId && x.CredentialSessionId == secondCredential)
+            || (x.UserId == second.UserId && x.CredentialSessionId == firstCredential)).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(written, Is.EqualTo(4));
+            Assert.That(observer.ReadCommands, Is.EqualTo(1), "the flush must not issue one read per session");
+            Assert.That(observer.LoadedKeys, Is.EquivalentTo(new[] {
+                new SessionRegistryKey(first.UserId, firstCredential),
+                new SessionRegistryKey(second.UserId, secondCredential),
+            }), "unrelated sessions or cross-product user/credential pairs were read");
+            Assert.That(updatedFirst.PresenceSessionId, Is.EqualTo(presence));
+            Assert.That(updatedFirst.LastSeenAt, Is.EqualTo(seen.AddMinutes(5)));
+            Assert.That(updatedFirst.MachineId, Is.EqualTo("original-machine"));
+            Assert.That(updatedSecond.ClientName, Is.EqualTo("updated-client"));
+            Assert.That(updatedSecond.LastSeenAt, Is.EqualTo(seen), "an older touch moved last-seen backwards");
+            Assert.That(updatedSecond.CreatedAt, Is.EqualTo(created), "an update replaced the original creation time");
+            Assert.That(unrelated, Has.Length.EqualTo(2));
+            Assert.That(unrelated.All(x => x.ClientName == "original-client" && x.LastSeenAt == seen), Is.True);
+            Assert.That(rows.Any(x => x.CredentialSessionId == missingBareCredential), Is.False);
+            Assert.That(rows.Any(x => x.CredentialSessionId == deadCredential), Is.False);
+        });
+    }
+
+    private sealed class ObservedSessionDbFactory(
+        DbContextOptions<ApplicationDbContext> options,
+        IOptions<DatabaseRegionOptions> regionOptions) : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => new(options, regionOptions);
+    }
+
+    private sealed class SessionReadObserver : DbCommandInterceptor, IMaterializationInterceptor
+    {
+        public List<SessionRegistryKey> LoadedKeys { get; } = [];
+        public int ReadCommands { get; private set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+                ReadCommands++;
+            return ValueTask.FromResult(result);
+        }
+
+        public object InitializedInstance(MaterializationInterceptionData materializationData, object entity)
+        {
+            if (entity is UserSessionEntity row)
+                LoadedKeys.Add(new(row.UserId, row.CredentialSessionId));
+            return entity;
+        }
     }
 
     private sealed record SecondDevice(TestUserSession Session, string RefreshToken, string MachineId);
