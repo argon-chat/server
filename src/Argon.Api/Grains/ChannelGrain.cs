@@ -100,7 +100,6 @@ public partial class ChannelGrain(
     private Task lastMessagePublishTail = Task.CompletedTask;
 
     // ── Screencast drawing session (ephemeral, lives with the share) ──
-    private const int DrawingDefaultTtlMs = 6000;
 
     /// <summary>Announcement mass pings of the last hour, by message id; seeded from the stored messages when first needed.</summary>
     private Dictionary<long, DateTimeOffset>? massPings;
@@ -674,62 +673,6 @@ public partial class ChannelGrain(
         ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
     }
 
-    public async Task<Either<DrawingSessionDescriptor, DrawingDenyKind>> StartDrawingSession()
-    {
-        if (_self.ChannelType != ChannelType.Voice)
-            return DrawingDenyKind.NotStreaming;
-
-        var streamerId = this.GetUserId();
-
-        // The caller must currently be in the voice channel (i.e. actually able to share).
-        if (!state.State.Users.ContainsKey(streamerId))
-            return DrawingDenyKind.NotStreaming;
-
-        // Feature flag gate (evaluated for the streamer).
-        var ff = await this.GrainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty)
-           .EvaluateAsync("af.screencast.drawing", FeatureFlagEvaluationContext.ForUser(streamerId));
-        if (!ff.IsEnabled)
-            return DrawingDenyKind.FeatureDisabled;
-
-        // Compute the allowed-drawers set: members passing BOTH the channel CanDrawOnStream
-        // entitlement AND the streamer's "stream.draw" privacy rule.
-        var privacy = this.GrainFactory.GetGrain<IPrivacyPolicyGrain>(streamerId);
-        var allowed = new List<Guid>();
-        foreach (var memberId in state.State.Users.Keys.ToList())
-        {
-            if (memberId == streamerId) continue; // streamer annotates their own surface client-side
-
-            var hasEntitlement = await entitlementChecker.HasChannelAccessAsync(
-                SpaceId, this.GetPrimaryKey(), memberId, ArgonEntitlement.CanDrawOnStream);
-            if (!hasEntitlement) continue;
-
-            var privacyOk = await privacy.EvaluateAsync(memberId, PrivacyKeys.StreamDraw, SpaceId);
-            if (!privacyOk) continue;
-
-            allowed.Add(memberId);
-        }
-
-        var sessionId = ArgonId.New().ToString("N");
-        activation.State.DrawingSession = new DrawingSessionState(sessionId, streamerId, allowed.ToHashSet());
-
-        await Fire(new DrawingSessionStarted(
-            SpaceId, this.GetPrimaryKey(), sessionId, streamerId,
-            new IonArray<Guid>(allowed), DrawingDefaultTtlMs));
-
-        return new DrawingSessionDescriptor(sessionId, streamerId, allowed, DrawingDefaultTtlMs);
-    }
-
-    public async Task<bool> StopDrawingSession(string sessionId)
-    {
-        if (activation.State.DrawingSession is not { } session) return false;
-        if (session.SessionId != sessionId) return false;
-        if (session.StreamerId != this.GetUserId()) return false; // only the streamer may close
-
-        activation.State.DrawingSession = null;
-        await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
-        return true;
-    }
-
     public Task Leave(Guid userId)
         => LeaveAsync(userId, "direct");
 
@@ -757,14 +700,6 @@ public partial class ChannelGrain(
 
         if (_self.Broadcast is not null)
             await Radio.OnMemberLeftAsync(userId);
-
-        // End the streamer's drawing session if they left the channel.
-        if (activation.State.DrawingSession is { } ds && ds.StreamerId == userId)
-        {
-            var sessionId = ds.SessionId;
-            activation.State.DrawingSession = null;
-            await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
-        }
 
         if (state.State.Users.Count == 0)
             this.DelayDeactivation(TimeSpan.MinValue);
@@ -2971,9 +2906,7 @@ public sealed record ChannelActivationState
     [Id(4)]
     public int CapAccepted { get; set; }
 
-    /// <summary>The screencast drawing session, if one is open.</summary>
-    [Id(5)]
-    public DrawingSessionState? DrawingSession { get; set; }
+    // Id(5) was the screencast drawing session; a host now offers drawing through a LiveKit capability.
 
     /// <summary>
     /// Bots that are mid-typing. Kept beside the timers rather than derived from them: a timer cannot
@@ -2991,11 +2924,3 @@ public sealed record ChannelActivationState
     public bool Activated { get; set; }
 }
 
-/// <param name="SessionId">Identifies the session to clients across the move.</param>
-/// <param name="StreamerId">Who is sharing.</param>
-/// <param name="AllowedDrawers">Who may draw on the share.</param>
-[GenerateSerializer]
-public sealed record DrawingSessionState(
-    [property: Id(0)] string SessionId,
-    [property: Id(1)] Guid StreamerId,
-    [property: Id(2)] HashSet<Guid> AllowedDrawers);

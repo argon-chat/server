@@ -39,8 +39,6 @@ public class ActivationStateSerializationTests
     [Test]
     public void A_channel_carries_everything_it_was_holding()
     {
-        var streamer = Guid.NewGuid();
-        var drawer   = Guid.NewGuid();
         var sender   = Guid.NewGuid();
         var typing   = Guid.NewGuid();
         var sentAt   = DateTimeOffset.UtcNow.AddSeconds(-3);
@@ -52,7 +50,6 @@ public class ActivationStateSerializationTests
             LastSentBySender  = new Dictionary<Guid, DateTimeOffset> { [sender] = sentAt },
             CapSecond         = DateTimeOffset.UtcNow,
             CapAccepted       = 9,
-            DrawingSession    = new DrawingSessionState("session-1", streamer, [drawer]),
             BotTyping         = [typing]
         };
 
@@ -66,11 +63,6 @@ public class ActivationStateSerializationTests
             Assert.That(carried.CapSecond, Is.EqualTo(original.CapSecond));
             Assert.That(carried.CapAccepted, Is.EqualTo(original.CapAccepted));
             Assert.That(carried.BotTyping, Is.EqualTo(original.BotTyping));
-
-            Assert.That(carried.DrawingSession, Is.Not.Null);
-            Assert.That(carried.DrawingSession!.SessionId, Is.EqualTo("session-1"));
-            Assert.That(carried.DrawingSession.StreamerId, Is.EqualTo(streamer));
-            Assert.That(carried.DrawingSession.AllowedDrawers, Is.EquivalentTo(new[] { drawer }));
         });
     }
 
@@ -91,7 +83,6 @@ public class ActivationStateSerializationTests
             Assert.That(carried.SentByRandomId, Is.Empty);
             Assert.That(carried.LastSentBySender, Is.Empty);
             Assert.That(carried.BotTyping, Is.Empty);
-            Assert.That(carried.DrawingSession, Is.Null);
         });
     }
 

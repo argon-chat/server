@@ -239,29 +239,6 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
     public async Task<IConfirmBroadcastLinksResult> ConfirmBroadcastLinks(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this.GetGrain<IVoiceBroadcastGrain>(channelId).ConfirmLinksAsync(this.GetUserId());
 
-    public async Task<IStartDrawingResult> StartDrawingSession(Guid spaceId, Guid channelId, CancellationToken ct = default)
-    {
-        var result = await this.GetGrain<IChannelGrain>(channelId).StartDrawingSession();
-        if (!result.IsSuccess)
-            return new DrawingDenied(MapDrawingDeny(result.Error));
-
-        var d = result.Value;
-        return new DrawingStarted(new DrawingSession(
-            d.SessionId, d.StreamerId, new IonArray<Guid>(d.AllowedDrawers), d.DefaultTtlMs));
-    }
-
-    public Task<bool> StopDrawingSession(Guid spaceId, Guid channelId, string sessionId, CancellationToken ct = default)
-        => this.GetGrain<IChannelGrain>(channelId).StopDrawingSession(sessionId);
-
-    private static DrawingDenyReason MapDrawingDeny(DrawingDenyKind kind) => kind switch
-    {
-        DrawingDenyKind.FeatureDisabled => DrawingDenyReason.FEATURE_DISABLED,
-        DrawingDenyKind.NotStreaming    => DrawingDenyReason.NOT_STREAMING,
-        DrawingDenyKind.NoPermission    => DrawingDenyReason.NO_PERMISSION,
-        DrawingDenyKind.InternalError   => DrawingDenyReason.INTERNAL_ERROR,
-        _                               => DrawingDenyReason.NONE,
-    };
-
     public Task<bool> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => this.GetGrain<IChannelGrain>(channelId).BeginRecord(ct);
 
