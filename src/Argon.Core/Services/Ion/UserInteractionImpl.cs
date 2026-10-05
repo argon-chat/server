@@ -46,9 +46,14 @@ public class UserInteractionImpl(
             if (result.IsSuccess)
                 return new SuccessCreateSpace(result.Value);
 
-            return new FailedCreateSpace(result.Error is ServerCreationError.LIMIT_REACHED
-                ? CreateSpaceError.LIMIT_REACHED
-                : CreateSpaceError.UNKNOWN);
+            return new FailedCreateSpace(result.Error switch
+            {
+                ServerCreationError.LIMIT_REACHED        => CreateSpaceError.LIMIT_REACHED,
+                ServerCreationError.NAME_EMPTY           => CreateSpaceError.NAME_EMPTY,
+                ServerCreationError.NAME_TOO_LONG        => CreateSpaceError.NAME_TOO_LONG,
+                ServerCreationError.DESCRIPTION_TOO_LONG => CreateSpaceError.DESCRIPTION_TOO_LONG,
+                _                                        => CreateSpaceError.UNKNOWN
+            });
         }
         catch (Exception e)
         {

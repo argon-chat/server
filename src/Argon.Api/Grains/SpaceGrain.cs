@@ -59,14 +59,18 @@ public partial class SpaceGrain(
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
         => await state.WriteStateAsync(ct);
 
-    private const int MaxSpaceNameLength        = 64;
-    private const int MaxSpaceDescriptionLength = 1024;
+    public const int MaxSpaceNameLength        = 64;
+    public const int MaxSpaceDescriptionLength = 1024;
 
     public async Task<Either<ArgonSpaceBase, ServerCreationError>> CreateSpace(ServerInput input)
     {
         var name = input.Name?.Trim();
-        if (string.IsNullOrEmpty(name) || name.Length > MaxSpaceNameLength || input.Description is { Length: > MaxSpaceDescriptionLength })
-            return ServerCreationError.BAD_MODEL;
+        if (string.IsNullOrEmpty(name))
+            return ServerCreationError.NAME_EMPTY;
+        if (name.Length > MaxSpaceNameLength)
+            return ServerCreationError.NAME_TOO_LONG;
+        if (input.Description is { Length: > MaxSpaceDescriptionLength })
+            return ServerCreationError.DESCRIPTION_TOO_LONG;
         var creatorId = this.GetUserId();
 
         if (await serverRepository.CreateAsync(this.GetPrimaryKey(), input with { Name = name }, creatorId) is null)

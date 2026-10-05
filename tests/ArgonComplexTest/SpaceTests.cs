@@ -308,6 +308,31 @@ public class SpaceTests : TestBase
     }
 
     /// <summary>
+    /// A refused model names the field at fault, so the client can say "too long" rather than "unknown".
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task CreateSpace_WithABadModel_SaysWhichFieldIsWrong(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+
+        var tooLongName        = new string('a', Argon.Grains.SpaceGrain.MaxSpaceNameLength + 1);
+        var tooLongDescription = new string('d', Argon.Grains.SpaceGrain.MaxSpaceDescriptionLength + 1);
+
+        var emptyName   = await owner.Users.CreateSpace(new CreateServerRequest("   ", "", string.Empty), ct);
+        var longName    = await owner.Users.CreateSpace(new CreateServerRequest(tooLongName, "", string.Empty), ct);
+        var longAbout   = await owner.Users.CreateSpace(new CreateServerRequest("Fine", tooLongDescription, string.Empty), ct);
+        var longestName = await owner.Users.CreateSpace(new CreateServerRequest(tooLongName[..^1], "", string.Empty), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((emptyName as FailedCreateSpace)?.error, Is.EqualTo(CreateSpaceError.NAME_EMPTY));
+            Assert.That((longName as FailedCreateSpace)?.error, Is.EqualTo(CreateSpaceError.NAME_TOO_LONG));
+            Assert.That((longAbout as FailedCreateSpace)?.error, Is.EqualTo(CreateSpaceError.DESCRIPTION_TOO_LONG));
+            Assert.That(longestName, Is.InstanceOf<SuccessCreateSpace>(), "a name exactly at the limit is not too long");
+        });
+    }
+
+    /// <summary>
     /// The count and the insert are one serializable transaction, so creations racing for the last
     /// free slots cannot all see room and overshoot the limit.
     /// </summary>
