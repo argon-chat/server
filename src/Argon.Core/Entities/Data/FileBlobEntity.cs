@@ -15,8 +15,19 @@ public record FileBlobEntity : ArgonEntity, IEntityTypeConfiguration<FileBlobEnt
     /// <summary>What the client says the bytes hash to. A hint for the dedup step at finalize, never stored as a fact.</summary>
     public byte[]? ClaimedSha256 { get; set; }
 
+    /// <summary>The S3 multipart upload behind a video ticket, when it is uploaded in parts.</summary>
+    [MaxLength(256)]
+    public string? UploadId { get; set; }
+    public long? PartSize  { get; set; }
+    public int?  PartCount { get; set; }
+
+    /// <summary>A video ticket's <c>VideoUploadDeclaration</c>, as JSON; checked against the header at completion.</summary>
+    public string? Declaration { get; set; }
+
     public void Configure(EntityTypeBuilder<FileBlobEntity> builder)
     {
+        builder.Property(x => x.Declaration).HasColumnType("jsonb");
+
         builder.HasHashShardedKey();
 
         // FileId is minted with the blob, so it is as time-ordered as the key.

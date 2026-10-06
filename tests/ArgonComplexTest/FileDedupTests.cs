@@ -408,6 +408,14 @@ public class FileDedupTests : TestBase
         public Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<Stream?> OpenReadAsync(string objectKey, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Stream?> OpenReadRangeAsync(string objectKey, long from, long toInclusive, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<string?> CreateMultipartUploadAsync(string objectKey, string contentType, string? cacheControl, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<bool> CompleteMultipartUploadAsync(string objectKey, string uploadId, IReadOnlyList<(int PartNumber, string ETag)> parts,
+            CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> AbortMultipartUploadAsync(string objectKey, string uploadId, CancellationToken ct = default)
+            => throw new NotSupportedException();
         public Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null,
             CancellationToken ct = default) => throw new NotSupportedException();
         public string GetFileDownloadUrl(Guid fileId) => throw new NotSupportedException();

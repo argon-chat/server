@@ -2,6 +2,7 @@ namespace Argon.Features.Storage;
 
 using System.Diagnostics;
 using Genbox.SimpleS3.Core.Abstracts.Clients;
+using Genbox.SimpleS3.Core.Network.Requests.S3Types;
 
 public interface IS3StorageService
 {
@@ -11,6 +12,13 @@ public interface IS3StorageService
     Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default);
     /// <summary>The object's body as the store sends it, not buffered; for reading once, front to back.</summary>
     Task<Stream?> OpenReadAsync(string objectKey, CancellationToken ct = default);
+    /// <summary>Bytes <paramref name="from"/>..<paramref name="toInclusive"/> of the object, not buffered.</summary>
+    Task<Stream?> OpenReadRangeAsync(string objectKey, long from, long toInclusive, CancellationToken ct = default);
+    /// <summary>Starts a multipart upload; the upload id, or null when the store refused.</summary>
+    Task<string?> CreateMultipartUploadAsync(string objectKey, string contentType, string? cacheControl, CancellationToken ct = default);
+    Task<bool> CompleteMultipartUploadAsync(string objectKey, string uploadId, IReadOnlyList<(int PartNumber, string ETag)> parts,
+        CancellationToken ct = default);
+    Task<bool> AbortMultipartUploadAsync(string objectKey, string uploadId, CancellationToken ct = default);
     Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null, CancellationToken ct = default);
     // Region-agnostic URLs. Region is resolved later, per request, by the 302 endpoint in
     // CdnRedirectFeature — never baked in here.
@@ -138,6 +146,78 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         StorageInstruments.S3OperationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("operation", "get"));
 
         return response.IsSuccess ? response.Content : null;
+    }
+
+    public async Task<Stream?> OpenReadRangeAsync(string objectKey, long from, long toInclusive, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("S3.GetObjectRange");
+        activity?.SetTag("s3.key", objectKey);
+        var sw = Stopwatch.StartNew();
+
+        var client = clientPool.GetClient();
+        var response = await client.GetObjectAsync(_opts.BucketName, objectKey, r => r.Range.Add(from, toInclusive), ct);
+
+        Record("get_range", response.IsSuccess, sw);
+
+        return response.IsSuccess ? response.Content : null;
+    }
+
+    public async Task<string?> CreateMultipartUploadAsync(string objectKey, string contentType, string? cacheControl, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("S3.CreateMultipartUpload");
+        activity?.SetTag("s3.key", objectKey);
+        var sw = Stopwatch.StartNew();
+
+        var response = await clientPool.GetMultipartClient().CreateMultipartUploadAsync(_opts.BucketName, objectKey, r =>
+        {
+            r.ContentType.Set(contentType);
+            if (cacheControl is not null)
+                r.SetHeader("Cache-Control", cacheControl);
+        }, ct);
+
+        Record("create_multipart", response.IsSuccess, sw);
+
+        return response.IsSuccess ? response.UploadId : null;
+    }
+
+    public async Task<bool> CompleteMultipartUploadAsync(string objectKey, string uploadId, IReadOnlyList<(int PartNumber, string ETag)> parts,
+        CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("S3.CompleteMultipartUpload");
+        activity?.SetTag("s3.key", objectKey);
+        var sw = Stopwatch.StartNew();
+
+        var infos = new List<S3PartInfo>(parts.Count);
+        foreach (var (number, etag) in parts)
+            infos.Add(new S3PartInfo(etag, number));
+
+        var response = await clientPool.GetMultipartClient().CompleteMultipartUploadAsync(_opts.BucketName, objectKey, uploadId, infos, null, ct);
+
+        Record("complete_multipart", response.IsSuccess, sw);
+
+        return response.IsSuccess;
+    }
+
+    public async Task<bool> AbortMultipartUploadAsync(string objectKey, string uploadId, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("S3.AbortMultipartUpload");
+        activity?.SetTag("s3.key", objectKey);
+        var sw = Stopwatch.StartNew();
+
+        var response = await clientPool.GetMultipartClient().AbortMultipartUploadAsync(_opts.BucketName, objectKey, uploadId, null, ct);
+
+        Record("abort_multipart", response.IsSuccess, sw);
+
+        return response.IsSuccess;
+    }
+
+    private static void Record(string operation, bool success, Stopwatch sw)
+    {
+        sw.Stop();
+        StorageInstruments.S3Operations.Add(1,
+            new KeyValuePair<string, object?>("operation", operation),
+            new KeyValuePair<string, object?>("status", success ? "success" : "failed"));
+        StorageInstruments.S3OperationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("operation", operation));
     }
 
     public async Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, string? cacheControl = null,

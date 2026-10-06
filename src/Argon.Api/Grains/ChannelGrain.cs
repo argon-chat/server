@@ -1338,8 +1338,13 @@ public partial class ChannelGrain(
         return window;
     }
 
-    public async Task<(SendMessageError error, long messageId)> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo,
+    public Task<(SendMessageError error, long messageId)> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo,
         List<ControlRowV1>? controls = null)
+        => SendMessageAsync(text, entities, randomId, replyTo, controls, null);
+
+    /// <param name="knownVideos">Videos the caller has already resolved as the sender's (a bot's uploads), by file id.</param>
+    private async Task<(SendMessageError error, long messageId)> SendMessageAsync(string text, List<IMessageEntity> entities, long randomId,
+        long? replyTo, List<ControlRowV1>? controls, Dictionary<Guid, VideoInfo>? knownVideos)
     {
         if (_self.ChannelType is not (ChannelType.Text or ChannelType.Announcement))
             return (SendMessageError.NOT_TEXT_CHANNEL, 0);
@@ -1379,17 +1384,20 @@ public partial class ChannelGrain(
         if (await IsSlowModeHoldingAsync(senderId, channelId))
             return (SendMessageError.SLOW_MODE, 0);
 
-        if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif))
+        if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntityVideo))
         {
             if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.AttachFiles))
                 return (SendMessageError.NO_ATTACH_PERMISSION, 0);
 
-            var attachmentCount = entities.Count(e => e is MessageEntityAttachment or MessageEntityGif);
+            var attachmentCount = entities.Count(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntityVideo);
             if (attachmentCount > 10)
                 return (SendMessageError.TOO_MANY_ATTACHMENTS, 0);
         }
-        
+
         var sanitized = SanitizeEntities(entities ?? []);
+
+        if (!await ResolveVideosAsync(sanitized, senderId, channelId, knownVideos))
+            return (SendMessageError.INVALID_DATA, 0);
 
         // A sticker that did not resolve would leave nothing to send.
         var expressions = ExpressionEntities.Any(sanitized);
@@ -1795,7 +1803,39 @@ public partial class ChannelGrain(
                 };
             if (message.Entities[i] is MessageEntityCustomEmoji { downloadUrl: null } emoji)
                 message.Entities[i] = emoji with { downloadUrl = s3.GetFileDownloadUrl(emoji.fileId) };
+            if (message.Entities[i] is MessageEntityVideo { downloadUrl: null } video)
+                message.Entities[i] = VideoMedia.WithUrls(video, s3);
         }
+    }
+
+    /// <summary>
+    /// Every video entity rewritten from its file's media record; false when one is not a video the
+    /// sender uploaded into this channel.
+    /// </summary>
+    private async Task<bool> ResolveVideosAsync(List<IMessageEntity> entities, Guid senderId, Guid channelId, Dictionary<Guid, VideoInfo>? known)
+    {
+        var claimed = entities.OfType<MessageEntityVideo>().Select(v => v.fileId).Distinct().Where(id => known?.ContainsKey(id) != true).ToList();
+
+        var found = claimed.Count > 0
+            ? await GrainFactory.GetGrain<IFileStorageGrain>(senderId).GetSendableVideosAsync(channelId, claimed)
+            : [];
+
+        for (var i = 0; i < entities.Count; i++)
+        {
+            if (entities[i] is not MessageEntityVideo video)
+                continue;
+
+            if (known?.GetValueOrDefault(video.fileId) is not { } info && !found.TryGetValue(video.fileId, out info))
+            {
+                logger.LogWarning("Message refused: video {FileId} is not one {SenderId} uploaded into channel {ChannelId}",
+                    video.fileId, senderId, channelId);
+                return false;
+            }
+
+            entities[i] = VideoMedia.FromRecord(video, info);
+        }
+
+        return true;
     }
 
     private async Task CacheGifEntitiesAsync(List<IMessageEntity> entities, Guid senderId)
@@ -1924,6 +1964,8 @@ public partial class ChannelGrain(
                 entities[i] = sticker with { downloadUrl = null, thumbUrl = null };
             if (entities[i] is MessageEntityCustomEmoji emoji && emoji.downloadUrl is not null)
                 entities[i] = emoji with { downloadUrl = null };
+            if (entities[i] is MessageEntityVideo video)
+                entities[i] = VideoMedia.WithoutUrls(video);
         }
         return entities;
     }
@@ -2243,6 +2285,54 @@ public partial class ChannelGrain(
             return PrepareUploadError.INTERNAL_ERROR;
         }
     }
+
+    public async Task<IVideoUploadResult> PrepareVideoUpload(Guid callerId, VideoUploadDeclaration declaration, CancellationToken ct = default)
+    {
+        var channelId = this.GetPrimaryKey();
+
+        try
+        {
+            if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.AttachFiles, ct))
+                return new FailedVideoUpload(VideoUploadError.NOT_AUTHORIZED);
+
+            return await GrainFactory.GetGrain<IFileStorageGrain>(callerId).PrepareVideoUploadAsync(
+                new VideoUploadRequest(SpaceId, channelId, FilePurpose.Video, declaration), ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to prepare a video upload into channel {ChannelId}", channelId);
+            return new FailedVideoUpload(VideoUploadError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<IVideoUploadResult> CompleteVideoUpload(Guid callerId, Guid ticketId, UploadedPart[] parts, CancellationToken ct = default)
+    {
+        try
+        {
+            if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.AttachFiles, ct))
+                return new FailedVideoUpload(VideoUploadError.NOT_AUTHORIZED);
+
+            return await GrainFactory.GetGrain<IFileStorageGrain>(callerId).CompleteVideoUploadAsync(ticketId, parts, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to complete video upload {TicketId} in channel {ChannelId}", ticketId, this.GetPrimaryKey());
+            return new FailedVideoUpload(VideoUploadError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task AbortVideoUpload(Guid callerId, Guid ticketId, CancellationToken ct = default)
+    {
+        if (await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.AttachFiles, ct))
+            await GrainFactory.GetGrain<IFileStorageGrain>(callerId).AbortVideoUploadAsync(ticketId, ct);
+    }
+
+    // As QueryMessages: ViewChannel and ReadHistory, a refusal reading as nothing allowed.
+    public async Task<UploadLimits> GetUploadLimits(Guid callerId, CancellationToken ct = default)
+        => await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId,
+               ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory, ct)
+            ? await GrainFactory.GetGrain<IFileStorageGrain>(callerId).GetUploadLimitsAsync(SpaceId, ct)
+            : new UploadLimits(0, 0, 0);
 
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options)
     {
@@ -2570,19 +2660,20 @@ public partial class ChannelGrain(
         // A sticker stays only while the text stays empty: an edit turns neither kind of message into the other.
         var stored = message.Entities ?? [];
         var kept = stored
-           .Where(e => e is MessageEntityAttachment or MessageEntityGif
+           .Where(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntityVideo
                     || e is MessageEntityLinkPreview p && text.Contains(p.url, StringComparison.Ordinal)
                     || e is MessageEntitySticker && text.Length == 0)
            .ToList();
 
-        if (string.IsNullOrWhiteSpace(text) && !kept.Any(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntitySticker))
+        if (string.IsNullOrWhiteSpace(text)
+         && !kept.Any(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntitySticker or MessageEntityVideo))
             return new FailedEditMessage(EditMessageError.EMPTY_MESSAGE);
 
         var offered = (entities ?? [])
            .Where(e => e is not (MessageEntityAttachment or MessageEntityGif or MessageEntityLinkPreview
                                or MessageEntitySystemCallStarted or MessageEntitySystemCallEnded
                                or MessageEntitySystemCallTimeout or MessageEntitySystemUserJoined
-                               or MessageEntitySticker))
+                               or MessageEntitySticker or MessageEntityVideo))
            .ToList();
 
         // Custom emoji are resolved again; one the message already had stays valid after its item is deleted.

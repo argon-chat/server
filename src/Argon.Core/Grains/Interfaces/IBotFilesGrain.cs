@@ -114,12 +114,16 @@ public sealed record BotStoredFile(
     [property: Id(1)] string  S3Key,
     [property: Id(2)] string? ContentType = null);
 
-/// <summary>What a message needs of an attachment upload. Width and height are set for an image whose header could be read.</summary>
+/// <summary>
+/// What a message needs of an attachment upload. Width and height are set for an image whose header could be read;
+/// <see cref="Video"/> for an MP4 that has a media record.
+/// </summary>
 [GenerateSerializer, Immutable]
 public sealed record BotAttachmentFile(
-    [property: Id(0)] Guid   FileId,
-    [property: Id(1)] string FileName,
-    [property: Id(2)] long   Size,
-    [property: Id(3)] string ContentType,
-    [property: Id(4)] int?   Width,
-    [property: Id(5)] int?   Height);
+    [property: Id(0)] Guid       FileId,
+    [property: Id(1)] string     FileName,
+    [property: Id(2)] long       Size,
+    [property: Id(3)] string     ContentType,
+    [property: Id(4)] int?       Width,
+    [property: Id(5)] int?       Height,
+    [property: Id(6)] VideoInfo? Video = null);

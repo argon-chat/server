@@ -278,6 +278,19 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
         return PrepareUploads.ToResult(result);
     }
 
+    public Task<IVideoUploadResult> PrepareVideoUpload(Guid spaceId, Guid channelId, VideoUploadDeclaration declaration, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).PrepareVideoUpload(this.GetUserId(), declaration, ct);
+
+    public Task<IVideoUploadResult> CompleteVideoUpload(Guid spaceId, Guid channelId, Guid ticketId, IonArray<UploadedPart> parts,
+        CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).CompleteVideoUpload(this.GetUserId(), ticketId, parts.Values?.ToArray() ?? [], ct);
+
+    public Task AbortVideoUpload(Guid spaceId, Guid channelId, Guid ticketId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).AbortVideoUpload(this.GetUserId(), ticketId, ct);
+
+    public Task<UploadLimits> GetUploadLimits(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).GetUploadLimits(this.GetUserId(), ct);
+
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid spaceId, Guid channelId, Guid commandId, IonArray<SlashCommandOption> options, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).InvokeSlashCommand(commandId, options.Values.ToList());
 

@@ -304,6 +304,55 @@ public class UserChatGrain(
         }
     }
 
+    public async Task<IVideoUploadResult> PrepareVideoUploadAsync(Guid callerId, Guid peerId, VideoUploadDeclaration declaration,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (await IsBlockedByAsync(peerId, callerId, ct))
+                return new FailedVideoUpload(VideoUploadError.NOT_AUTHORIZED);
+
+            var target = await DirectTargetAsync(callerId, peerId, ct);
+
+            return await GrainFactory.GetGrain<IFileStorageGrain>(callerId).PrepareVideoUploadAsync(
+                new VideoUploadRequest(null, target.ChannelId, FilePurpose.Video, declaration), ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to prepare a video upload for direct chat {Me} -> {Peer}", callerId, peerId);
+            return new FailedVideoUpload(VideoUploadError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<IVideoUploadResult> CompleteVideoUploadAsync(Guid callerId, Guid peerId, Guid ticketId, UploadedPart[] parts,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (await IsBlockedByAsync(peerId, callerId, ct))
+                return new FailedVideoUpload(VideoUploadError.NOT_AUTHORIZED);
+
+            return await GrainFactory.GetGrain<IFileStorageGrain>(callerId).CompleteVideoUploadAsync(ticketId, parts, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to complete video upload {TicketId} for direct chat {Me} -> {Peer}", ticketId, callerId, peerId);
+            return new FailedVideoUpload(VideoUploadError.INTERNAL_ERROR);
+        }
+    }
+
+    public Task AbortVideoUploadAsync(Guid callerId, Guid peerId, Guid ticketId, CancellationToken ct = default)
+        => GrainFactory.GetGrain<IFileStorageGrain>(callerId).AbortVideoUploadAsync(ticketId, ct);
+
+    public Task<UploadLimits> GetUploadLimitsAsync(Guid callerId, Guid peerId, CancellationToken ct = default)
+        => GrainFactory.GetGrain<IFileStorageGrain>(callerId).GetUploadLimitsAsync(null, ct);
+
+    private async Task<bool> IsBlockedByAsync(Guid peerId, Guid userId, CancellationToken ct)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        return await ctx.UserBlocklist.AnyAsync(x => x.UserId == peerId && x.BlockedId == userId, ct);
+    }
+
     // A direct-chat file records its conversation as its channel, which is what lets the other side
     // copy it later; the conversation is created here if the first thing sent into it is a file.
     private async Task<FileUploadRequest> DirectTargetAsync(Guid userId, Guid peerId, CancellationToken ct)
@@ -362,6 +411,34 @@ public class UserChatGrain(
         return ExpressionEntities.Resolve(text, entities, items, null, expressionsOptions.Value.MaxCustomEmojiPerMessage);
     }
 
+    /// <summary>
+    /// Video entities rewritten from their files' media records. One that is not a video the sender
+    /// uploaded into this conversation is dropped: a direct send has no error to answer with.
+    /// </summary>
+    private async Task<List<IMessageEntity>> ResolveVideosAsync(Guid senderId, Guid conversationId, List<IMessageEntity> entities,
+        CancellationToken ct)
+    {
+        var claimed = entities.OfType<MessageEntityVideo>().Select(v => v.fileId).Distinct().ToList();
+        if (claimed.Count == 0)
+            return entities;
+
+        var found = await GrainFactory.GetGrain<IFileStorageGrain>(senderId).GetSendableVideosAsync(conversationId, claimed, ct);
+
+        var resolved = new List<IMessageEntity>(entities.Count);
+        foreach (var entity in entities)
+        {
+            if (entity is not MessageEntityVideo video)
+                resolved.Add(entity);
+            else if (found.TryGetValue(video.fileId, out var info))
+                resolved.Add(VideoMedia.FromRecord(video, info));
+            else
+                logger.LogWarning("Video {FileId} dropped from a direct message: not one {SenderId} uploaded into conversation {ConversationId}",
+                    video.fileId, senderId, conversationId);
+        }
+
+        return resolved;
+    }
+
     public async Task<long> SendDirectMessageAsync(
         Guid receiverId,
         string text,
@@ -378,6 +455,10 @@ public class UserChatGrain(
 
         entities ??= [];
 
+        // The channel's cap on files per message.
+        if (entities.Count(e => e is MessageEntityAttachment or MessageEntityGif or MessageEntityVideo) > 10)
+            throw new InvalidOperationException("too many attachments in one message");
+
         var expressions = ExpressionEntities.Any(entities);
         entities = await ResolveExpressionsAsync(senderId, text ?? "", entities);
 
@@ -385,10 +466,16 @@ public class UserChatGrain(
         if (expressions && string.IsNullOrEmpty(text) && entities.Count == 0)
             throw new InvalidOperationException("the sticker is not one the sender can use");
 
-        await SettleLinkPreviewAsync(entities, text ?? "");
-
         // Get or create conversation
         var conversation = await conversationService.GetOrCreateConversationAsync(senderId, receiverId, ct);
+
+        var videos = entities.Any(e => e is MessageEntityVideo);
+        entities = await ResolveVideosAsync(senderId, conversation.Id, entities, ct);
+
+        if (videos && string.IsNullOrEmpty(text) && entities.Count == 0)
+            throw new InvalidOperationException("the video is not one the sender uploaded into this chat");
+
+        await SettleLinkPreviewAsync(entities, text ?? "");
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 

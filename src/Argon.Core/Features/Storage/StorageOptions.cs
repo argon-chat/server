@@ -171,9 +171,46 @@ public class FileLimitsOptions
     public long BannerMaxBytes { get; set; } = 10 * 1024 * 1024;
 
     /// <summary>
-    ///     Video max size (default 100 MB)
+    ///     Video max size for the base tier (default 100 MB)
     /// </summary>
     public long VideoMaxBytes { get; set; } = 100 * 1024 * 1024;
+
+    /// <summary>Video max size for Ultima subscribers (default 512 MB).</summary>
+    public long VideoUltimaMaxBytes { get; set; } = 512L * 1024 * 1024;
+
+    /// <summary>Video max size in boost level 2 spaces (default 512 MB).</summary>
+    public long VideoBoostLevel2MaxBytes { get; set; } = 512L * 1024 * 1024;
+
+    /// <summary>Video max size in boost level 3 spaces (default 1 GB).</summary>
+    public long VideoBoostLevel3MaxBytes { get; set; } = 1024L * 1024 * 1024;
+
+    /// <summary>Longest video accepted, in milliseconds (default 4 h).</summary>
+    public int VideoMaxDurationMs { get; set; } = 4 * 60 * 60 * 1000;
+
+    /// <summary>
+    ///     Every video is an S3 multipart upload, so its URLs die at completion. Up to this size it is one
+    ///     part (default 16 MiB); above it, parts of <see cref="VideoPartSizeBytes"/>.
+    /// </summary>
+    public long VideoMultipartThresholdBytes { get; set; } = 16 * 1024 * 1024;
+
+    /// <summary>Part size above the threshold (default 8 MiB, at least the S3 minimum of 5 MiB); raised when the file would need more than 10000 parts.</summary>
+    [Range(5d * 1024 * 1024, double.MaxValue, ErrorMessage = "must be at least 5 MiB, the smallest part S3 accepts")]
+    public long VideoPartSizeBytes { get; set; } = 8 * 1024 * 1024;
+
+    /// <summary>How long a video upload ticket stays valid, in seconds (default 7200 = 2 h).</summary>
+    public int VideoTicketTtlSeconds { get; set; } = 7200;
+
+    /// <summary>
+    ///     Most bytes read to check a video's MP4 header (default 32 MiB): 64 KiB to find <c>moov</c>, then
+    ///     through its end. A <c>moov</c> ending further in is refused as not streamable.
+    /// </summary>
+    public int VideoProbeBytes { get; set; } = 32 * 1024 * 1024;
+
+    /// <summary>
+    ///     Video tickets one account may hold open at once (default 8). Past it a new one is refused
+    ///     with <c>NOT_AUTHORIZED</c>, the nearest the contract has to "slow down".
+    /// </summary>
+    public int VideoMaxOpenTickets { get; set; } = 8;
 
     /// <summary>
     ///     Upload blob TTL in seconds (default 600 = 10 min)

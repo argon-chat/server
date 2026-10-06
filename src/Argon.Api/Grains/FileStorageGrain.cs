@@ -1,5 +1,6 @@
 namespace Argon.Api.Grains;
 
+using System.Buffers;
 using System.Diagnostics;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Services;
@@ -7,6 +8,7 @@ using Argon.Entities;
 using Argon.Features.Expressions;
 using Argon.Features.Storage;
 using Argon.Grains.Interfaces;
+using ion.runtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -96,7 +98,8 @@ public class FileStorageGrain(
         var posted = await (
             from f in db.Files
             join b in db.Blobs on f.BlobId equals b.Id
-            where f.SpaceId == space && f.ChannelId != null && f.Purpose == FilePurpose.ChannelAttachment && f.Finalized
+            where f.SpaceId == space && f.ChannelId != null && (f.Purpose == FilePurpose.ChannelAttachment || f.Purpose == FilePurpose.Video)
+               && f.Finalized
                && b.Dedupable && b.CanonicalId == null && b.DeleteAfter == null && b.ContentType == contentType
                && b.Sha256 == claim
             orderby f.CreatedAt descending
@@ -137,14 +140,24 @@ public class FileStorageGrain(
         return file;
     }
 
-    public async Task<Either<FileInfoResponse, AttachExistingFileError>> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName,
+    public Task<Either<FileInfoResponse, AttachExistingFileError>> LinkAsync(Guid sourceFileId, FileUploadRequest target, string? fileName,
         CancellationToken ct = default)
+    {
+        if (target.Purpose is not (FilePurpose.ChannelAttachment or FilePurpose.DirectAttachment))
+            throw new InvalidOperationException($"Files are not linked into purpose {target.Purpose}");
+
+        return LinkFileAsync(sourceFileId, target, fileName, null, ct);
+    }
+
+    /// <param name="probed">
+    /// The media record of a copy whose source has none, read off the object's header; saved with the
+    /// link. A source's own record is copied instead, and either makes the copy a video.
+    /// </param>
+    private async Task<Either<FileInfoResponse, AttachExistingFileError>> LinkFileAsync(Guid sourceFileId, FileUploadRequest target,
+        string? fileName, FileMediaEntity? probed, CancellationToken ct)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.Link");
         activity?.SetTag("file.purpose", target.Purpose.ToString());
-
-        if (target.Purpose is not (FilePurpose.ChannelAttachment or FilePurpose.DirectAttachment))
-            throw new InvalidOperationException($"Files are not linked into purpose {target.Purpose}");
 
         var userId = this.GetPrimaryKey();
         activity?.SetTag("user.id", userId.ToString());
@@ -166,18 +179,25 @@ public class FileStorageGrain(
             return AttachExistingFileError.SOURCE_NOT_FOUND;
         }
 
-        var limit = await ResolveEffectiveSizeLimit(userId, target.Purpose, target.SpaceId, ct);
+        // A copy of a video is a video: it keeps the media record and the video limits.
+        var media   = await db.FileMedia.AsNoTracking().FirstOrDefaultAsync(m => m.FileId == sourceFileId, ct) ?? probed;
+        var purpose = media is null ? target.Purpose : FilePurpose.Video;
+
+        if (target.Purpose == FilePurpose.Video && media is null)
+            throw new InvalidOperationException("A video copy needs a media record");
+
+        var limit = await ResolveEffectiveSizeLimit(userId, purpose, target.SpaceId, ct);
         if (blob.Size > limit)
             return AttachExistingFileError.TOO_LARGE;
 
-        if (!AcceptsContentType(target.Purpose, source.ContentType))
+        if (!AcceptsContentType(purpose, source.ContentType))
             return AttachExistingFileError.CONTENT_TYPE_REJECTED;
 
         var file = new FileEntity
         {
             Id          = ArgonId.New(),
             OwnerId     = userId,
-            Purpose     = target.Purpose,
+            Purpose     = purpose,
             BucketName  = "link",
             FileSize    = blob.Size,
             ContentType = source.ContentType,
@@ -193,6 +213,8 @@ public class FileStorageGrain(
 
         db.Files.Add(file);
         db.FileCounters.Add(new FileCounterEntity { Id = file.Id, RefCount = 1, CreatedAt = now, UpdatedAt = now });
+        if (media is not null)
+            db.FileMedia.Add(media with { FileId = file.Id, CreatedAt = now, UpdatedAt = now });
         await db.SaveChangesAsync(ct);
 
         await db.Blobs
@@ -202,11 +224,11 @@ public class FileStorageGrain(
                .SetProperty(b => b.DeleteAfter, (DateTimeOffset?)null)
                .SetProperty(b => b.UpdatedAt, now), ct);
 
-        StorageInstruments.DedupLinks.Add(1, new KeyValuePair<string, object?>("purpose", target.Purpose.ToString()));
+        StorageInstruments.DedupLinks.Add(1, new KeyValuePair<string, object?>("purpose", purpose.ToString()));
         activity?.SetTag("file.id", file.Id.ToString());
 
         logger.LogInformation("File linked: source={SourceId}, fileId={FileId}, purpose={Purpose}, userId={UserId}",
-            sourceFileId, file.Id, target.Purpose, userId);
+            sourceFileId, file.Id, purpose, userId);
 
         return new FileInfoResponse(file.Id, file.FileName, file.FileSize, file.ContentType, file.Purpose,
             s3.GetFileDownloadUrl(file.Id), blob.S3Key);
@@ -231,6 +253,10 @@ public class FileStorageGrain(
         using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.RequestUpload");
         activity?.SetTag("file.purpose", request.Purpose.ToString());
         activity?.SetTag("file.size", request.FileSize);
+
+        // A video file exists only with a media record, which only PrepareVideoUploadAsync's path writes.
+        if (request.Purpose == FilePurpose.Video)
+            throw new InvalidOperationException("Videos are uploaded through PrepareVideoUpload, which checks their header");
 
         var userId = this.GetPrimaryKey();
         activity?.SetTag("user.id", userId.ToString());
@@ -334,7 +360,8 @@ public class FileStorageGrain(
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        var blob = await db.FileBlobs.FirstOrDefaultAsync(x => x.Id == blobId && x.OwnerId == userId, ct);
+        // A video ticket closes only through CompleteVideoUploadAsync, which reads the header.
+        var blob = await db.FileBlobs.FirstOrDefaultAsync(x => x.Id == blobId && x.OwnerId == userId && x.Declaration == null, ct);
         if (blob is null)
             throw new KeyNotFoundException("Upload blob not found");
 
@@ -580,6 +607,602 @@ public class FileStorageGrain(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // Video
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>S3 caps a multipart upload at this many parts.</summary>
+    private const int MaxParts = 10_000;
+
+    /// <summary>What is read first to find where <c>moov</c> ends.</summary>
+    private const int MoovSearchBytes = 64 * 1024;
+
+    private const int MaxEtagLength     = 256;
+    private const int MaxFileNameLength = 255;
+
+    public async Task<IVideoUploadResult> PrepareVideoUploadAsync(VideoUploadRequest request, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.PrepareVideoUpload");
+
+        var userId = this.GetPrimaryKey();
+        var d      = request.Declaration;
+        activity?.SetTag("user.id", userId.ToString());
+        activity?.SetTag("file.size", d.size);
+
+        var limit = await ResolveEffectiveSizeLimit(userId, FilePurpose.Video, request.SpaceId, ct);
+        if (d.size > limit)
+            return VideoRefused(VideoUploadError.TOO_LARGE, "size_exceeded");
+
+        if (d.durationMs > _limits.VideoMaxDurationMs)
+            return VideoRefused(VideoUploadError.TOO_LONG, "too_long");
+
+        if (BlobHashes.NormalizeContentType(d.contentType) != VideoMedia.ContentType || d.codec is not null && !VideoMedia.IsH264(d.codec))
+            return VideoRefused(VideoUploadError.CONTENT_TYPE_REJECTED, "content_type_rejected");
+
+        if (d.size <= 0 || d.width <= 0 || d.height <= 0 || d.durationMs <= 0 || d.fileName is null || d.fileName.Length > MaxFileNameLength
+         || d.codec?.Length > 64 || d.thumbHash?.Length > 64)
+            return VideoRefused(VideoUploadError.DECLARATION_MISMATCH, "declaration_invalid");
+
+        if (!await AcceptsPosterAsync(userId, request.ChannelId, d, ct))
+            return VideoRefused(VideoUploadError.POSTER_REJECTED, "poster_rejected");
+
+        var claim = d.sha256?.ToArray();
+        if (claim is { Length: 32 }
+         && await FindReadableCopyAsync(userId, claim, VideoMedia.ContentType, request.SpaceId, ct) is { } sourceId
+         && await CopyVideoAsync(sourceId, request, ct) is { } copied)
+            return copied;
+
+        return await CreateVideoTicketAsync(userId, request, claim is { Length: 32 } ? claim : null, ct);
+    }
+
+    /// <summary>The poster and the storyboard: finalized images of the caller's in the same chat, and a storyboard within bounds.</summary>
+    private async Task<bool> AcceptsPosterAsync(Guid userId, Guid? scopeId, VideoUploadDeclaration d, CancellationToken ct)
+    {
+        if (d.storyboard is { } board)
+        {
+            if (d.storyboardFileId is null
+             || board.frameWidth is < 1 or > 200 || board.frameHeight is < 1 or > 200
+             || board.columns is < 1 or > 32 || board.frameCount is < 1 or > 400 || board.intervalMs < 200)
+                return false;
+        }
+        else if (d.storyboardFileId is not null)
+            return false;
+
+        var ids = new List<Guid>(2);
+        if (d.posterFileId is { } poster)
+            ids.Add(poster);
+        if (d.storyboardFileId is { } storyboard && !ids.Contains(storyboard))
+            ids.Add(storyboard);
+
+        if (ids.Count == 0)
+            return true;
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var found = await db.Files.AsNoTracking()
+           .CountAsync(f => ids.Contains(f.Id) && f.Finalized && f.OwnerId == userId && f.ChannelId == scopeId
+                         && f.ContentType != null && f.ContentType.StartsWith("image/"), ct);
+
+        return found == ids.Count;
+    }
+
+    /// <summary>
+    /// A copy of a readable file with these bytes, with its media record: the source's own, or one read
+    /// off the object's header when the source was posted as a plain file. Null to upload instead,
+    /// which is also the answer when that header does not pass.
+    /// </summary>
+    private async Task<IVideoUploadResult?> CopyVideoAsync(Guid sourceId, VideoUploadRequest request, CancellationToken ct)
+    {
+        var d = request.Declaration;
+
+        FileMediaEntity? probed = null;
+
+        await using (var db = await dbFactory.CreateDbContextAsync(ct))
+        {
+            var source = await (
+                from f in db.Files.AsNoTracking()
+                join b in db.Blobs.AsNoTracking() on f.BlobId equals b.Id
+                where f.Id == sourceId
+                select new { b.S3Key, b.Size, HasMedia = db.FileMedia.Any(m => m.FileId == f.Id) }
+            ).FirstOrDefaultAsync(ct);
+
+            if (source is null)
+                return null;
+
+            if (!source.HasMedia)
+            {
+                var (read, error) = await ProbeAsync(source.S3Key, source.Size, ct);
+                var refusal       = read is { } header ? Refusal(d, header) : VideoUploadError.NOT_STREAMABLE;
+
+                if (refusal is not null)
+                {
+                    logger.LogInformation("Video copy of {SourceId} not made ({Refusal}, {Error}); the client uploads instead", sourceId, refusal, error);
+                    return null;
+                }
+
+                probed = VideoMedia.Record(Guid.Empty, read!.Value, d, source.Size);
+            }
+        }
+
+        var linked = await LinkFileAsync(sourceId,
+            new FileUploadRequest(FilePurpose.Video, VideoMedia.ContentType, d.size, request.SpaceId, request.ChannelId, d.fileName), d.fileName,
+            probed, ct);
+
+        if (!linked.IsSuccess)
+            return null;
+
+        StorageInstruments.DedupPrepared.Add(1, new KeyValuePair<string, object?>("purpose", nameof(FilePurpose.Video)));
+
+        return await GetVideoInfoAsync(linked.Value.FileId, ct) is { } info
+            ? new VideoStored(info)
+            : null;
+    }
+
+    /// <summary>
+    /// Every video is a multipart upload, a single part up to the threshold: its upload id dies at
+    /// completion, so no URL handed out can write over a checked object. Each part's length is signed.
+    /// </summary>
+    private async Task<IVideoUploadResult> CreateVideoTicketAsync(Guid userId, VideoUploadRequest request, byte[]? claim, CancellationToken ct)
+    {
+        var d      = request.Declaration;
+        var now    = DateTimeOffset.UtcNow;
+        var ttl    = _limits.VideoTicketTtlSeconds;
+        var fileId = ArgonId.New();
+        var key    = BuildS3Key(FilePurpose.Video, fileId, userId, request.SpaceId, request.ChannelId);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var open = await db.FileBlobs.CountAsync(b => b.OwnerId == userId && b.Declaration != null && b.ExpiresAt > now, ct);
+        if (open >= _limits.VideoMaxOpenTickets)
+        {
+            logger.LogWarning("Video upload refused for {UserId}: {Open} video tickets already open", userId, open);
+            return VideoRefused(VideoUploadError.NOT_AUTHORIZED, "too_many_tickets");
+        }
+
+        var (partSize, partCount) = PartLayout(d.size);
+
+        var uploadId = await s3.CreateMultipartUploadAsync(key, VideoMedia.ContentType, VideoMedia.CacheControl, ct);
+        if (uploadId is null)
+            return VideoRefused(VideoUploadError.INTERNAL_ERROR, "store_refused");
+
+        var partUrls = new List<string>(partCount);
+        for (var part = 1; part <= partCount; part++)
+        {
+            var length = part < partCount ? partSize : d.size - partSize * (partCount - 1);
+            partUrls.Add(presignedUrlGenerator.GeneratePresignedUploadPart(key, uploadId, part, length, ttl));
+        }
+
+        var stored = new BlobEntity
+        {
+            Id          = ArgonId.New(),
+            S3Key       = key,
+            ContentType = VideoMedia.ContentType,
+            Dedupable   = FilePurpose.Video.IsDedupable(),
+            CreatedAt   = now,
+            UpdatedAt   = now
+        };
+
+        var file = new FileEntity
+        {
+            Id          = fileId,
+            OwnerId     = userId,
+            Purpose     = FilePurpose.Video,
+            BucketName  = "video",
+            ContentType = VideoMedia.ContentType,
+            FileName    = d.fileName,
+            SpaceId     = request.SpaceId,
+            ChannelId   = request.ChannelId,
+            BlobId      = stored.Id,
+            CreatedAt   = now,
+            UpdatedAt   = now
+        };
+
+        var ticket = new FileBlobEntity
+        {
+            Id            = ArgonId.New(),
+            FileId        = fileId,
+            OwnerId       = userId,
+            Purpose       = FilePurpose.Video,
+            SizeLimit     = d.size,
+            ExpiresAt     = now.AddSeconds(ttl),
+            ClaimedSha256 = claim,
+            UploadId      = uploadId,
+            PartSize      = partSize,
+            PartCount     = partCount,
+            Declaration   = VideoMedia.Serialize(d),
+            CreatedAt     = now,
+            UpdatedAt     = now
+        };
+
+        try
+        {
+            db.Blobs.Add(stored);
+            db.Files.Add(file);
+            db.FileBlobs.Add(ticket);
+            await db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            await s3.AbortMultipartUploadAsync(key, uploadId, CancellationToken.None);
+            throw;
+        }
+
+        StorageInstruments.UploadsRequested.Add(1, new KeyValuePair<string, object?>("purpose", nameof(FilePurpose.Video)));
+        StorageInstruments.ActiveBlobs.Add(1);
+
+        logger.LogInformation("Video upload requested: fileId={FileId}, size={Size}, parts={Parts}, userId={UserId}",
+            fileId, d.size, partCount, userId);
+
+        return new VideoUploadRequired(new VideoUploadTicket(ticket.Id, fileId, null, IonArray<FormField>.Empty, partUrls, partSize, ttl));
+    }
+
+    /// <summary>One part up to the threshold, else parts of the configured size, raised so there are at most 10000.</summary>
+    private (long Size, int Count) PartLayout(long size)
+    {
+        if (size <= _limits.VideoMultipartThresholdBytes)
+            return (size, 1);
+
+        var part = _limits.VideoPartSizeBytes;
+        if ((size + part - 1) / part > MaxParts)
+        {
+            const long MiB = 1024 * 1024;
+            part = ((size + MaxParts - 1) / MaxParts + MiB - 1) / MiB * MiB;
+        }
+
+        return (part, (int)((size + part - 1) / part));
+    }
+
+    public async Task<IVideoUploadResult> CompleteVideoUploadAsync(Guid ticketId, UploadedPart[] parts, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("FileStorage.CompleteVideoUpload");
+        var sw     = Stopwatch.StartNew();
+        var userId = this.GetPrimaryKey();
+        activity?.SetTag("blob.id", ticketId.ToString());
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        // A completed ticket stays behind soft-deleted, so a retry still finds its file.
+        var ticket = await db.FileBlobs.IgnoreQueryFilters()
+           .FirstOrDefaultAsync(x => x.Id == ticketId && x.OwnerId == userId && x.Declaration != null, ct);
+        if (ticket is null)
+            return new FailedVideoUpload(VideoUploadError.NOT_FOUND);
+
+        if (await StoredVideoAsync(db, ticket.FileId, userId, ct) is { } done)
+            return done;
+
+        if (ticket.IsDeleted)
+            return new FailedVideoUpload(VideoUploadError.NOT_FOUND);
+
+        var file   = await db.Files.FirstOrDefaultAsync(f => f.Id == ticket.FileId, ct);
+        var stored = file?.BlobId is { } storedId ? await db.Blobs.FirstOrDefaultAsync(b => b.Id == storedId, ct) : null;
+
+        if (file is null || stored is null)
+            return new FailedVideoUpload(VideoUploadError.NOT_FOUND);
+
+        if (ticket.ExpiresAt < DateTimeOffset.UtcNow)
+        {
+            await DiscardTicketAsync(ticket.Id, userId, ct);
+            return VideoRefused(VideoUploadError.TICKET_EXPIRED, "ticket_expired");
+        }
+
+        if (VideoMedia.Deserialize(ticket.Declaration) is not { } declaration)
+            return new FailedVideoUpload(VideoUploadError.INTERNAL_ERROR);
+
+        if (ticket.UploadId is { } uploadId)
+        {
+            var ordered = CoveredParts(parts, ticket.PartCount ?? 0);
+            if (ordered is null)
+                return VideoRefused(VideoUploadError.DECLARATION_MISMATCH, "parts_invalid");
+
+            // A refusal keeps the upload open for a retry with the right ETags; a parallel retry may have completed it already.
+            if (!await s3.CompleteMultipartUploadAsync(stored.S3Key, uploadId, ordered, ct)
+             && (await s3.HeadFileAsync(stored.S3Key, ct))?.ContentLength != ticket.SizeLimit)
+                return VideoRefused(VideoUploadError.DECLARATION_MISMATCH, "parts_rejected");
+
+            await db.FileBlobs.Where(b => b.Id == ticket.Id).ExecuteUpdateAsync(s => s.SetProperty(b => b.UploadId, (string?)null), ct);
+            ticket.UploadId = null;
+        }
+
+        var metadata = await s3.HeadFileAsync(stored.S3Key, ct);
+        if (metadata is null)
+            return new FailedVideoUpload(VideoUploadError.NOT_FOUND);
+
+        if (metadata.ContentLength != ticket.SizeLimit)
+            return await RejectObjectAsync(stored, VideoUploadError.DECLARATION_MISMATCH, "size_mismatch", ct);
+
+        if (!AcceptsContentType(FilePurpose.Video, metadata.ContentType))
+            return await RejectObjectAsync(stored, VideoUploadError.CONTENT_TYPE_REJECTED, "content_type_rejected", ct);
+
+        var (probe, probeError) = await ProbeAsync(stored.S3Key, metadata.ContentLength, ct);
+        if (probe is not { } header)
+        {
+            logger.LogInformation("Video {FileId} is not streamable: {Error}", file.Id, probeError);
+            return await RejectObjectAsync(stored, VideoUploadError.NOT_STREAMABLE, "not_streamable", ct);
+        }
+
+        if (Refusal(declaration, header) is { } refusal)
+        {
+            logger.LogInformation("Video {FileId} refused ({Refusal}): declared {Width}x{Height} {Duration}ms audio={Audio} {Codec}, "
+                + "read {ReadWidth}x{ReadHeight} {ReadDuration}ms audio={ReadAudio} {ReadCodec}", file.Id, refusal,
+                declaration.width, declaration.height, declaration.durationMs, declaration.hasAudio, declaration.codec,
+                header.Width, header.Height, header.DurationMs, header.HasAudio, header.VideoCodec);
+            return await RejectObjectAsync(stored, refusal, refusal.ToString().ToLowerInvariant(), ct);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        file.FileSize    = metadata.ContentLength;
+        file.ContentType = VideoMedia.ContentType;
+        file.Checksum    = metadata.ETag;
+        file.Finalized   = true;
+        file.UpdatedAt   = now;
+
+        // A multipart ETag is no MD5, and ParseEtagMd5 says so.
+        stored.Size          = metadata.ContentLength;
+        stored.ContentType   = VideoMedia.ContentType;
+        stored.Md5           = BlobHashes.ParseEtagMd5(metadata.ETag);
+        stored.ClaimedSha256 = ticket.ClaimedSha256;
+        stored.Links         = 1;
+        stored.UpdatedAt     = now;
+
+        var media = VideoMedia.Record(file.Id, header, declaration, file.FileSize);
+
+        db.FileCounters.Add(new FileCounterEntity { Id = file.Id, RefCount = 1, CreatedAt = now, UpdatedAt = now });
+        db.FileMedia.Add(media);
+
+        // Written with the file, so an abort that took the ticket meanwhile fails this save instead of losing the bytes after it.
+        db.Entry(ticket).Property(t => t.UpdatedAt).IsModified = true;
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException e)
+        {
+            await using var fresh = await dbFactory.CreateDbContextAsync(ct);
+            if (await StoredVideoAsync(fresh, file.Id, userId, ct) is { } raced)
+                return raced;
+
+            logger.LogInformation(e, "Video {FileId} was not finalized: its ticket went while it was checked", file.Id);
+            return new FailedVideoUpload(VideoUploadError.NOT_FOUND);
+        }
+
+        // Last, and soft: a retry finds the finished file through it.
+        await db.FileBlobs.Where(b => b.Id == ticket.Id)
+           .ExecuteUpdateAsync(s => s.SetProperty(b => b.IsDeleted, true).SetProperty(b => b.DeletedAt, now), ct);
+
+        try
+        {
+            await dedup.OnStoredAsync(stored.Id, ticket.ClaimedSha256, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Dedup step failed for video {FileId}; the object stays its own", file.Id);
+        }
+
+        sw.Stop();
+        var purpose = new KeyValuePair<string, object?>("purpose", nameof(FilePurpose.Video));
+        StorageInstruments.UploadsFinalized.Add(1, purpose);
+        StorageInstruments.UploadSizeBytes.Record(file.FileSize, purpose);
+        StorageInstruments.UploadFinalizeDuration.Record(sw.Elapsed.TotalMilliseconds, purpose);
+        StorageInstruments.TotalStoredBytes.Add(file.FileSize, purpose);
+        StorageInstruments.ActiveBlobs.Add(-1);
+
+        logger.LogInformation("Video finalized: fileId={FileId}, size={Size}, {Width}x{Height}, {Duration}ms, codec={Codec}, userId={UserId}",
+            file.Id, file.FileSize, header.Width, header.Height, header.DurationMs, header.VideoCodec, userId);
+
+        return new VideoStored(VideoMedia.ToInfo(file, media, s3));
+    }
+
+    public async Task AbortVideoUploadAsync(Guid ticketId, CancellationToken ct = default)
+    {
+        var userId = this.GetPrimaryKey();
+
+        if (await DiscardTicketAsync(ticketId, userId, ct))
+            logger.LogInformation("Video upload aborted: ticket={TicketId}, userId={UserId}", ticketId, userId);
+    }
+
+    public async Task<UploadLimits> GetUploadLimitsAsync(Guid? spaceId, CancellationToken ct = default)
+    {
+        var userId     = this.GetPrimaryKey();
+        var attachment = await ResolveEffectiveSizeLimit(userId, spaceId is null ? FilePurpose.DirectAttachment : FilePurpose.ChannelAttachment,
+            spaceId, ct);
+        var video      = await ResolveEffectiveSizeLimit(userId, FilePurpose.Video, spaceId, ct);
+
+        return new UploadLimits(attachment, video, _limits.VideoMaxDurationMs);
+    }
+
+    public async Task<VideoInfo?> GetVideoInfoAsync(Guid fileId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var found = await (
+            from f in db.Files.AsNoTracking()
+            join m in db.FileMedia.AsNoTracking() on f.Id equals m.FileId
+            where f.Id == fileId && f.Finalized
+            select new { File = f, Media = m }
+        ).FirstOrDefaultAsync(ct);
+
+        return found is null ? null : VideoMedia.ToInfo(found.File, found.Media, s3);
+    }
+
+    public async Task<Dictionary<Guid, VideoInfo>> GetSendableVideosAsync(Guid scopeId, List<Guid> fileIds, CancellationToken ct = default)
+    {
+        if (fileIds is not { Count: > 0 })
+            return [];
+
+        var userId = this.GetPrimaryKey();
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var found = await (
+            from f in db.Files.AsNoTracking()
+            join m in db.FileMedia.AsNoTracking() on f.Id equals m.FileId
+            where fileIds.Contains(f.Id) && f.Finalized && f.OwnerId == userId && f.ChannelId == scopeId
+            select new { File = f, Media = m }
+        ).ToListAsync(ct);
+
+        return found.ToDictionary(x => x.File.Id, x => VideoMedia.ToInfo(x.File, x.Media, s3));
+    }
+
+    private async Task<IVideoUploadResult?> StoredVideoAsync(ApplicationDbContext db, Guid fileId, Guid userId, CancellationToken ct)
+    {
+        var found = await (
+            from f in db.Files.AsNoTracking()
+            join m in db.FileMedia.AsNoTracking() on f.Id equals m.FileId
+            where f.Id == fileId && f.OwnerId == userId && f.Finalized
+            select new { File = f, Media = m }
+        ).FirstOrDefaultAsync(ct);
+
+        return found is null ? null : new VideoStored(VideoMedia.ToInfo(found.File, found.Media, s3));
+    }
+
+    /// <summary>
+    /// The MP4 header: the first 64 KiB say where <c>moov</c> ends, and the read goes on exactly that far,
+    /// never past <see cref="FileLimitsOptions.VideoProbeBytes"/>. Pooled buffers, read once.
+    /// </summary>
+    private async Task<(Mp4ProbeResult? Result, Mp4ProbeError Error)> ProbeAsync(string key, long size, CancellationToken ct)
+    {
+        var headLength = (int)Math.Min(size, MoovSearchBytes);
+        if (headLength <= 0)
+            return (null, Mp4ProbeError.NotMp4);
+
+        var    head  = ArrayPool<byte>.Shared.Rent(headLength);
+        byte[]? whole = null;
+        try
+        {
+            var read = await ReadRangeAsync(key, 0, head.AsMemory(0, headLength), ct);
+
+            if (!Mp4Probe.TryLocateMoov(head.AsSpan(0, read), size, out var moovEnd) || moovEnd > _limits.VideoProbeBytes)
+                return (null, Mp4ProbeError.MoovNotInHead);
+
+            var buffer = head;
+            if (moovEnd > read)
+            {
+                whole = ArrayPool<byte>.Shared.Rent((int)moovEnd);
+                head.AsSpan(0, read).CopyTo(whole);
+                read  += await ReadRangeAsync(key, read, whole.AsMemory(read, (int)moovEnd - read), ct);
+                buffer = whole;
+            }
+
+            return Mp4Probe.TryProbe(buffer.AsSpan(0, (int)Math.Min(read, moovEnd)), size, out var result, out var error)
+                ? (result, Mp4ProbeError.None)
+                : (null, error);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(head);
+            if (whole is not null)
+                ArrayPool<byte>.Shared.Return(whole);
+        }
+    }
+
+    /// <summary>Fills <paramref name="into"/> from the object, starting at <paramref name="from"/>; how many bytes came.</summary>
+    private async Task<int> ReadRangeAsync(string key, long from, Memory<byte> into, CancellationToken ct)
+    {
+        await using var stream = await s3.OpenReadRangeAsync(key, from, from + into.Length - 1, ct);
+        if (stream is null)
+            return 0;
+
+        var read = 0;
+        while (read < into.Length)
+        {
+            var n = await stream.ReadAsync(into[read..], ct);
+            if (n == 0)
+                break;
+            read += n;
+        }
+
+        return read;
+    }
+
+    /// <summary>
+    /// What the header says against what is accepted and what was declared; null when it passes. Not
+    /// streamable without moov first or without a duration (a fragmented file), too long past the cap,
+    /// and <c>CONTENT_TYPE_REJECTED</c> for any codec but H.264 (<see cref="VideoMedia.IsH264"/>).
+    /// </summary>
+    private VideoUploadError? Refusal(VideoUploadDeclaration d, Mp4ProbeResult read)
+    {
+        if (!read.FastStart || read.DurationMs <= 0)
+            return VideoUploadError.NOT_STREAMABLE;
+        if (read.DurationMs > _limits.VideoMaxDurationMs)
+            return VideoUploadError.TOO_LONG;
+        if (!VideoMedia.IsH264(read.VideoCodec))
+            return VideoUploadError.CONTENT_TYPE_REJECTED;
+        return Matches(d, read) ? null : VideoUploadError.DECLARATION_MISMATCH;
+    }
+
+    /// <summary>Dimensions exactly, duration within a second or 2 %, audio, and the codec's sample entry when one was declared.</summary>
+    private static bool Matches(VideoUploadDeclaration d, Mp4ProbeResult read)
+        => d.width == read.Width && d.height == read.Height
+        && Math.Abs((long)d.durationMs - read.DurationMs) <= Math.Max(1000, read.DurationMs / 50)
+        && d.hasAudio == read.HasAudio
+        && (d.codec is null
+         || read.VideoCodec is not null && VideoMedia.CodecFamily(d.codec).Equals(VideoMedia.CodecFamily(read.VideoCodec), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Parts 1..count, each once and with a bounded ETag, in order; null when the list is not that.</summary>
+    private static List<(int PartNumber, string ETag)>? CoveredParts(UploadedPart[]? parts, int count)
+    {
+        if (parts is null || count <= 0 || parts.Length != count)
+            return null;
+
+        var ordered = new (int PartNumber, string ETag)[count];
+        foreach (var part in parts)
+        {
+            if (part.partNumber < 1 || part.partNumber > count || string.IsNullOrWhiteSpace(part.etag) || part.etag.Length > MaxEtagLength
+             || ordered[part.partNumber - 1].ETag is not null)
+                return null;
+            ordered[part.partNumber - 1] = (part.partNumber, part.etag);
+        }
+
+        return [..ordered];
+    }
+
+    /// <summary>The object goes; the ticket stays until it is aborted or expires.</summary>
+    private async Task<IVideoUploadResult> RejectObjectAsync(BlobEntity stored, VideoUploadError error, string reason, CancellationToken ct)
+    {
+        await s3.DeleteFileAsync(stored.S3Key, ct);
+        return VideoRefused(error, reason);
+    }
+
+    /// <summary>
+    /// Takes the ticket row first and touches the store only after: whoever deletes the row owns the
+    /// cleanup, and a file a racing completion already finalized keeps its object.
+    /// </summary>
+    private async Task<bool> DiscardTicketAsync(Guid ticketId, Guid userId, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var ticket = await db.FileBlobs.AsNoTracking()
+           .FirstOrDefaultAsync(x => x.Id == ticketId && x.OwnerId == userId && x.Declaration != null, ct);
+        if (ticket is null)
+            return false;
+
+        if (await db.FileBlobs.Where(x => x.Id == ticketId).ExecuteDeleteAsync(ct) != 1)
+            return false;
+
+        StorageInstruments.ActiveBlobs.Add(-1);
+
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == ticket.FileId, ct);
+        if (file is null || file.Finalized)
+            return true;
+
+        if (file.BlobId is { } storedId && await db.Blobs.FirstOrDefaultAsync(b => b.Id == storedId, ct) is { } stored)
+            await UnfinishedUploads.DiscardAsync(db, s3, logger, stored, ticket.UploadId, ct);
+
+        db.Files.Remove(file);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    private static FailedVideoUpload VideoRefused(VideoUploadError error, string reason)
+    {
+        StorageInstruments.UploadsFailed.Add(1,
+            new KeyValuePair<string, object?>("purpose", nameof(FilePurpose.Video)),
+            new KeyValuePair<string, object?>("reason", reason));
+        return new FailedVideoUpload(error);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Private helpers
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -602,37 +1225,39 @@ public class FileStorageGrain(
                 return _limits.BannerMaxBytes;
 
             case FilePurpose.Video:
-                return _limits.VideoMaxBytes;
+                return await TieredLimitAsync(userId, spaceId, _limits.VideoMaxBytes, _limits.VideoUltimaMaxBytes,
+                    _limits.VideoBoostLevel2MaxBytes, _limits.VideoBoostLevel3MaxBytes, ct);
 
-            // A direct chat has no space to be boosted, so only the base limit and Ultima apply.
             case FilePurpose.ChannelAttachment:
             case FilePurpose.DirectAttachment:
-            {
-                var limit = _limits.AttachmentBaseMaxBytes;
-
-                // Check Ultima subscription
-                var ultima = GrainFactory.GetGrain<IUltimaGrain>(userId);
-                var sub = await ultima.GetSubscriptionAsync(ct);
-                if (sub is { status: UltimaSubscriptionStatus.Active or UltimaSubscriptionStatus.GracePeriod })
-                    limit = Math.Max(limit, _limits.AttachmentUltimaMaxBytes);
-
-                // Check space boost level
-                if (spaceId.HasValue)
-                {
-                    var space = GrainFactory.GetGrain<ISpaceGrain>(spaceId.Value);
-                    var spaceInfo = await space.GetSpace();
-                    if (spaceInfo.BoostLevel >= 3)
-                        limit = Math.Max(limit, _limits.AttachmentBoostLevel3MaxBytes);
-                    else if (spaceInfo.BoostLevel >= 2)
-                        limit = Math.Max(limit, _limits.AttachmentBoostLevel2MaxBytes);
-                }
-
-                return limit;
-            }
+                return await TieredLimitAsync(userId, spaceId, _limits.AttachmentBaseMaxBytes, _limits.AttachmentUltimaMaxBytes,
+                    _limits.AttachmentBoostLevel2MaxBytes, _limits.AttachmentBoostLevel3MaxBytes, ct);
 
             default:
                 return _limits.AttachmentBaseMaxBytes;
         }
+    }
+
+    // A direct chat has no space to be boosted, so only the base limit and Ultima apply.
+    private async Task<long> TieredLimitAsync(Guid userId, Guid? spaceId, long baseLimit, long ultimaLimit, long level2Limit, long level3Limit,
+        CancellationToken ct)
+    {
+        var limit = baseLimit;
+
+        var sub = await GrainFactory.GetGrain<IUltimaGrain>(userId).GetSubscriptionAsync(ct);
+        if (sub is { status: UltimaSubscriptionStatus.Active or UltimaSubscriptionStatus.GracePeriod })
+            limit = Math.Max(limit, ultimaLimit);
+
+        if (spaceId.HasValue)
+        {
+            var spaceInfo = await GrainFactory.GetGrain<ISpaceGrain>(spaceId.Value).GetSpace();
+            if (spaceInfo.BoostLevel >= 3)
+                limit = Math.Max(limit, level3Limit);
+            else if (spaceInfo.BoostLevel >= 2)
+                limit = Math.Max(limit, level2Limit);
+        }
+
+        return limit;
     }
 
     private string BuildS3Key(FilePurpose purpose, Guid fileId, Guid userId, Guid? spaceId, Guid? channelId)
@@ -642,6 +1267,10 @@ public class FileStorageGrain(
             return fileId.ToString();
 
         var category = purpose.S3Prefix();
+
+        // A direct-chat video files under its sender, like a direct attachment: the conversation id is a hash of both users.
+        if (purpose == FilePurpose.Video && spaceId is null)
+            return $"u/{userId}/{category}/{fileId}";
 
         if (purpose.IsSpaceScoped())
         {
@@ -660,7 +1289,7 @@ public class FileStorageGrain(
     internal static bool AcceptsContentType(FilePurpose purpose, string? contentType) => purpose switch
     {
         FilePurpose.Avatar or FilePurpose.SpaceAvatar or FilePurpose.Banner => HasPrefix(contentType, "image/"),
-        FilePurpose.Video                                                   => HasPrefix(contentType, "video/"),
+        FilePurpose.Video                                                   => BlobHashes.NormalizeContentType(contentType) == VideoMedia.ContentType,
         // Lottie arrives as gzip or JSON and video as WEBM; AddItem checks the bytes themselves.
         FilePurpose.Emoji or FilePurpose.Sticker => ExpressionUploads.IsExpressionContentType(contentType),
         _                                        => true // any content type for attachments

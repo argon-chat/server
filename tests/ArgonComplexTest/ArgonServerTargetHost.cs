@@ -210,6 +210,11 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("Storage:Cdn:RedirectCacheSeconds", "300");
         builder.UseSetting("Storage:UseSsl", "false");
 
+        // Videos go multipart above 1 MiB here, in parts of the S3 minimum, so VideoUploadTests can
+        // exercise parts with a file of a few megabytes.
+        builder.UseSetting("Storage:Limits:VideoMultipartThresholdBytes", (1024 * 1024).ToString());
+        builder.UseSetting("Storage:Limits:VideoPartSizeBytes", (5 * 1024 * 1024).ToString());
+
         // Linked accounts, against FakeConnectionsApi. GitHub and Spotify are registered; the rest are
         // left without a client id, which is the shape of a deployment that has not set them up.
         foreach (var (key, value) in TestServerConfiguration.Connections)

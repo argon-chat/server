@@ -89,6 +89,54 @@ public class S3PresignedUrlGenerator(IOptions<StorageOptions> options)
         };
     }
 
+    /// <summary>A PUT of one part of a multipart upload; its length is signed, so the part cannot outgrow its slot.</summary>
+    public string GeneratePresignedUploadPart(string objectKey, string uploadId, int partNumber, long contentLength, int expirationSeconds)
+        => SignPut(objectKey,
+            [("partNumber", partNumber.ToString(CultureInfo.InvariantCulture)), ("uploadId", uploadId)],
+            [("content-length", contentLength.ToString(CultureInfo.InvariantCulture))], expirationSeconds);
+
+    private string SignPut(string objectKey, IReadOnlyList<(string Name, string Value)> query,
+        IReadOnlyList<(string Name, string Value)> headers, int expirationSeconds)
+    {
+        var now        = DateTime.UtcNow;
+        var dateStamp  = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var amzDate    = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
+        var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
+
+        var scheme       = _opts.UseSsl ? "https" : "http";
+        var (host, path) = Address(_opts.BucketName, objectKey);
+
+        var signed = new SortedDictionary<string, string>(StringComparer.Ordinal) { ["host"] = host };
+        foreach (var (name, value) in headers)
+            signed[name.ToLowerInvariant()] = value.Trim();
+
+        var signedHeaders = string.Join(";", signed.Keys);
+
+        var queryParams = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["X-Amz-Algorithm"]     = "AWS4-HMAC-SHA256",
+            ["X-Amz-Credential"]    = credential,
+            ["X-Amz-Date"]          = amzDate,
+            ["X-Amz-Expires"]       = expirationSeconds.ToString(CultureInfo.InvariantCulture),
+            ["X-Amz-SignedHeaders"] = signedHeaders
+        };
+        foreach (var (name, value) in query)
+            queryParams[name] = value;
+
+        var canonicalQueryString = string.Join("&",
+            queryParams.Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
+
+        var canonicalHeaders = string.Concat(signed.Select(kv => $"{kv.Key}:{kv.Value}\n"));
+
+        var canonicalRequest = string.Join("\n", "PUT", path, canonicalQueryString, canonicalHeaders, signedHeaders, "UNSIGNED-PAYLOAD");
+
+        var scope        = $"{dateStamp}/{_opts.Region}/s3/aws4_request";
+        var stringToSign = string.Join("\n", "AWS4-HMAC-SHA256", amzDate, scope, HexHash(canonicalRequest));
+        var signature    = CalculateSignature(dateStamp, stringToSign);
+
+        return $"{scheme}://{host}{path}?{canonicalQueryString}&X-Amz-Signature={signature}";
+    }
+
     public string GeneratePresignedGet(
         string objectKey,
         int    expirationSeconds = 172800)

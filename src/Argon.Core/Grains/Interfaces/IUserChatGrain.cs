@@ -49,6 +49,20 @@ public interface IUserChatGrain : IGrainWithGuidKey
     ValueTask<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAttachmentAsync(Guid peerId, byte[] sha256, long size, string contentType,
         string fileName, CancellationToken ct = default);
 
+    /// <summary>The channel grain's PrepareVideoUpload, for the chat with <paramref name="peerId"/>; refused when the peer blocked the caller.</summary>
+    [Alias(nameof(PrepareVideoUploadAsync)), ResponseTimeout("00:03:00")]
+    Task<IVideoUploadResult> PrepareVideoUploadAsync(Guid callerId, Guid peerId, VideoUploadDeclaration declaration, CancellationToken ct = default);
+
+    [Alias(nameof(CompleteVideoUploadAsync)), ResponseTimeout("00:03:00")]
+    Task<IVideoUploadResult> CompleteVideoUploadAsync(Guid callerId, Guid peerId, Guid ticketId, UploadedPart[] parts, CancellationToken ct = default);
+
+    [Alias(nameof(AbortVideoUploadAsync))]
+    Task AbortVideoUploadAsync(Guid callerId, Guid peerId, Guid ticketId, CancellationToken ct = default);
+
+    /// <summary>The caller's upload limits in a direct chat: no space to be boosted, so base and Ultima only.</summary>
+    [Alias(nameof(GetUploadLimitsAsync))]
+    Task<UploadLimits> GetUploadLimitsAsync(Guid callerId, Guid peerId, CancellationToken ct = default);
+
     [Alias(nameof(UpdateChatForAsync))]
     Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);
 

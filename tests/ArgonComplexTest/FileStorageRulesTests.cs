@@ -77,8 +77,8 @@ public class FileStorageRulesTests : TestBase
     /// <para>The limit is recorded on the blob, because it is what finalisation holds the real size
     /// to; the declared size only decides whether a URL is signed at all.</para>
     ///
-    /// <para>The key is the other half. A space's emoji, banners and video live under the space
-    /// (<c>s/{space}/…</c>, video under its channel as well), a direct attachment under its sender
+    /// <para>The key is the other half. A space's emoji and banners live under the space
+    /// (<c>s/{space}/…</c>), a direct attachment under its sender
     /// (<c>u/{user}/…</c>), and an avatar at the root under its bare id — which is what the flat-key
     /// option the host runs with means, and what the avatar redirect relies on.</para>
     /// </remarks>
@@ -86,7 +86,6 @@ public class FileStorageRulesTests : TestBase
     [TestCase(FilePurpose.Emoji)]
     [TestCase(FilePurpose.Sticker)]
     [TestCase(FilePurpose.Banner)]
-    [TestCase(FilePurpose.Video)]
     [TestCase(FilePurpose.InviteImage)]
     [TestCase(FilePurpose.Gif)]
     [TestCase(FilePurpose.DirectAttachment)]
@@ -183,15 +182,12 @@ public class FileStorageRulesTests : TestBase
     // ── content types ───────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// What a purpose accepts is decided by what the store received: images for the image purposes,
-    /// video for video.
+    /// What a purpose accepts is decided by what the store received: images for the image purposes.
     /// </summary>
     [TestCase(FilePurpose.SpaceAvatar, "image/png", true)]
     [TestCase(FilePurpose.Emoji, "image/png", true)]
     [TestCase(FilePurpose.Sticker, "image/png", true)]
     [TestCase(FilePurpose.Banner, "image/png", true)]
-    [TestCase(FilePurpose.Video, "video/mp4", true)]
-    [TestCase(FilePurpose.Video, "image/png", false)]
     [TestCase(FilePurpose.Emoji, "text/html", false)]
     [TestCase(FilePurpose.Sticker, "application/x-tgsticker", true)]
     [TestCase(FilePurpose.Sticker, "video/webm", true)]
@@ -415,14 +411,12 @@ public class FileStorageRulesTests : TestBase
         FilePurpose.Emoji                             => ExpressionUploads.MaxUploadBytes(ExpressionKind.Emoji),
         FilePurpose.Sticker                           => ExpressionUploads.MaxUploadBytes(ExpressionKind.Sticker),
         FilePurpose.Banner                            => Limits.BannerMaxBytes,
-        FilePurpose.Video                             => Limits.VideoMaxBytes,
         _                                             => Limits.AttachmentBaseMaxBytes
     };
 
     private string ExpectedKey(FilePurpose purpose, Guid fileId, Guid userId) => purpose switch
     {
         FilePurpose.Avatar            => fileId.ToString(),
-        FilePurpose.Video             => $"s/{spaceId}/{purpose.S3Prefix()}/{channelId}/{fileId}",
         _ when purpose.IsSpaceScoped() => $"s/{spaceId}/{purpose.S3Prefix()}/{fileId}",
         _                             => $"u/{userId}/{purpose.S3Prefix()}/{fileId}"
     };

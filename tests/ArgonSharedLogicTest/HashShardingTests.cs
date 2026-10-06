@@ -186,7 +186,7 @@ public class HashShardingTests
     ];
 
     /// <summary>Tables born sharded after the audit: a CREATE TABLE, not a rewrite, so not in the audit migration.</summary>
-    private static readonly string[] BornSharded = ["Blobs"];
+    private static readonly string[] BornSharded = ["Blobs", "FileMedia"];
 
     /// <summary>The audited set, exactly: a key added here is a table rewrite in production.</summary>
     [Test]

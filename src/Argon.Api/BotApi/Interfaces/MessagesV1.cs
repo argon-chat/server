@@ -129,5 +129,5 @@ public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
     }
 
     private static List<BotAttachmentV1>? AttachmentsOf(List<IMessageEntity>? entities)
-        => entities?.OfType<MessageEntityAttachment>().Select(BotEventMapper.FromAttachment).ToList() is { Count: > 0 } found ? found : null;
+        => entities is null ? null : BotEventMapper.AttachmentsOf(entities) is { Count: > 0 } found ? found : null;
 }

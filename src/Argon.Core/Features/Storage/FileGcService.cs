@@ -99,6 +99,7 @@ public class FileGcService(
 
         var now = DateTimeOffset.UtcNow;
         var expiredBlobs = await db.FileBlobs
+            .AsNoTracking()
             .Where(b => b.ExpiresAt < now)
             .Take(100)
             .ToListAsync(ct);
@@ -118,33 +119,28 @@ public class FileGcService(
             .Where(b => objectIds.Contains(b.Id))
             .ToDictionaryAsync(b => b.Id, ct);
 
+        var swept = 0;
         foreach (var blob in expiredBlobs)
         {
-            if (files.Remove(blob.FileId, out var file))
-            {
-                if (file.BlobId is { } objectId && objects.Remove(objectId, out var stored))
-                {
-                    try
-                    {
-                        await s3.DeleteFileAsync(stored.S3Key, ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "FileGC: failed to delete S3 object {Key}", stored.S3Key);
-                    }
-                    db.Blobs.Remove(stored);
-                }
-                db.Files.Remove(file);
-            }
-            db.FileBlobs.Remove(blob);
+            // The row first: whoever deletes it owns the cleanup, and a finalize racing it fails on the missing row.
+            if (await db.FileBlobs.Where(b => b.Id == blob.Id).ExecuteDeleteAsync(ct) != 1)
+                continue;
+
+            swept++;
+
+            if (!files.Remove(blob.FileId, out var file) || file.Finalized)
+                continue;
+
+            if (file.BlobId is { } objectId && objects.Remove(objectId, out var stored))
+                await UnfinishedUploads.DiscardAsync(db, s3, logger, stored, blob.UploadId, ct);
+
+            db.Files.Remove(file);
         }
 
-        // The S3 deletes are idempotent; the rows are not written by a replica whose lease has moved on.
-        if (!await lease.TryRenewAsync(ct)) return;
-
+        // Saved whatever became of the lease: the tickets taken above are this pass's alone.
         await db.SaveChangesAsync(ct);
         sw.Stop();
-        StorageInstruments.GcBlobsSwept.Add(expiredBlobs.Count);
+        StorageInstruments.GcBlobsSwept.Add(swept);
         StorageInstruments.GcSweepDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("sweep_type", "blobs"));
         logger.LogInformation("FileGC: cleaned {Count} expired blobs in {ElapsedMs}ms", expiredBlobs.Count, sw.Elapsed.TotalMilliseconds);
     }
@@ -263,5 +259,49 @@ public class FileGcService(
 
         return await SchemaReconcileLease.TryAcquireAsync(
             db.Database.GetDbConnection(), logger, role.Id.Value, LeaseLifetime, LockTable, ct);
+    }
+}
+
+/// <summary>The object of an upload that never finished.</summary>
+public static class UnfinishedUploads
+{
+    /// <summary>
+    /// Aborts its multipart upload and deletes the object, each tried on its own. An object the store
+    /// would not delete stays on its row for the object sweep to take.
+    /// </summary>
+    public static async Task DiscardAsync(ApplicationDbContext db, IS3StorageService s3, ILogger logger, BlobEntity stored, string? uploadId,
+        CancellationToken ct)
+    {
+        if (uploadId is not null)
+        {
+            try
+            {
+                if (!await s3.AbortMultipartUploadAsync(stored.S3Key, uploadId, ct))
+                    logger.LogInformation("Multipart upload {UploadId} of {Key} was not open to abort", uploadId, stored.S3Key);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Failed to abort multipart upload {UploadId} of {Key}", uploadId, stored.S3Key);
+            }
+        }
+
+        var deleted = false;
+        try
+        {
+            deleted = await s3.DeleteFileAsync(stored.S3Key, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to delete S3 object {Key}", stored.S3Key);
+        }
+
+        if (deleted)
+            db.Blobs.Remove(stored);
+        else
+        {
+            logger.LogWarning("S3 object {Key} was not deleted; left to the object sweep", stored.S3Key);
+            stored.Links       = 0;
+            stored.DeleteAfter = DateTimeOffset.UtcNow;
+        }
     }
 }

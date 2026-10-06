@@ -30,11 +30,12 @@ public static class AttachmentSources
         if (source.OwnerId == userId)
             return SourceAccess.Allowed;
 
-        if (source is { Purpose: FilePurpose.ChannelAttachment, SpaceId: { } spaceId, ChannelId: { } channelId }
+        // A video is filed like the attachment it travels as: under its channel, or under its conversation.
+        if (source is { Purpose: FilePurpose.ChannelAttachment or FilePurpose.Video, SpaceId: { } spaceId, ChannelId: { } channelId }
          && await entitlements.HasChannelAccessAsync(spaceId, channelId, userId, ArgonEntitlement.ViewChannel | ArgonEntitlement.ReadHistory, ct))
             return SourceAccess.Allowed;
 
-        if (source is { Purpose: FilePurpose.DirectAttachment, ChannelId: { } conversationId }
+        if (source is { Purpose: FilePurpose.DirectAttachment or FilePurpose.Video, SpaceId: null, ChannelId: { } conversationId }
          && await db.Conversations.AnyAsync(c => c.Id == conversationId && (c.Participant1Id == userId || c.Participant2Id == userId), ct))
             return SourceAccess.Allowed;
 

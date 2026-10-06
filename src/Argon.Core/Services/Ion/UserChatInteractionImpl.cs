@@ -54,6 +54,19 @@ public class UserChatInteractionImpl : IUserChatInteractions
         return PrepareUploads.ToResult(result);
     }
 
+    public Task<IVideoUploadResult> PrepareVideoUpload(Guid peerId, VideoUploadDeclaration declaration, CancellationToken ct = default)
+        => this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).PrepareVideoUploadAsync(this.GetUserId(), peerId, declaration, ct);
+
+    public Task<IVideoUploadResult> CompleteVideoUpload(Guid peerId, Guid ticketId, IonArray<UploadedPart> parts, CancellationToken ct = default)
+        => this.GetGrain<IUserChatGrain>(Guid.CreateVersion7())
+           .CompleteVideoUploadAsync(this.GetUserId(), peerId, ticketId, parts.Values?.ToArray() ?? [], ct);
+
+    public Task AbortVideoUpload(Guid peerId, Guid ticketId, CancellationToken ct = default)
+        => this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).AbortVideoUploadAsync(this.GetUserId(), peerId, ticketId, ct);
+
+    public Task<UploadLimits> GetUploadLimits(Guid peerId, CancellationToken ct = default)
+        => this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).GetUploadLimitsAsync(this.GetUserId(), peerId, ct);
+
     public async Task<long> SendDirectMessage(Guid receiverId, string text, IonArray<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default)
         => await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).SendDirectMessageAsync(receiverId, text, entities.Values.ToList(), randomId, replyTo, ct);
 

@@ -11,17 +11,18 @@ using Microsoft.Extensions.DependencyInjection;
 public interface IS3ClientPool : IDisposable
 {
     IObjectClient GetClient();
+    IMultipartClient GetMultipartClient();
 }
 
 public sealed class S3ClientPool : IS3ClientPool
 {
-    private readonly Lazy<(ServiceProvider provider, IObjectClient client)> _lazy;
+    private readonly Lazy<(ServiceProvider provider, IObjectClient client, IMultipartClient multipart)> _lazy;
     private bool _disposed;
 
     public S3ClientPool(IOptions<StorageOptions> options)
     {
         var opts = options.Value;
-        _lazy = new Lazy<(ServiceProvider, IObjectClient)>(() =>
+        _lazy = new Lazy<(ServiceProvider, IObjectClient, IMultipartClient)>(() =>
         {
             if (!opts.IsConfigured)
                 throw new InvalidOperationException(
@@ -45,11 +46,13 @@ public sealed class S3ClientPool : IS3ClientPool
 
             var provider = services.BuildServiceProvider();
             var client   = provider.GetRequiredService<IObjectClient>();
-            return (provider, client);
+            return (provider, client, provider.GetRequiredService<IMultipartClient>());
         });
     }
 
     public IObjectClient GetClient() => _lazy.Value.client;
+
+    public IMultipartClient GetMultipartClient() => _lazy.Value.multipart;
 
     public void Dispose()
     {

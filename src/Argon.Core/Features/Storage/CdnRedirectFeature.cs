@@ -2,6 +2,7 @@ namespace Argon.Features.Storage;
 
 using Argon.Features;            // HttpContextExtensions.GetRegion
 using Argon.Features.Discovery;  // OpenPublicPolicy (AllowAnyOrigin GET CORS)
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -23,6 +24,8 @@ using Microsoft.Extensions.Options;
 ///     <list type="bullet">
 ///       <item><c>GET /files/{fileId}</c> — resolves the S3 key from the file record (falling back to a
 ///       flat key == fileId for legacy flat-keyed avatars), then 302s to the regional mirror.</item>
+///       <item><c>GET /files/{fileId}/url</c> — the same regional URL as JSON, for a player that sends its
+///       range requests there directly.</item>
 ///       <item><c>GET /files/k/{key}</c> — for keyless assets that already know their S3 key (cached
 ///       GIFs, exports); 302s straight to the regional mirror.</item>
 ///     </list>
@@ -36,6 +39,9 @@ public static class CdnRedirectFeature
         // The path comes from CdnOptions, which is also where it is composed into URLs -- see
         // CdnOptions.FilePath for why the route and the builders read one constant.
         app.MapGet($"{CdnOptions.FilePath}/{{fileId:guid}}", FileRedirectHandler)
+           .AllowAnonymous().RequireCors(DiscoveryFeature.OpenPublicPolicy);
+
+        app.MapGet($"{CdnOptions.FilePath}/{{fileId:guid}}/url", FileUrlHandler)
            .AllowAnonymous().RequireCors(DiscoveryFeature.OpenPublicPolicy);
 
         app.MapGet($"{CdnOptions.FilePath}/k/{{**key}}", KeyRedirectHandler)
@@ -66,6 +72,40 @@ public static class CdnRedirectFeature
         IGrainFactory            grains,
         HybridCache              hybrid,
         CancellationToken        ct)
+        => RegionRedirect(ctx, options.Value.Cdn, await ObjectKeyAsync(fileId, grains, hybrid, ct));
+
+    /// <summary>How long a player may keep sending its range requests to a resolved URL.</summary>
+    private const int ResolvedUrlSeconds = 300;
+
+    /// <summary>
+    /// The regional URL the 302 would send this caller to, as JSON: a video player resolves it once and
+    /// sends its range requests straight there instead of through the redirect on every chunk.
+    /// </summary>
+    private static async Task<IResult> FileUrlHandler(
+        HttpContext              ctx,
+        Guid                     fileId,
+        IOptions<StorageOptions> options,
+        IGrainFactory            grains,
+        HybridCache              hybrid,
+        CancellationToken        ct)
+    {
+        var key = await ObjectKeyAsync(fileId, grains, hybrid, ct);
+        var url = options.Value.Cdn.BuildRegionalUrl(ctx.GetRegion(), key);
+
+        // Region-dependent like the 302, so only the caller's own cache may keep it.
+        ctx.Response.Headers.CacheControl = $"private, max-age={ResolvedUrlSeconds}";
+        if (!ctx.Response.Headers.ContainsKey("Access-Control-Allow-Origin"))
+            ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
+
+        return Results.Json(new ResolvedFileUrl(url, ResolvedUrlSeconds));
+    }
+
+    private sealed record ResolvedFileUrl(
+        [property: JsonPropertyName("url")] string Url,
+        [property: JsonPropertyName("ttlSeconds")] int TtlSeconds);
+
+    /// <summary>The file's object key, or the file id itself for a legacy flat-keyed avatar.</summary>
+    private static async Task<string> ObjectKeyAsync(Guid fileId, IGrainFactory grains, HybridCache hybrid, CancellationToken ct)
     {
         var cacheKey = $"cdn:file-key:{fileId}";
         var fresh    = false;
@@ -86,8 +126,7 @@ public static class CdnRedirectFeature
         if (fresh && key.Length == 0)
             await hybrid.SetAsync(cacheKey, key, MissingKeyOptions, cancellationToken: ct);
 
-        // Fallback: legacy flat key (key == fileId).
-        return RegionRedirect(ctx, options.Value.Cdn, key.Length == 0 ? fileId.ToString() : key);
+        return key.Length == 0 ? fileId.ToString() : key;
     }
 
     private static IResult KeyRedirectHandler(HttpContext ctx, string key, IOptions<StorageOptions> options)

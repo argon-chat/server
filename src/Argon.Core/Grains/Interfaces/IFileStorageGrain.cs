@@ -30,6 +30,14 @@ public record FileInfoResponse(
     [property: Id(5)] string DownloadUrl,
     [property: Id(6)] string S3Key);
 
+/// <summary>A video the caller's client prepared, for a channel (<see cref="SpaceId"/> set) or a direct chat (conversation as <see cref="ChannelId"/>).</summary>
+[GenerateSerializer]
+public record VideoUploadRequest(
+    [property: Id(0)] Guid?                  SpaceId,
+    [property: Id(1)] Guid?                  ChannelId,
+    [property: Id(2)] FilePurpose            Purpose,
+    [property: Id(3)] VideoUploadDeclaration Declaration);
+
 /// <summary>What a prepared upload came to: a ticket to send the bytes on, or a copy of a file the account could already see.</summary>
 [GenerateSerializer]
 public record PreparedUpload(
@@ -116,4 +124,52 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(GetDownloadUrlAsync))]
     Task<string?> GetDownloadUrlAsync(Guid fileId, CancellationToken ct = default);
+
+    /// <summary>
+    ///     A ticket for the video the declaration describes, or a copy when the account can already see
+    ///     these bytes. Over-limit, over-long, non-MP4 and foreign posters are refused before anything is
+    ///     signed. The caller has checked it may post in the target.
+    /// </summary>
+    /// <remarks>
+    ///     Refusals: <c>TOO_LARGE</c> over the tier's limit, <c>TOO_LONG</c> over the duration cap,
+    ///     <c>CONTENT_TYPE_REJECTED</c> for anything but <c>video/mp4</c> or a codec other than H.264,
+    ///     <c>POSTER_REJECTED</c> for a poster or storyboard that is not the caller's finalized image in the
+    ///     same chat, <c>DECLARATION_MISMATCH</c> for impossible values, and <c>NOT_AUTHORIZED</c> once the
+    ///     account holds <see cref="FileLimitsOptions.VideoMaxOpenTickets"/> open tickets.
+    /// </remarks>
+    [Alias(nameof(PrepareVideoUploadAsync)), ResponseTimeout("00:02:00")]
+    Task<IVideoUploadResult> PrepareVideoUploadAsync(VideoUploadRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    ///     Closes a video ticket of the caller's: completes the multipart upload, reads the MP4 header,
+    ///     checks it and keeps the media record. Called again for a finished ticket it answers the same.
+    /// </summary>
+    /// <remarks>
+    ///     Refusals: <c>DECLARATION_MISMATCH</c> for a parts list S3 does not take (the ticket and its
+    ///     upload stay for a retry) or a header that disagrees with the declaration, <c>NOT_STREAMABLE</c>
+    ///     without <c>moov</c> first within <see cref="FileLimitsOptions.VideoProbeBytes"/> or without a
+    ///     duration, <c>TOO_LONG</c>, <c>CONTENT_TYPE_REJECTED</c> for a codec other than H.264, and
+    ///     <c>TICKET_EXPIRED</c>. A refused header costs the object, not the ticket.
+    /// </remarks>
+    [Alias(nameof(CompleteVideoUploadAsync)), ResponseTimeout("00:02:00")]
+    Task<IVideoUploadResult> CompleteVideoUploadAsync(Guid ticketId, UploadedPart[] parts, CancellationToken ct = default);
+
+    /// <summary>Drops a video ticket of the caller's, its parts and its object.</summary>
+    [Alias(nameof(AbortVideoUploadAsync))]
+    Task AbortVideoUploadAsync(Guid ticketId, CancellationToken ct = default);
+
+    /// <summary>
+    ///     The caller's size limits for an attachment and a video in a channel of <paramref name="spaceId"/>,
+    ///     or in a direct chat when it is null (base and Ultima only), and the video duration cap.
+    /// </summary>
+    [Alias(nameof(GetUploadLimitsAsync))]
+    Task<UploadLimits> GetUploadLimitsAsync(Guid? spaceId, CancellationToken ct = default);
+
+    /// <summary>The media record of a finalized video file, or null.</summary>
+    [Alias(nameof(GetVideoInfoAsync))]
+    Task<VideoInfo?> GetVideoInfoAsync(Guid fileId, CancellationToken ct = default);
+
+    /// <summary>The caller's videos among <paramref name="fileIds"/> that were uploaded into <paramref name="scopeId"/> (a channel or a conversation).</summary>
+    [Alias(nameof(GetSendableVideosAsync))]
+    Task<Dictionary<Guid, VideoInfo>> GetSendableVideosAsync(Guid scopeId, List<Guid> fileIds, CancellationToken ct = default);
 }

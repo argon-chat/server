@@ -1,8 +1,10 @@
 namespace Argon.Grains;
 
+using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Transport;
 using Argon.Core.Services;
 using Argon.Features.Moderation;
+using Argon.Features.Storage;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -97,6 +99,12 @@ public class ChannelComposerGrain(
             return Failed(SchedulePostError.INSUFFICIENT_PERMISSIONS);
 
         error = ValidateTime(publishAt);
+        if (error != SchedulePostError.NONE)
+            return Failed(error);
+
+        // What a pending post shows its readers is the file's record, not what the client claimed.
+        entities = await ResolveVideosAsync(authorId, entities);
+        error    = ValidateContent(text, entities);
         if (error != SchedulePostError.NONE)
             return Failed(error);
 
@@ -550,7 +558,31 @@ public class ChannelComposerGrain(
         return SchedulePostError.NONE;
     }
 
-    private static bool IsFile(IMessageEntity e) => e is MessageEntityAttachment or MessageEntityGif;
+    private static bool IsFile(IMessageEntity e) => e is MessageEntityAttachment or MessageEntityGif or MessageEntityVideo;
+
+    /// <summary>Video entities rewritten from the author's media records; one the author did not upload into this channel is dropped.</summary>
+    private async Task<List<IMessageEntity>> ResolveVideosAsync(Guid authorId, List<IMessageEntity> entities)
+    {
+        var claimed = entities.OfType<MessageEntityVideo>().Select(v => v.fileId).Distinct().ToList();
+        if (claimed.Count == 0)
+            return entities;
+
+        var found    = await GrainFactory.GetGrain<IFileStorageGrain>(authorId).GetSendableVideosAsync(ChannelId, claimed);
+        var resolved = new List<IMessageEntity>(entities.Count);
+
+        foreach (var entity in entities)
+        {
+            if (entity is not MessageEntityVideo video)
+                resolved.Add(entity);
+            else if (found.TryGetValue(video.fileId, out var info))
+                resolved.Add(VideoMedia.FromRecord(video, info));
+            else
+                logger.LogWarning("Video {FileId} dropped from a scheduled post: not one {AuthorId} uploaded into channel {ChannelId}",
+                    video.fileId, authorId, ChannelId);
+        }
+
+        return resolved;
+    }
 
     private static bool HasFiles(List<IMessageEntity>? entities) => entities?.Any(IsFile) == true;
 
@@ -562,6 +594,7 @@ public class ChannelComposerGrain(
             MessageEntityGif { previewUrl: not null } g         => g with { previewUrl = null },
             MessageEntitySticker s                              => s with { downloadUrl = null, thumbUrl = null },
             MessageEntityCustomEmoji c                          => c with { downloadUrl = null },
+            MessageEntityVideo v                                => VideoMedia.WithoutUrls(v),
             _                                                   => e
         }).ToList();
 

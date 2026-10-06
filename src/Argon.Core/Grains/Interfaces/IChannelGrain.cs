@@ -180,6 +180,20 @@ public interface IChannelGrain : IGrainWithGuidKey
     ValueTask<Either<PreparedUpload, PrepareUploadError>> PrepareUploadAttachment(byte[] sha256, long size, string contentType, string fileName,
         CancellationToken ct = default);
 
+    /// <summary>A video ticket for this channel (or a copy of a video the caller can already see); needs AttachFiles.</summary>
+    [Alias(nameof(PrepareVideoUpload)), ResponseTimeout("00:03:00"), AlwaysInterleave]
+    Task<IVideoUploadResult> PrepareVideoUpload(Guid callerId, VideoUploadDeclaration declaration, CancellationToken ct = default);
+
+    [Alias(nameof(CompleteVideoUpload)), ResponseTimeout("00:03:00"), AlwaysInterleave]
+    Task<IVideoUploadResult> CompleteVideoUpload(Guid callerId, Guid ticketId, UploadedPart[] parts, CancellationToken ct = default);
+
+    [Alias(nameof(AbortVideoUpload)), AlwaysInterleave]
+    Task AbortVideoUpload(Guid callerId, Guid ticketId, CancellationToken ct = default);
+
+    /// <summary>The caller's upload limits in this channel; all zero for a caller who cannot read it.</summary>
+    [Alias(nameof(GetUploadLimits)), AlwaysInterleave]
+    Task<UploadLimits> GetUploadLimits(Guid callerId, CancellationToken ct = default);
+
     [Alias(nameof(InvokeSlashCommand))]
     Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options);
 

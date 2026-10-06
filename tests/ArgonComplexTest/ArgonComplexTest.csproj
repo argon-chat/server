@@ -47,6 +47,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The MP4 writer the probe's unit tests use; VideoUploadTests uploads what it writes. -->
+    <Compile Include="..\ArgonSharedLogicTest\Storage\Mp4Builder.cs" Link="Infrastructure\Mp4Builder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
   </ItemGroup>
 

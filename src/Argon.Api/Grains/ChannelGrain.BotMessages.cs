@@ -1,12 +1,15 @@
 namespace Argon.Grains;
 
+using Argon.Features.Storage;
+
 public partial class ChannelGrain
 {
     public async Task<BotMessageSent> SendBotMessage(BotMessageSend request)
     {
-        var entities = (request.Entities ?? []).Where(e => e is not MessageEntityAttachment).ToList();
+        var entities = (request.Entities ?? []).Where(e => e is not (MessageEntityAttachment or MessageEntityVideo)).ToList();
         var fileIds  = (request.Attachments ?? []).Distinct().ToList();
         var files    = new List<MessageEntityAttachment>(fileIds.Count);
+        var videos   = new Dictionary<Guid, VideoInfo>();
 
         if (fileIds.Count > 0)
         {
@@ -25,10 +28,16 @@ public partial class ChannelGrain
 
             files.AddRange(fileIds.Select(id => uploads[id]).Select(f => new MessageEntityAttachment(EntityType.Attachment, 0, 0, 1,
                 f.FileId, f.FileName, f.Size, f.ContentType, f.Width, f.Height, null, null)));
-            entities.AddRange(files);
+
+            foreach (var upload in uploads.Values)
+                if (upload.Video is { } video)
+                    videos[upload.FileId] = video;
+
+            // A playable MP4 goes out as a video; the bot is still answered with its files as attachments.
+            entities.AddRange(files.Select(f => videos.ContainsKey(f.fileId) ? VideoMedia.Placeholder(f.fileId) : (IMessageEntity)f));
         }
 
-        var (error, messageId) = await SendMessage(request.Text, entities, request.RandomId, request.ReplyTo, request.Controls);
+        var (error, messageId) = await SendMessageAsync(request.Text, entities, request.RandomId, request.ReplyTo, request.Controls, videos);
         if (error != SendMessageError.NONE)
             return Refused(error);
 

@@ -19,6 +19,7 @@ public sealed class BotFilesGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IArgonCacheDatabase counters,
     IS3StorageService s3,
+    IOptions<FileLimitsOptions> limits,
     ILogger<BotFilesGrain> logger) : Grain, IBotFilesGrain
 {
     private Guid   BotUserId  => this.GetPrimaryKey();
@@ -55,6 +56,9 @@ public sealed class BotFilesGrain(
 
         if (attachment && type.StartsWith("image/", StringComparison.Ordinal))
             await RememberSizeAsync(file.FileId, data);
+
+        if (attachment && type == VideoMedia.ContentType)
+            await RememberVideoAsync(file.FileId, data);
 
         return new BotFileUploadResult(ExpressionError.NONE,
             new BotFileDescription(file.FileId, file.FileSize, file.ContentType ?? type, s3.GetFileDownloadUrl(file.FileId), name));
@@ -111,17 +115,20 @@ public sealed class BotFilesGrain(
            .AsNoTracking()
            .Where(f => fileIds.Contains(f.Id) && f.OwnerId == BotUserId && f.Finalized && f.CreatedAt > cutoff
                     && f.Purpose == FilePurpose.ChannelAttachment)
-           .Select(f => new { f.Id, f.FileName, f.FileSize, f.ContentType })
            .ToListAsync();
+
+        var ids   = files.Select(f => f.Id).ToList();
+        var media = await ctx.FileMedia.AsNoTracking().Where(m => ids.Contains(m.FileId)).ToDictionaryAsync(m => m.FileId);
 
         var found = new Dictionary<Guid, BotAttachmentFile>(files.Count);
 
         foreach (var file in files)
         {
-            var type = file.ContentType ?? ExpressionUploads.OctetStream;
-            var size = type.StartsWith("image/", StringComparison.Ordinal) ? await SizeOfAsync(file.Id) : null;
+            var type  = file.ContentType ?? ExpressionUploads.OctetStream;
+            var size  = type.StartsWith("image/", StringComparison.Ordinal) ? await SizeOfAsync(file.Id) : null;
+            var video = media.TryGetValue(file.Id, out var record) ? VideoMedia.ToInfo(file, record, s3) : null;
 
-            found[file.Id] = new BotAttachmentFile(file.Id, file.FileName ?? "file", file.FileSize, type, size?.Width, size?.Height);
+            found[file.Id] = new BotAttachmentFile(file.Id, file.FileName ?? "file", file.FileSize, type, size?.Width, size?.Height, video);
         }
 
         return found;
@@ -189,6 +196,24 @@ public sealed class BotFilesGrain(
         catch (Exception e)
         {
             logger.LogWarning(e, "could not keep the size of attachment {FileId}", fileId);
+        }
+    }
+
+    /// <summary>A faststart H.264 MP4 of sane size and length gets a media record off its header; any other stays a plain file.</summary>
+    private async Task RememberVideoAsync(Guid fileId, byte[] data)
+    {
+        if (!Mp4Probe.TryProbe(data, data.Length, out var read, out _) || !VideoMedia.IsPlayable(read, limits.Value.VideoMaxDurationMs))
+            return;
+
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync();
+            ctx.FileMedia.Add(VideoMedia.Record(fileId, read, null, data.Length));
+            await ctx.SaveChangesAsync();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "could not keep the media record of video {FileId}", fileId);
         }
     }
 

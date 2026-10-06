@@ -44,6 +44,8 @@ public static class BotEventMapper
         MessageEntityAttachment e         => Base(e.type, e.offset, e.length) with { FileName = e.fileName, FileSize = e.fileSize, ContentType = e.contentType, Width = e.width, Height = e.height, ThumbHash = e.thumbHash, Url = e.downloadUrl },
         MessageEntityGif e               => Base(e.type, e.offset, e.length) with { Width = e.width, Height = e.height },
         MessageEntityLinkPreview e       => Base(e.type, e.offset, e.length) with { Url = e.url, Title = e.title, Description = e.description, SiteName = e.siteName, ImageUrl = e.imageUrl, CanonicalUrl = e.canonicalUrl },
+        // V1 has no video shape: a bot sees one as the attachment it would have been.
+        MessageEntityVideo e             => Base(EntityType.Attachment, e.offset, e.length) with { FileName = e.fileName, FileSize = e.fileSize, ContentType = e.contentType, Width = e.width, Height = e.height, ThumbHash = e.thumbHash, Url = e.downloadUrl },
         // Stickers and custom emoji have no V1 shape; bots do not see them.
         _ => null
     };
@@ -64,7 +66,7 @@ public static class BotEventMapper
                .ToList()
             : null;
 
-        var attachments = msg.entities.Values.OfType<MessageEntityAttachment>().Select(FromAttachment).ToList();
+        var attachments = AttachmentsOf(msg.entities.Values);
 
         var crosspost = msg.crosspost is { } cp
             ? new BotCrosspostV1(cp.sourceSpaceId, cp.sourceChannelId, cp.sourceMessageId, cp.sourceSpaceName, cp.sourceChannelName)
@@ -77,6 +79,20 @@ public static class BotEventMapper
             msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions, crosspost, webhook,
             attachments.Count > 0 ? attachments : null);
     }
+
+    /// <summary>The files a message carries, videos among them as the attachments they were before V1 knew of videos.</summary>
+    public static List<BotAttachmentV1> AttachmentsOf(IEnumerable<IMessageEntity?> entities)
+        => entities.Select(e => e switch
+            {
+                MessageEntityAttachment a => FromAttachment(a),
+                MessageEntityVideo v      => FromVideo(v),
+                _                         => null
+            })
+           .OfType<BotAttachmentV1>()
+           .ToList();
+
+    public static BotAttachmentV1 FromVideo(MessageEntityVideo v)
+        => new(v.fileId, v.downloadUrl ?? string.Empty, v.fileName, v.fileSize, v.contentType, v.width, v.height);
 
     public static BotAttachmentV1 FromAttachment(MessageEntityAttachment a)
         => new(a.fileId, a.downloadUrl ?? string.Empty, a.fileName, a.fileSize, a.contentType, a.width, a.height);

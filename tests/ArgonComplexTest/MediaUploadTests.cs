@@ -537,7 +537,8 @@ public class MediaUploadTests : TestBase
         {
             Assert.That(collected, Is.All.True, "expired blobs' files and the orphan are collected");
             Assert.That(kept, Is.All.False, "a live upload and a referenced file are kept");
-            Assert.That(expired.Select(f => blobs[f.Id]), Is.All.True);
+            // The sweep deletes a ticket outright: taking the row is how it claims the cleanup.
+            Assert.That(expired.Select(f => blobs.GetValueOrDefault(f.Id, true)), Is.All.True);
             Assert.That(blobs[pending.Id], Is.False);
             Assert.That(counters[orphan.Id], Is.True);
             Assert.That(counters[retained.Id], Is.False);

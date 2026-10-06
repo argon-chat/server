@@ -12,6 +12,10 @@ public class FileStorageController(IClusterClient client) : ControllerBase
     [HttpPost("upload")]
     public async Task<IActionResult> RequestUpload([FromBody] FileUploadHttpRequest request, CancellationToken ct)
     {
+        // A video goes through PrepareVideoUpload, where its header is checked.
+        if (request.Purpose == FilePurpose.Video)
+            return BadRequest(new { error = "video uploads go through PrepareVideoUpload" });
+
         var grain = client.GetGrain<IFileStorageGrain>(UserId);
         var result = await grain.RequestUploadAsync(new FileUploadRequest(
             request.Purpose,
