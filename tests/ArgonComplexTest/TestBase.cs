@@ -264,6 +264,54 @@ public abstract class TestBase
     protected async Task<string?> GetEmailCodeAsync(string email, TimeSpan? timeout = null, CancellationToken ct = default)
         => await GetTestCodeStore().GetCodeAsync(email, TestCodeType.Email, timeout ?? TimeSpan.FromSeconds(5), ct);
 
+    /// <summary>
+    /// The next code mailed to an address, skipping the one it already had: the store keeps the latest
+    /// code per address and never forgets it, so a resend would otherwise read the first one back.
+    /// </summary>
+    protected async Task<string> NextEmailCodeAsync(string email, string? previous, CancellationToken ct = default)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (GetTestCodeStore().GetCode(email, TestCodeType.Email) is { } code && code != previous)
+                return code;
+
+            await Task.Delay(50, ct);
+        }
+
+        Assert.Fail($"no new code reached {email}");
+        return null!;
+    }
+
+    /// <summary>A verified step-up flow for the account: its password, then the code mailed to its address.</summary>
+    protected async Task<Guid> VerifiedFlowAsync(TestUserSession account, SensitiveAction action, CancellationToken ct = default)
+    {
+        var begun = await account.Security.BeginVerification(action, ct);
+        if (begun is not SuccessBeginVerification { flow: var flow })
+        {
+            Assert.Fail($"could not begin a verification flow: {(begun as FailedBeginVerification)?.error}");
+            return Guid.Empty;
+        }
+
+        var email    = account.Credentials.email;
+        var previous = GetTestCodeStore().GetCode(email, TestCodeType.Email);
+
+        var password = await account.Security.SubmitVerification(flow.flowId, VerificationFactor.PASSWORD, account.Credentials.password, ct);
+        Assert.That(password, Is.InstanceOf<SuccessSubmitVerification>(), $"the password was refused: {(password as FailedSubmitVerification)?.error}");
+
+        var sent = await account.Security.ChallengeVerification(flow.flowId, VerificationFactor.EMAIL_CODE, ct);
+        Assert.That(sent, Is.InstanceOf<VerificationCodeSent>(), $"no code was sent: {(sent as FailedChallengeVerification)?.error}");
+
+        var code     = await NextEmailCodeAsync(email, previous, ct);
+        var verified = await account.Security.SubmitVerification(flow.flowId, VerificationFactor.EMAIL_CODE, code, ct);
+
+        Assert.That((verified as SuccessSubmitVerification)?.flow.verified, Is.True,
+            $"the emailed code did not verify the flow: {(verified as FailedSubmitVerification)?.error}");
+
+        return flow.flowId;
+    }
+
     protected async Task<string?> GetPhoneCodeAsync(string phone, TimeSpan? timeout = null, CancellationToken ct = default)
         => await GetTestCodeStore().GetCodeAsync(phone, TestCodeType.Phone, timeout ?? TimeSpan.FromSeconds(5), ct);
 

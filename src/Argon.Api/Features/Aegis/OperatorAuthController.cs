@@ -38,12 +38,7 @@ public class OperatorAuthController(
         {
             logger.LogWarning("[Operator] No client certificate presented for user {UserId}", userId);
 
-            return BadRequest(new
-            {
-                error             = "no_certificate",
-                error_description = "No client certificate was presented. Ensure your YubiKey is " +
-                                    "connected and the certificate is installed."
-            });
+            return BadRequest(new { error = "no_certificate" });
         }
 
         var raw = certificate.RawData;
@@ -62,8 +57,8 @@ public class OperatorAuthController(
 
             return BadRequest(new
             {
-                error             = "certificate_validation_failed",
-                error_description = Explain(result.Error)
+                error  = "certificate_validation_failed",
+                reason = ReasonOf(result.Error)
             });
         }
 
@@ -84,21 +79,21 @@ public class OperatorAuthController(
     }
 
     /// <summary>
-    /// What to tell the person at the keyboard.
+    /// What to tell the person at the keyboard, as a code the widget translates.
     /// </summary>
     /// <remarks>
     /// Deliberately vaguer than the log line beside it. Which of these it was is useful to whoever
     /// is debugging and useful to whoever is probing, so the detail goes to the log and the person
     /// gets the part they can act on.
     /// </remarks>
-    private static string Explain(OperatorAuthError error)
+    private static string ReasonOf(OperatorAuthError error)
         => error switch
         {
-            OperatorAuthError.CertificateNotTrusted   => "Certificate is not trusted by the operator CA.",
-            OperatorAuthError.CertificateRevoked      => "Certificate has been revoked.",
-            OperatorAuthError.CertificateUserMismatch => "Certificate does not belong to the current user.",
-            OperatorAuthError.OperatorInactive        => "Operator account is inactive.",
-            OperatorAuthError.OperatorNotFound        => "Certificate is not associated with any operator.",
-            _                                         => "The certificate could not be verified."
+            OperatorAuthError.CertificateNotTrusted   => "certificate_not_trusted",
+            OperatorAuthError.CertificateRevoked      => "certificate_revoked",
+            OperatorAuthError.CertificateUserMismatch => "certificate_user_mismatch",
+            OperatorAuthError.OperatorInactive        => "operator_inactive",
+            OperatorAuthError.OperatorNotFound        => "operator_not_found",
+            _                                         => "certificate_unverified"
         };
 }

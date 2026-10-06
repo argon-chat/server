@@ -518,14 +518,14 @@ public class AppManagementTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That(toolStranger, Is.EqualTo(new LoginAllowedResult(false, "Internal apps require team membership")));
+            Assert.That(toolStranger, Is.EqualTo(new LoginAllowedResult(false, LoginDenial.InternalAppTeamOnly)));
             Assert.That(toolOwner.IsAllowed, Is.False, "a team member without a staff mailbox reached an internal app");
-            Assert.That(toolOwner.Reason, Does.Contain("security requirements"));
+            Assert.That(toolOwner.Reason, Is.EqualTo(LoginDenial.InternalAppStaffOnly));
             Assert.That(toolStaffer, Is.EqualTo(new LoginAllowedResult(true, null)));
             Assert.That(botStranger, Is.EqualTo(new LoginAllowedResult(true, null)), "a published bot refused an ordinary user");
-            Assert.That(unknown, Is.EqualTo(new LoginAllowedResult(false, "App not found")));
+            Assert.That(unknown, Is.EqualTo(new LoginAllowedResult(false, LoginDenial.AppNotFound)));
             Assert.That(privOwner, Is.EqualTo(new LoginAllowedResult(true, null)));
-            Assert.That(privStranger, Is.EqualTo(new LoginAllowedResult(false, "Unapproved apps require team membership")),
+            Assert.That(privStranger, Is.EqualTo(new LoginAllowedResult(false, LoginDenial.UnapprovedAppTeamOnly)),
                 "an app nobody has reviewed let an outsider sign in");
 
             Assert.That(consent, Is.Not.Null);

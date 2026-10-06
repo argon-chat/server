@@ -133,8 +133,8 @@ watch(email, (newVal, oldVal) => {
             <!-- Email -->
             <div class="space-y-1.5">
               <div class="flex items-center gap-2">
-                <label for="email" class="text-xs font-medium text-white/50">Email</label>
-                <span v-if="step === 'password'" class="text-[10px] text-white/25">{{ t("editing_resets_step") || "editing will reset step" }}</span>
+                <label for="email" class="text-xs font-medium text-white/50">{{ t("email") }}</label>
+                <span v-if="step === 'password'" class="text-[10px] text-white/25">{{ t("editing_resets_step") }}</span>
               </div>
               <InputWithError
                 v-model="email"
@@ -156,7 +156,7 @@ watch(email, (newVal, oldVal) => {
               leave-to-class="opacity-0 translate-y-2"
             >
               <div v-if="step === 'password'" class="space-y-1.5">
-                <label for="password" class="text-xs font-medium text-white/50">Password</label>
+                <label for="password" class="text-xs font-medium text-white/50">{{ t("password") }}</label>
                 <div class="relative">
                   <input
                     id="password"
@@ -228,7 +228,7 @@ watch(email, (newVal, oldVal) => {
             <div class="pt-1">
               <div class="flex items-center gap-3 mb-3">
                 <div class="flex-1 h-px bg-white/[0.06]" />
-                <span class="text-[10px] text-white/20 uppercase tracking-widest">or</span>
+                <span class="text-[10px] text-white/20 uppercase tracking-widest">{{ t("or") }}</span>
                 <div class="flex-1 h-px bg-white/[0.06]" />
               </div>
               <Button

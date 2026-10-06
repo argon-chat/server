@@ -4,11 +4,27 @@ using ion.runtime;
 
 public class SecurityInteractionImpl : ISecurityInteraction
 {
-    public async Task<IRequestEmailChangeResult> RequestEmailChange(string newEmail, string password, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RequestEmailChangeAsync(newEmail, password, ct);
+    // What a verification flow is bound to: the token's sid, which survives a relaunch, or the presence sid
+    // for a token from before the claim existed.
+    private Guid FlowSession => this.GetCredentialSessionId() ?? this.GetSessionId();
 
-    public async Task<IConfirmEmailChangeResult> ConfirmEmailChange(string verificationCode, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).ConfirmEmailChangeAsync(verificationCode, ct);
+    public async Task<IBeginVerificationResult> BeginVerification(SensitiveAction action, CancellationToken ct = default)
+        => await this.GetGrain<IVerificationGrain>(this.GetUserId()).BeginAsync(action, FlowSession, ct);
+
+    public async Task<IChallengeVerificationResult> ChallengeVerification(Guid flowId, VerificationFactor factor, CancellationToken ct = default)
+        => await this.GetGrain<IVerificationGrain>(this.GetUserId()).ChallengeAsync(flowId, factor, FlowSession, ct);
+
+    public async Task<ISubmitVerificationResult> SubmitVerification(Guid flowId, VerificationFactor factor, string proof, CancellationToken ct = default)
+        => await this.GetGrain<IVerificationGrain>(this.GetUserId()).SubmitAsync(flowId, factor, proof, FlowSession, ct);
+
+    public async Task CancelVerification(Guid flowId, CancellationToken ct = default)
+        => await this.GetGrain<IVerificationGrain>(this.GetUserId()).CancelAsync(flowId, FlowSession, ct);
+
+    public async Task<IRequestEmailChangeResult> RequestEmailChange(Guid flowId, string newEmail, CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RequestEmailChangeAsync(flowId, newEmail, FlowSession, ct);
+
+    public async Task<IConfirmEmailChangeResult> ConfirmEmailChange(Guid flowId, string verificationCode, CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).ConfirmEmailChangeAsync(flowId, verificationCode, FlowSession, ct);
 
     public async Task<IRequestPhoneChangeResult> RequestPhoneChange(string newPhone, string password, CancellationToken ct = default)
         => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RequestPhoneChangeAsync(newPhone, password, ct);

@@ -1644,9 +1644,9 @@ public class AccountDeletionGrain(
     /// <para>Defects ACC-07 and ACC-05, pinned by
     /// <c>AccountDeletionTests.Every_table_holding_personal_data_is_emptied</c> and
     /// <c>The_social_graph_forgets_the_deleted_account</c>. This list is hand-maintained and had
-    /// drifted: four of the survivors did not exist when it was written, and the sharpest pair —
-    /// <c>PendingEmailChanges</c> and <c>PendingPhoneChanges</c> — held a plaintext address and phone
-    /// number the person was half-way through switching to, with no TTL, no sweeper and a declared FK
+    /// drifted: four of the survivors did not exist when it was written, and the sharpest —
+    /// <c>PendingPhoneChanges</c> — held a plaintext phone number the person was half-way through
+    /// switching to, with no TTL, no sweeper and a declared FK
     /// cascade that can never fire because the user row is anonymised rather than removed, while the
     /// same execution is careful to null the <c>PhoneNumber</c> column eighty lines earlier.</para>
     ///
@@ -1745,12 +1745,8 @@ public class AccountDeletionGrain(
             .Where(p => p.AuthorId == userId)
             .ExecuteDeleteAsync();
 
-        // Pending contact changes — a plaintext address and phone number, unverified and unreferenced
-        await ctx.PendingEmailChanges
-            .IgnoreQueryFilters()
-            .Where(p => p.UserId == userId)
-            .ExecuteDeleteAsync();
-
+        // A pending phone change — a plaintext number, unverified and unreferenced. A pending email change
+        // lives in the verification flow, under a TTL.
         await ctx.PendingPhoneChanges
             .IgnoreQueryFilters()
             .Where(p => p.UserId == userId)

@@ -4,8 +4,10 @@ using Argon.Entities;
 using Argon.Features.Auth;
 using Argon.Features.Jwt;
 using Argon.Features.Logic;
+using Argon.Features.Testing;
 using Argon.Grains.Interfaces;
 using Argon.Services;
+using ArgonComplexTest.Infrastructure.Account;
 using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,19 +42,22 @@ public class AccountSecurityTests : TestBase
 
     // ── email change ────────────────────────────────────────────────────────────────────────────
 
+    private RecordingEmailSink Mail => FactoryAsp.Services.GetRequiredService<RecordingEmailSink>();
+
     [Test, CancelAfter(120_000)]
     public async Task An_email_change_is_refused_for_something_that_is_not_an_address_or_is_taken(CancellationToken ct = default)
     {
         var account = await CreateSessionAsync(ct);
         var other   = await CreateSessionAsync(ct);
-        var pass    = account.Credentials.password;
+        var flow    = await VerifiedFlowAsync(account, SensitiveAction.CHANGE_EMAIL, ct);
 
-        var notAnAddress = await account.Security.RequestEmailChange("not-an-address", pass, ct);
-        var blank        = await account.Security.RequestEmailChange("   ", pass, ct);
-        var displayForm  = await account.Security.RequestEmailChange($"Someone <{NewEmail()}>", pass, ct);
-        var taken        = await account.Security.RequestEmailChange(other.Credentials.email.ToUpperInvariant(), pass, ct);
-        var tooLong      = await account.Security.RequestEmailChange(
-            $"{new string('a', 64)}@{string.Join('.', Enumerable.Repeat(new string('b', 60), 4))}.local", pass, ct);
+        var notAnAddress = await account.Security.RequestEmailChange(flow, "not-an-address", ct);
+        var blank        = await account.Security.RequestEmailChange(flow, "   ", ct);
+        var displayForm  = await account.Security.RequestEmailChange(flow, $"Someone <{NewEmail()}>", ct);
+        var taken        = await account.Security.RequestEmailChange(flow, other.Credentials.email.ToUpperInvariant(), ct);
+        var own          = await account.Security.RequestEmailChange(flow, account.Credentials.email, ct);
+        var tooLong      = await account.Security.RequestEmailChange(flow,
+            $"{new string('a', 64)}@{string.Join('.', Enumerable.Repeat(new string('b', 60), 4))}.local", ct);
 
         Assert.Multiple(() =>
         {
@@ -62,55 +67,91 @@ public class AccountSecurityTests : TestBase
                 "a display-name form was accepted as a bare address");
             Assert.That((taken as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.EMAIL_ALREADY_USED),
                 "another account's address, in another case, was offered as free");
+            Assert.That((own as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.EMAIL_ALREADY_USED));
             Assert.That((tooLong as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.INVALID_EMAIL),
                 "an address longer than the 254 characters an address may have was accepted and sent a code, "
               + "though Users.NormalizedEmail (varchar(255)) cannot hold it and the confirmation can only fail");
         });
     }
 
+    /// <summary>
+    /// Before the flow is verified the address is not even looked at, so a stolen session without the
+    /// password cannot find out which addresses are registered.
+    /// </summary>
     [Test, CancelAfter(120_000)]
-    public async Task Three_pending_email_changes_are_the_most_an_account_may_hold(CancellationToken ct = default)
+    public async Task An_email_change_without_a_verified_flow_is_refused_before_the_address_is_read(CancellationToken ct = default)
     {
         var account = await CreateSessionAsync(ct);
+        var other   = await CreateSessionAsync(ct);
 
-        var results = new List<IRequestEmailChangeResult>();
+        var none = await account.Security.RequestEmailChange(Guid.NewGuid(), other.Credentials.email, ct);
 
-        for (var i = 0; i < 4; i++)
-            results.Add(await account.Security.RequestEmailChange(NewEmail(), account.Credentials.password, ct));
+        var begun     = (SuccessBeginVerification)await account.Security.BeginVerification(SensitiveAction.CHANGE_EMAIL, ct);
+        await account.Security.SubmitVerification(begun.flow.flowId, VerificationFactor.PASSWORD, account.Credentials.password, ct);
+        var halfway   = await account.Security.RequestEmailChange(begun.flow.flowId, other.Credentials.email, ct);
+        var confirmed = await account.Security.ConfirmEmailChange(begun.flow.flowId, "123456", ct);
 
         Assert.Multiple(() =>
         {
-            Assert.That(results.Take(3), Is.All.InstanceOf<SuccessRequestEmailChange>());
-            Assert.That((results[3] as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.RATE_LIMITED));
+            Assert.That((none as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED));
+            Assert.That((halfway as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED),
+                "the password alone was enough, without the code from the current address");
+            Assert.That((confirmed as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED));
+            Assert.That(Mail.Sent(other.Credentials.email, EmailKinds.OtpCode), Is.Empty);
         });
     }
 
     [Test, CancelAfter(120_000)]
-    public async Task Five_wrong_codes_spend_the_pending_email_change(CancellationToken ct = default)
+    public async Task A_code_to_the_same_new_address_waits_out_the_cooldown(CancellationToken ct = default)
+    {
+        var account = await CreateSessionAsync(ct);
+        var flow    = await VerifiedFlowAsync(account, SensitiveAction.CHANGE_EMAIL, ct);
+        var address = NewEmail();
+
+        var first     = await account.Security.RequestEmailChange(flow, address, ct);
+        var again     = await account.Security.RequestEmailChange(flow, address, ct);
+        var corrected = await account.Security.RequestEmailChange(flow, NewEmail(), ct);
+
+        Assert.That(first, Is.InstanceOf<SuccessRequestEmailChange>());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(((SuccessRequestEmailChange)first).resendAt, Is.GreaterThan(DateTimeOffset.UtcNow));
+            Assert.That((again as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.RATE_LIMITED));
+            Assert.That(corrected, Is.InstanceOf<SuccessRequestEmailChange>(),
+                "a corrected address had to wait out the cooldown of the mistyped one");
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task Wrong_codes_for_the_new_address_spend_the_flow(CancellationToken ct = default)
     {
         var account  = await CreateSessionAsync(ct);
         var newEmail = NewEmail();
+        var flow     = await VerifiedFlowAsync(account, SensitiveAction.CHANGE_EMAIL, ct);
 
-        var nothingPending = await account.Security.ConfirmEmailChange("123456", ct);
+        var nothingPending = await account.Security.ConfirmEmailChange(flow, "123456", ct);
 
-        await account.Security.RequestEmailChange(newEmail, account.Credentials.password, ct);
+        await account.Security.RequestEmailChange(flow, newEmail, ct);
         var code  = await GetEmailCodeAsync(newEmail, ct: ct);
         var wrong = code == "000000" ? "111111" : "000000";
 
         var attempts = new List<IConfirmEmailChangeResult>();
 
         for (var i = 0; i < 5; i++)
-            attempts.Add(await account.Security.ConfirmEmailChange(wrong, ct));
+            attempts.Add(await account.Security.ConfirmEmailChange(flow, wrong, ct));
 
-        var tooLate = await account.Security.ConfirmEmailChange(code!, ct);
+        var tooLate = await account.Security.ConfirmEmailChange(flow, code!, ct);
         var details = await account.Security.GetSecurityDetails(ct);
 
         Assert.Multiple(() =>
         {
             Assert.That((nothingPending as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_CODE_EXPIRED));
-            Assert.That(attempts.Select(a => (a as FailedConfirmEmailChange)?.error),
+            Assert.That(attempts.Take(4).Select(a => (a as FailedConfirmEmailChange)?.error),
                 Is.All.EqualTo(EmailChangeError.INVALID_VERIFICATION_CODE));
-            Assert.That((tooLate as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_CODE_EXPIRED),
+            Assert.That((attempts[4] as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED),
+                "the fifth wrong code did not end the flow");
+            Assert.That((tooLate as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED),
                 "the right code still worked after five wrong guesses, so the code can be brute-forced");
             Assert.That(details.email, Is.EqualTo(account.Credentials.email));
         });
@@ -121,8 +162,9 @@ public class AccountSecurityTests : TestBase
     {
         var account  = await CreateSessionAsync(ct);
         var newEmail = NewEmail();
+        var flow     = await VerifiedFlowAsync(account, SensitiveAction.CHANGE_EMAIL, ct);
 
-        await account.Security.RequestEmailChange(newEmail, account.Credentials.password, ct);
+        await account.Security.RequestEmailChange(flow, newEmail, ct);
         var code = await GetEmailCodeAsync(newEmail, ct: ct);
 
         // Someone else signs up with the address before the code is typed in.
@@ -132,8 +174,9 @@ public class AccountSecurityTests : TestBase
 
         Assert.That(registered, Is.InstanceOf<SuccessRegistration>(), "the address was not free to register");
 
-        var confirmed = await account.Security.ConfirmEmailChange(code!, ct);
-        var retried   = await account.Security.ConfirmEmailChange(code!, ct);
+        var confirmed = await account.Security.ConfirmEmailChange(flow, code!, ct);
+        var retried   = await account.Security.ConfirmEmailChange(flow, code!, ct);
+        var another   = await account.Security.RequestEmailChange(flow, NewEmail(), ct);
         var details   = await account.Security.GetSecurityDetails(ct);
 
         Assert.Multiple(() =>
@@ -141,6 +184,8 @@ public class AccountSecurityTests : TestBase
             Assert.That((confirmed as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.EMAIL_ALREADY_USED));
             Assert.That((retried as FailedConfirmEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_CODE_EXPIRED),
                 "a change that can no longer be granted was left pending");
+            Assert.That(another, Is.InstanceOf<SuccessRequestEmailChange>(),
+                "the flow had to be verified again just to pick another address");
             Assert.That(details.email, Is.EqualTo(account.Credentials.email));
         });
     }
@@ -149,17 +194,21 @@ public class AccountSecurityTests : TestBase
     public async Task A_confirmed_email_change_is_the_address_the_account_signs_in_with(CancellationToken ct = default)
     {
         var account  = await CreateSessionAsync(ct);
+        var oldEmail = account.Credentials.email;
         var newEmail = NewEmail();
+        var flow     = await VerifiedFlowAsync(account, SensitiveAction.CHANGE_EMAIL, ct);
 
-        await account.Security.RequestEmailChange(newEmail, account.Credentials.password, ct);
-        var confirmed = await account.Security.ConfirmEmailChange((await GetEmailCodeAsync(newEmail, ct: ct))!, ct);
+        await account.Security.RequestEmailChange(flow, newEmail, ct);
+        var confirmed = await account.Security.ConfirmEmailChange(flow, (await GetEmailCodeAsync(newEmail, ct: ct))!, ct);
+        var reused    = await account.Security.RequestEmailChange(flow, NewEmail(), ct);
 
         var details   = await account.Security.GetSecurityDetails(ct);
         var directory = GetGrainFactory().GetGrain<IIdentityDirectoryGrain>(Guid.Empty);
         var byNew     = await directory.GetUserIdByEmailAsync(newEmail, ct);
-        var byOld     = await directory.GetUserIdByEmailAsync(account.Credentials.email, ct);
+        var byOld     = await directory.GetUserIdByEmailAsync(oldEmail, ct);
         var signIn    = await GetIdentityService().Authorize(
             new UserCredentialsInput(newEmail, null, null, account.Credentials.password, null, null), ct);
+        var notice    = await Mail.WaitForAsync(oldEmail, EmailKinds.EmailChanged, TimeSpan.FromSeconds(5), ct);
 
         Assert.Multiple(() =>
         {
@@ -169,6 +218,10 @@ public class AccountSecurityTests : TestBase
             Assert.That(byOld, Is.Null, "the old address still leads to the account");
             Assert.That(signIn, Is.InstanceOf<SuccessAuthorize>(),
                 $"the new address does not sign in: {(signIn as FailedAuthorize)?.error}");
+            Assert.That(notice, Is.Not.Null, "the address the account moved away from was not told");
+            Assert.That(notice?.Body, Does.Not.Contain(newEmail), "the notice hands the new address out in full");
+            Assert.That((reused as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED),
+                "a finished flow can start a second change");
         });
     }
 
@@ -319,9 +372,11 @@ public class AccountSecurityTests : TestBase
             await db.Users.Where(u => u.Id == account.UserId)
                .ExecuteUpdateAsync(set => set.SetProperty(u => u.IsDeleted, true).SetProperty(u => u.DeletedAt, DateTimeOffset.UtcNow), ct);
 
-        var grain = Security(account.UserId);
+        var grain   = Security(account.UserId);
+        var session = Guid.NewGuid();
 
-        var email    = await grain.RequestEmailChangeAsync(NewEmail(), pass, ct);
+        var stepUp   = await GetGrainFactory().GetGrain<IVerificationGrain>(account.UserId).BeginAsync(SensitiveAction.CHANGE_EMAIL, session, ct);
+        var email    = await grain.RequestEmailChangeAsync(Guid.NewGuid(), NewEmail(), session, ct);
         var phone    = await grain.RequestPhoneChangeAsync(NewPhone(), pass, ct);
         var remove   = await grain.RemovePhoneAsync(pass, ct);
         var password = await grain.ChangePasswordAsync(pass, $"Nw!{Guid.NewGuid():N}"[..20], ct);
@@ -329,12 +384,10 @@ public class AccountSecurityTests : TestBase
         var passkey  = await grain.BeginAddPasskeyAsync("Key", ct);
         var details  = await grain.GetSecurityDetailsAsync(ct);
 
-        await using var check = await NewDbAsync(ct);
-        var pendingEmails = await check.PendingEmailChanges.CountAsync(p => p.UserId == account.UserId, ct);
-
         Assert.Multiple(() =>
         {
-            Assert.That((email as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.INTERNAL_ERROR));
+            Assert.That((stepUp as FailedBeginVerification)?.error, Is.EqualTo(VerificationError.INTERNAL_ERROR));
+            Assert.That((email as FailedRequestEmailChange)?.error, Is.EqualTo(EmailChangeError.VERIFICATION_REQUIRED));
             Assert.That((phone as FailedRequestPhoneChange)?.error, Is.EqualTo(PhoneChangeError.INTERNAL_ERROR));
             Assert.That((remove as FailedRemovePhone)?.error, Is.EqualTo(PhoneChangeError.INTERNAL_ERROR));
             Assert.That((password as FailedChangePassword)?.error, Is.EqualTo(PasswordChangeError.INTERNAL_ERROR));
@@ -342,7 +395,6 @@ public class AccountSecurityTests : TestBase
             Assert.That((passkey as FailedBeginPasskey)?.error, Is.EqualTo(PasskeyError.INTERNAL_ERROR));
             Assert.That(details.email, Is.Null, "an erased account's address is still handed out");
             Assert.That(details.otpEnabled, Is.False);
-            Assert.That(pendingEmails, Is.Zero);
         });
     }
 

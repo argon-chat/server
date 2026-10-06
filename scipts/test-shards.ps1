@@ -152,6 +152,7 @@ $presenceFixtures = @(
 # ConnectionsTests and AdminConnectionsTests (added 2026-10-01, with linked external accounts) into the first shard.
 # VoiceModerationTests (NonParallelizable since 2026-09-29: it takes the Move capability off the shared SFU options
 # for one test, which made VoiceBroadcastTests fail with SFU_UNAVAILABLE when the two overlapped) into topology.
+# VerificationFlowTests (added 2026-10-06, with step-up verification) into the first shard.
 $generalShards = @(
     @(   # ~237 s serial
         'AccountConsoleTests'
@@ -217,6 +218,7 @@ $generalShards = @(
         'SpaceTests'
         'TrustScoreTests'
         'UssdTests'
+        'VerificationFlowTests'
         'VoiceBroadcastSettingsTests'
         'VoiceBroadcastTests'
     ),

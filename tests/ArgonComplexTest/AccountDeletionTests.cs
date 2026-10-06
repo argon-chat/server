@@ -500,8 +500,8 @@ public class AccountDeletionTests : TestBase
     /// and all data" is what the console says over the button that runs this, so every table keyed to
     /// the user id is empty of them afterwards — and <c>DeletePrivateDataAsync</c> is a hand-written
     /// list, which is precisely why it needs a census in front of it. It had already lost four tables
-    /// to drift (they did not exist when the list was written), and the sharpest pair were
-    /// <c>PendingEmailChanges</c> and <c>PendingPhoneChanges</c>: a plaintext address and phone number
+    /// to drift (they did not exist when the list was written), and the sharpest was
+    /// <c>PendingPhoneChanges</c>: a plaintext phone number
     /// the person was half-way through switching to, with no TTL, no sweeper and a declared FK cascade
     /// that can never fire because the row is anonymised rather than removed — while the same
     /// execution is careful to null the <c>PhoneNumber</c> column eighty lines earlier.</para>
@@ -566,9 +566,6 @@ public class AccountDeletionTests : TestBase
                 "the erased account's privacy rules survive it");
             Assert.That(census.SavedGifs, Is.Zero,
                 "the erased account's saved gifs survive it");
-            Assert.That(census.PendingEmailChanges, Is.Zero,
-                "a plaintext e-mail address the erased account was switching to survives it — " +
-                "the same deletion is careful to null the PhoneNumber column two lines earlier");
             Assert.That(census.PendingPhoneChanges, Is.Zero,
                 "a plaintext phone number the erased account was switching to survives it");
             Assert.That(census.DeviceObservations, Is.Zero,
@@ -2307,14 +2304,6 @@ public class AccountDeletionTests : TestBase
             Status = ScheduledPostStatus.PENDING, RandomId = 1, CreatedAt = now, UpdatedAt = now
         });
 
-        db.PendingEmailChanges.Add(new PendingEmailChangeEntity
-        {
-            Id = Guid.CreateVersion7(), UserId = victim.UserId,
-            NewEmail = $"moving_{Guid.NewGuid():N}"[..20] + "@test.local",
-            CodeHash = "hash", CodeSalt = "salt", ExpiresAt = now.AddHours(1),
-            CreatedAt = now, UpdatedAt = now
-        });
-
         db.PendingPhoneChanges.Add(new PendingPhoneChangeEntity
         {
             Id = Guid.CreateVersion7(), UserId = victim.UserId, NewPhone = "+15550100",
@@ -2478,7 +2467,6 @@ public class AccountDeletionTests : TestBase
                                      .CountAsync(r => r.RequesterId == userId || r.TargetId == userId, ct),
             PrivacyRules:         await db.PrivacyRules.IgnoreQueryFilters().CountAsync(r => r.UserId == userId, ct),
             SavedGifs:            await db.SavedGifs.IgnoreQueryFilters().CountAsync(g => g.UserId == userId, ct),
-            PendingEmailChanges:  await db.PendingEmailChanges.IgnoreQueryFilters().CountAsync(p => p.UserId == userId, ct),
             PendingPhoneChanges:  await db.PendingPhoneChanges.IgnoreQueryFilters().CountAsync(p => p.UserId == userId, ct),
             DeviceObservations:   await db.DeviceObservations.IgnoreQueryFilters().CountAsync(o => o.UserId == userId, ct),
             ChannelReadStates:    await db.ChannelReadStates.IgnoreQueryFilters().CountAsync(s => s.UserId == userId, ct),
@@ -2714,7 +2702,6 @@ public class AccountDeletionTests : TestBase
         int FriendRequests,
         int PrivacyRules,
         int SavedGifs,
-        int PendingEmailChanges,
         int PendingPhoneChanges,
         int DeviceObservations,
         int ChannelReadStates,
@@ -2733,7 +2720,7 @@ public class AccountDeletionTests : TestBase
     {
         public int Total
             => Friendships + Blocks + MuteSettings + AutoDeleteSettings + DeviceHistories + Passkeys
-             + FriendRequests + PrivacyRules + SavedGifs + PendingEmailChanges + PendingPhoneChanges
+             + FriendRequests + PrivacyRules + SavedGifs + PendingPhoneChanges
              + DeviceObservations + ChannelReadStates + NotificationCounters + SystemNotifications
              + TrustScores + Ignores + InventoryItems + UnreadInventoryItems + TeamMemberships
              + TeamInvites + CosmeticEquips + CosmeticGrants + MessageDrafts + ScheduledPosts;

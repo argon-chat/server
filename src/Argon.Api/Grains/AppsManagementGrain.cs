@@ -36,7 +36,7 @@ public sealed class AppsManagementGrain(ILogger<AppsManagementGrain> logger) : G
         var app = await Teams.GetAppLoginCheckInfoAsync(clientId, ct);
 
         if (app is null)
-            return new LoginAllowedResult(false, "App not found");
+            return new LoginAllowedResult(false, LoginDenial.AppNotFound);
 
         if (!app.IsInternalApp && (app.IsPublic || app.IsVerified))
             return new LoginAllowedResult(true, null);
@@ -47,18 +47,18 @@ public sealed class AppsManagementGrain(ILogger<AppsManagementGrain> logger) : G
         {
             return isTeamMember
                 ? new LoginAllowedResult(true, null)
-                : new LoginAllowedResult(false, "Unapproved apps require team membership");
+                : new LoginAllowedResult(false, LoginDenial.UnapprovedAppTeamOnly);
         }
 
         if (!isTeamMember)
-            return new LoginAllowedResult(false, "Internal apps require team membership");
+            return new LoginAllowedResult(false, LoginDenial.InternalAppTeamOnly);
 
         // Membership alone is not enough for an internal app: the account also has to be a staff
         // mailbox, so an invited outside collaborator on the team cannot reach internal tooling.
         var email = await Teams.GetUserEmailAsync(userId, ct);
 
         return string.IsNullOrEmpty(email) || !email.EndsWith(ArgonEmailDomain, StringComparison.OrdinalIgnoreCase)
-            ? new LoginAllowedResult(false, "TenantId does not meet the security requirements")
+            ? new LoginAllowedResult(false, LoginDenial.InternalAppStaffOnly)
             : new LoginAllowedResult(true, null);
     }
 

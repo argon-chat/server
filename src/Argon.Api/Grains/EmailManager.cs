@@ -1,6 +1,7 @@
 namespace Argon.Grains;
 
 using Argon.Features.Email;
+using Argon.Core.Features.CoreLogic.Verification;
 
 using System.Globalization;
 using System.Net.Mail;
@@ -206,6 +207,64 @@ public class EmailManager(
         catch (Exception e)
         {
             logger.LogCritical(e, "Failed to send reset code to '{email}'", email);
+        }
+    }
+
+    public async Task SendVerificationCodeAsync(string email, string otpCode, SensitiveAction action, TimeSpan validity)
+    {
+        const string subject = "Confirm it's you";
+
+        var values = new Dictionary<string, string>
+        {
+            { "otp", otpCode },
+            { "action", VerificationPolicy.Describe(action) },
+            { "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}" }
+        };
+
+        Observe(email, EmailKinds.VerificationCode, subject, () => formStorage.Render("verification_code", values));
+
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[VERIFICATION CODE]: {Email}, {Action}, code: {OtpCode}", email, action, otpCode);
+            testCodeStore?.StoreCode(email, otpCode, TestCodeType.Email);
+            await journal.RecordAsync(email, EmailKinds.VerificationCode, delivered: false, "smtp disabled");
+
+            return;
+        }
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var       msg = CreateMessage(email, subject, formStorage.Render("verification_code", values));
+        await SendAsync(email, msg, EmailKinds.VerificationCode, cts.Token);
+    }
+
+    public async Task SendEmailChangedAsync(string oldEmail, string newEmail, DateTimeOffset at)
+    {
+        const string subject = "Your Argon email address changed";
+
+        var values = new Dictionary<string, string>
+        {
+            { "new_email", ContactMask.Email(newEmail) },
+            { "changed_at", at.ToUniversalTime().ToString("f", CultureInfo.InvariantCulture) + " UTC" }
+        };
+
+        Observe(oldEmail, EmailKinds.EmailChanged, subject, () => formStorage.Render("email_changed", values));
+
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[EMAIL CHANGED]: {Email}", oldEmail);
+            await journal.RecordAsync(oldEmail, EmailKinds.EmailChanged, delivered: false, "smtp disabled");
+
+            return;
+        }
+
+        try
+        {
+            var msg = CreateMessage(oldEmail, subject, formStorage.Render("email_changed", values));
+            await SendAsync(oldEmail, msg, EmailKinds.EmailChanged, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send email changed notice to '{email}'", oldEmail);
         }
     }
 

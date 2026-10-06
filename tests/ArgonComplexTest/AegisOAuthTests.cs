@@ -222,7 +222,7 @@ public class AegisOAuthTests : TestBase
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
             Assert.That((string?)body["error"], Is.EqualTo("access_denied"));
-            Assert.That((string?)body["error_description"], Does.Contain("team membership"));
+            Assert.That((string?)body["reason"], Is.EqualTo(LoginDenial.UnapprovedAppTeamOnly));
         });
     }
 

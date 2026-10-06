@@ -175,5 +175,8 @@
   "back": "Back",
   "continue": "Continue",
   "register": "Register",
-  "already_have_account": "Already have an account?"
+  "already_have_account": "Already have an account?",
+  "email": "Email",
+  "or": "or",
+  "editing_resets_step": "editing resets this step"
 }

@@ -5,11 +5,13 @@ using Api.Features.CoreLogic.Otp;
 [Alias("Argon.Grains.Interfaces.ISecurityGrain")]
 public interface ISecurityGrain : IGrainWithGuidKey
 {
+    // flowId is a verified CHANGE_EMAIL flow of IVerificationGrain, begun from sessionId.
+
     [Alias(nameof(RequestEmailChangeAsync))]
-    Task<IRequestEmailChangeResult> RequestEmailChangeAsync(string newEmail, string password, CancellationToken ct = default);
+    Task<IRequestEmailChangeResult> RequestEmailChangeAsync(Guid flowId, string newEmail, Guid sessionId, CancellationToken ct = default);
 
     [Alias(nameof(ConfirmEmailChangeAsync))]
-    Task<IConfirmEmailChangeResult> ConfirmEmailChangeAsync(string verificationCode, CancellationToken ct = default);
+    Task<IConfirmEmailChangeResult> ConfirmEmailChangeAsync(Guid flowId, string verificationCode, Guid sessionId, CancellationToken ct = default);
 
     [Alias(nameof(RequestPhoneChangeAsync))]
     Task<IRequestPhoneChangeResult> RequestPhoneChangeAsync(string newPhone, string password, CancellationToken ct = default);

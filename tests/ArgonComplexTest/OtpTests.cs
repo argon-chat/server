@@ -155,6 +155,37 @@ public class OtpTests : TestBase
         });
     }
 
+    /// <summary>
+    /// A step-up verification, answered with the authenticator app instead of the emailed code, made
+    /// the way production makes it: its unions and enum arguments cross a real Orleans connection.
+    /// </summary>
+    [Test, CancelAfter(300_000)]
+    public async Task An_authenticator_app_verifies_a_step_up_from_a_client_role(CancellationToken ct = default)
+    {
+        var (security, credentials) = await SignedInAsync(ct);
+
+        var enabling = (SuccessEnableOTP)await security.EnableOTP(ct);
+        Assert.That(await security.VerifyAndEnableOTP(CodeFor(enabling.secret), ct), Is.InstanceOf<SuccessVerifyOTP>());
+
+        var begun = await security.BeginVerification(SensitiveAction.CHANGE_EMAIL, ct);
+        Assert.That(begun, Is.InstanceOf<SuccessBeginVerification>(), $"{(begun as FailedBeginVerification)?.error}");
+
+        var flowId   = ((SuccessBeginVerification)begun).flow.flowId;
+        var password = await security.SubmitVerification(flowId, VerificationFactor.PASSWORD, credentials.password, ct);
+        var wrong    = await security.SubmitVerification(flowId, VerificationFactor.TOTP, WrongCodeFor(enabling.secret), ct);
+        var totp     = await security.SubmitVerification(flowId, VerificationFactor.TOTP, CodeFor(enabling.secret), ct);
+        var sent     = await security.ChallengeVerification(flowId, VerificationFactor.EMAIL_CODE, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(password, Is.InstanceOf<SuccessSubmitVerification>());
+            Assert.That((wrong as FailedSubmitVerification)?.attemptsLeft, Is.EqualTo(4));
+            Assert.That((totp as SuccessSubmitVerification)?.flow.verified, Is.True);
+            Assert.That((sent as FailedChallengeVerification)?.error, Is.EqualTo(VerificationError.FACTOR_NOT_ALLOWED),
+                "a code was still offered for a requirement the authenticator app already satisfied");
+        });
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The code an authenticator app would be showing right now.</summary>
@@ -185,6 +216,9 @@ public class OtpTests : TestBase
     /// another is refused for that reason rather than for anything a test meant to assert.
     /// </remarks>
     private async Task<ISecurityInteraction> SignedInSecurityService(CancellationToken ct)
+        => (await SignedInAsync(ct)).Security;
+
+    private async Task<(ISecurityInteraction Security, NewUserCredentialsInputForTest Credentials)> SignedInAsync(CancellationToken ct)
     {
         var http = entry.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -209,12 +243,12 @@ public class OtpTests : TestBase
         if (registration is not SuccessRegistration success)
         {
             Assert.Fail($"could not register through the client role: {(registration as FailedRegistration)?.error}");
-            return null!;
+            return default;
         }
 
         interceptor.SetToken(success.token);
 
-        return client.ForService<ISecurityInteraction>(entry.Services);
+        return (client.ForService<ISecurityInteraction>(entry.Services), credentials);
     }
 
     private static Task<WebSocket> NoWebSockets(Uri uri, CancellationToken ct, string[]? protocols)

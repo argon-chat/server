@@ -217,12 +217,12 @@ public class AuthController(
             var allowed = await directory.CanSignInAsync(request.ClientId, userId, ct);
 
             if (!allowed.IsAllowed)
-                return BadRequest(new { error = "access_denied", error_description = allowed.Reason });
+                return BadRequest(new { error = "access_denied", reason = allowed.Reason });
 
             if (app.IsInternalApp)
             {
                 if (await CheckOperatorAccessAsync(userId, app.AppId, ct) is { } denial)
-                    return BadRequest(new { error = "access_denied", error_description = denial });
+                    return BadRequest(new { error = "access_denied", reason = denial });
 
                 if (!await operatorVerifications.IsVerifiedAsync(userId, ct))
                 {
@@ -318,7 +318,7 @@ public class AuthController(
             var allowed = await directory.CanSignInAsync(request.ClientId, userId, ct);
 
             if (!allowed.IsAllowed)
-                return BadRequest(new { error = "access_denied", error_description = allowed.Reason });
+                return BadRequest(new { error = "access_denied", reason = allowed.Reason });
 
             return Ok(new OAuthRegisterResponse
             {
@@ -635,13 +635,13 @@ public class AuthController(
         if (op is null)
         {
             logger.LogWarning("[OAuth] Internal app requires an operator, but user {UserId} has no operator record", userId);
-            return "This application requires operator access. No operator record found for your account.";
+            return LoginDenial.OperatorMissing;
         }
 
         if (!op.IsActive)
         {
             logger.LogWarning("[OAuth] Operator {OperatorId} is inactive for user {UserId}", op.OperatorId, userId);
-            return "Your operator account is inactive.";
+            return LoginDenial.OperatorInactive;
         }
 
         // No grants at all means the permissive model: every internal app. One grant anywhere means
@@ -650,7 +650,7 @@ public class AuthController(
             await directory.GetOperatorAppAccessAsync(op.OperatorId, appId, ct) is null)
         {
             logger.LogWarning("[OAuth] Operator {OperatorId} has no access to app {AppId}", op.OperatorId, appId);
-            return "Your operator account does not have access to this application.";
+            return LoginDenial.OperatorNoAppAccess;
         }
 
         return null;

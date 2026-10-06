@@ -107,6 +107,7 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<PrivacyPolicyGrain>();
         registry.AddToRef<AuthorizationGrain>();
         registry.AddToRef<SecurityGrain>();
+        registry.AddToRef<VerificationGrain>();
         registry.AddToRef<FeatureFlagGrain>();
         registry.AddToRef<EntitlementGrain>();
         registry.AddToRef<OperatorAuthChallengeGrain>();

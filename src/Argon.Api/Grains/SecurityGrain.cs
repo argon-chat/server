@@ -12,7 +12,6 @@ using OtpNet;
 using Services;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
-using System.Buffers.Text;
 
 [StatelessWorker]
 public class SecurityGrain(
@@ -41,57 +40,35 @@ public class SecurityGrain(
 
     private Guid UserId => this.GetPrimaryKey();
 
-    public async Task<IRequestEmailChangeResult> RequestEmailChangeAsync(string newEmail, string password, CancellationToken ct = default)
+    // The address is only looked at once the flow is verified, so a session alone cannot probe which
+    // addresses are taken.
+    public async Task<IRequestEmailChangeResult> RequestEmailChangeAsync(Guid flowId, string newEmail, Guid sessionId, CancellationToken ct = default)
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var verification = GrainFactory.GetGrain<IVerificationGrain>(UserId);
 
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == UserId, ct);
-            if (user is null)
-                return new FailedRequestEmailChange(EmailChangeError.INTERNAL_ERROR);
-
-            if (!passwordHashingService.VerifyPassword(password, user))
-                return new FailedRequestEmailChange(EmailChangeError.INVALID_PASSWORD);
+            if (!await verification.IsVerifiedAsync(flowId, SensitiveAction.CHANGE_EMAIL, sessionId, ct))
+                return new FailedRequestEmailChange(EmailChangeError.VERIFICATION_REQUIRED);
 
             if (!IsValidEmail(newEmail))
                 return new FailedRequestEmailChange(EmailChangeError.INVALID_EMAIL);
 
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
             var normalizedNewEmail = newEmail.ToLowerInvariant();
 
-            var existingUser = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedNewEmail, ct);
-            if (existingUser is not null)
+            if (await db.Users.AnyAsync(u => u.NormalizedEmail == normalizedNewEmail, ct))
                 return new FailedRequestEmailChange(EmailChangeError.EMAIL_ALREADY_USED);
 
-            var existingPendingCount = await db.PendingEmailChanges
-                .CountAsync(p => p.UserId == UserId && p.ExpiresAt > DateTimeOffset.UtcNow, ct);
-            if (existingPendingCount >= 3)
-                return new FailedRequestEmailChange(EmailChangeError.RATE_LIMITED);
+            var sent = await verification.SendTargetCodeAsync(flowId, SensitiveAction.CHANGE_EMAIL, sessionId, newEmail, ct);
 
-            var code = OtpSecurity.GenerateNumericCode(6);
-            var salt = OtpSecurity.GenerateSalt(16);
-            var hash = OtpSecurity.ComputeHmac(salt, code);
-
-            var pending = new PendingEmailChangeEntity
+            return sent.Outcome switch
             {
-                Id = ArgonId.New(),
-                UserId = UserId,
-                NewEmail = newEmail,
-                CodeHash = Convert.ToBase64String(hash),
-                CodeSalt = Convert.ToBase64String(salt),
-                ExpiresAt = DateTimeOffset.UtcNow.Add(VerificationCodeTtl),
-                AttemptsLeft = MaxVerificationAttempts,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
+                TargetCodeOutcome.Sent        => new SuccessRequestEmailChange(sent.ResendAt!.Value.UtcDateTime),
+                TargetCodeOutcome.NotVerified => new FailedRequestEmailChange(EmailChangeError.VERIFICATION_REQUIRED),
+                _                             => new FailedRequestEmailChange(EmailChangeError.RATE_LIMITED)
             };
-
-            await db.PendingEmailChanges.AddAsync(pending, ct);
-            await db.SaveChangesAsync(ct);
-
-            var emailGrain = GrainFactory.GetGrain<IEmailManager>(Guid.NewGuid());
-            await emailGrain.SendOtpCodeAsync(newEmail, code, VerificationCodeTtl);
-
-            return new SuccessRequestEmailChange();
         }
         catch (Exception e)
         {
@@ -100,50 +77,42 @@ public class SecurityGrain(
         }
     }
 
-    public async Task<IConfirmEmailChangeResult> ConfirmEmailChangeAsync(string verificationCode, CancellationToken ct = default)
+    public async Task<IConfirmEmailChangeResult> ConfirmEmailChangeAsync(Guid flowId, string verificationCode, Guid sessionId, CancellationToken ct = default)
     {
         try
         {
+            var verification = GrainFactory.GetGrain<IVerificationGrain>(UserId);
+            var check        = await verification.CheckTargetCodeAsync(flowId, SensitiveAction.CHANGE_EMAIL, sessionId, verificationCode, ct);
+
+            switch (check.Outcome)
+            {
+                case TargetCheckOutcome.NotVerified or TargetCheckOutcome.Exhausted:
+                    return new FailedConfirmEmailChange(EmailChangeError.VERIFICATION_REQUIRED);
+                case TargetCheckOutcome.NoCode:
+                    return new FailedConfirmEmailChange(EmailChangeError.VERIFICATION_CODE_EXPIRED);
+                case TargetCheckOutcome.Invalid:
+                    return new FailedConfirmEmailChange(EmailChangeError.INVALID_VERIFICATION_CODE);
+            }
+
+            var newEmail           = check.Target!;
+            var normalizedNewEmail = newEmail.ToLowerInvariant();
+
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            var pending = await db.PendingEmailChanges
-                .Where(p => p.UserId == UserId && p.ExpiresAt > DateTimeOffset.UtcNow && p.AttemptsLeft > 0)
-                .OrderByDescending(p => p.CreatedAt)
-                .FirstOrDefaultAsync(ct);
-
-            if (pending is null)
-                return new FailedConfirmEmailChange(EmailChangeError.VERIFICATION_CODE_EXPIRED);
-
-            var salt = Convert.FromBase64String(pending.CodeSalt);
-            var expectedHash = Convert.FromBase64String(pending.CodeHash);
-            var actualHash = OtpSecurity.ComputeHmac(salt, verificationCode);
-
-            if (!OtpSecurity.ConstantTimeEquals(actualHash, expectedHash))
-            {
-                pending.AttemptsLeft--;
-                pending.UpdatedAt = DateTimeOffset.UtcNow;
-
-                if (pending.AttemptsLeft <= 0)
-                    db.PendingEmailChanges.Remove(pending);
-
-                await db.SaveChangesAsync(ct);
-                return new FailedConfirmEmailChange(EmailChangeError.INVALID_VERIFICATION_CODE);
-            }
-
-            var normalizedNewEmail = pending.NewEmail.ToLowerInvariant();
-            var existingUser = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedNewEmail, ct);
-            if (existingUser is not null)
-            {
-                db.PendingEmailChanges.Remove(pending);
-                await db.SaveChangesAsync(ct);
+            // Taken while the code was on its way. The flow stays verified, so another address can be tried.
+            if (await db.Users.AnyAsync(u => u.NormalizedEmail == normalizedNewEmail, ct))
                 return new FailedConfirmEmailChange(EmailChangeError.EMAIL_ALREADY_USED);
-            }
 
-            var user = await db.Users.FirstAsync(u => u.Id == UserId, ct);
-            user.Email = pending.NewEmail;
+            var user     = await db.Users.FirstAsync(u => u.Id == UserId, ct);
+            var oldEmail = user.Email;
 
-            db.PendingEmailChanges.Remove(pending);
+            user.Email = newEmail;
             await db.SaveChangesAsync(ct);
+
+            await verification.CompleteAsync(flowId, ct);
+
+            await GrainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
+               .SendEmailChangedAsync(oldEmail, newEmail, DateTimeOffset.UtcNow);
 
             _ = NotifySecurityDetailsChangedAsync(ct);
 
@@ -743,26 +712,9 @@ public class SecurityGrain(
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            var passkeys = await db.Passkeys
-                .AsNoTracking()
-                .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted && p.CredentialId != null)
-                .ToListAsync(ct);
-
-            if (passkeys.Count == 0)
+            var optionsJson = await PasskeyAssertion.BeginAsync(db, fido2, UserId, ct);
+            if (optionsJson is null)
                 return new FailedBeginValidatePasskey(PasskeyError.NOT_FOUND);
-
-            var allowedCredentials = passkeys
-                .Select(p => new PublicKeyCredentialDescriptor(p.CredentialId!))
-                .ToList();
-
-            var options = fido2.GetAssertionOptions(
-                new GetAssertionOptionsParams
-                {
-                    AllowedCredentials = allowedCredentials,
-                    UserVerification = UserVerificationRequirement.Preferred
-                });
-
-            var optionsJson = options.ToJson();
 
             await pendingPasskeyStore.StoreValidationOptionsAsync(UserId, optionsJson, ct);
 
@@ -782,49 +734,16 @@ public class SecurityGrain(
             if (string.IsNullOrWhiteSpace(authenticationResponse))
                 return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
 
-            var assertionResponse = System.Text.Json.JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(authenticationResponse);
-            if (assertionResponse is null)
-                return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
-
             var optionsJson = await pendingPasskeyStore.GetValidationOptionsAsync(UserId, ct);
             if (optionsJson is null)
                 return new FailedCompletePasskey(PasskeyError.CHALLENGE_EXPIRED);
 
-            var options = AssertionOptions.FromJson(optionsJson);
-
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            // Find the passkey by credential ID
-            var credentialIdBytes = Base64Url.DecodeFromChars(assertionResponse.Id);
-            var passkey = await db.Passkeys.FirstOrDefaultAsync(
-                p => p.CredentialId != null && p.CredentialId == credentialIdBytes 
-                     && p.UserId == UserId && p.IsCompleted && !p.IsDeleted, ct);
-
-            if (passkey is null || passkey.PublicKey is null)
+            var passkey = await PasskeyAssertion.CompleteAsync(db, fido2, UserId, optionsJson, authenticationResponse, ct);
+            if (passkey is null)
                 return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
 
-            var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
-                {
-                    AssertionResponse = assertionResponse,
-                    OriginalOptions = options,
-                    StoredPublicKey = passkey.PublicKey,
-                    StoredSignatureCounter = passkey.SignCount,
-                    IsUserHandleOwnerOfCredentialIdCallback = async (args, cancellationToken) =>
-                    {
-                        var stored = await db.Passkeys.AnyAsync(
-                            p => p.CredentialId != null && p.CredentialId == args.CredentialId
-                                 && p.UserId == UserId && !p.IsDeleted,
-                            cancellationToken);
-                        return stored;
-                    }
-                }, ct);
-
-            // Update sign count for clone detection
-            passkey.SignCount = result.SignCount;
-            passkey.LastUsedAt = DateTimeOffset.UtcNow;
-            passkey.UpdatedAt = DateTimeOffset.UtcNow;
-
-            await db.SaveChangesAsync(ct);
             await pendingPasskeyStore.DeleteValidationOptionsAsync(UserId, ct);
 
             var passkeyResult = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime,

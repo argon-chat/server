@@ -27,6 +27,20 @@ public record BotCredentialsInfo(
 public record LoginAllowedResult(bool IsAllowed, string? Reason);
 
 /// <summary>
+/// Codes for <see cref="LoginAllowedResult.Reason"/> and the operator refusals; the sign-in widget translates them.
+/// </summary>
+public static class LoginDenial
+{
+    public const string AppNotFound           = "app_not_found";
+    public const string UnapprovedAppTeamOnly = "unapproved_app_team_only";
+    public const string InternalAppTeamOnly   = "internal_app_team_only";
+    public const string InternalAppStaffOnly  = "internal_app_staff_only";
+    public const string OperatorMissing       = "operator_missing";
+    public const string OperatorInactive      = "operator_inactive";
+    public const string OperatorNoAppAccess   = "operator_no_app_access";
+}
+
+/// <summary>
 /// OAuth consent screen information.
 /// </summary>
 public record OAuthAppInfo(

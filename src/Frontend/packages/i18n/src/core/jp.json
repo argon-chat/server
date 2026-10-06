@@ -175,5 +175,8 @@
   "back": "戻る",
   "continue": "続ける",
   "register": "登録",
-  "already_have_account": "すでにアカウントをお持ちですか？"
+  "already_have_account": "すでにアカウントをお持ちですか？",
+  "email": "Eメール",
+  "or": "または",
+  "editing_resets_step": "編集するとこのステップはリセットされます"
 }

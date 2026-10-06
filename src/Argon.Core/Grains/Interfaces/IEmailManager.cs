@@ -21,6 +21,14 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendResetCodeAsync)), OneWay]
     Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity);
 
+    /// <summary>A step-up code to the account's own address, naming the action it unlocks.</summary>
+    [Alias(nameof(SendVerificationCodeAsync)), OneWay]
+    Task SendVerificationCodeAsync(string email, string otpCode, SensitiveAction action, TimeSpan validity);
+
+    /// <summary>Tells the address an account just moved away from where it went.</summary>
+    [Alias(nameof(SendEmailChangedAsync)), OneWay]
+    Task SendEmailChangedAsync(string oldEmail, string newEmail, DateTimeOffset at);
+
     [Alias(nameof(SendNotificationResetPasswordAsync)), OneWay]
     Task SendNotificationResetPasswordAsync(string email);
 

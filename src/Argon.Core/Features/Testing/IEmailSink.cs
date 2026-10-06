@@ -61,4 +61,6 @@ public static class EmailKinds
     public const string ExportFailed            = "export-failed";
     public const string DeletionCancelledBySignIn = "deletion-cancelled-sign-in";
     public const string NewDeviceSignIn         = "new-device-sign-in";
+    public const string VerificationCode        = "verification-code";
+    public const string EmailChanged            = "email-changed";
 }
