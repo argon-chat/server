@@ -226,6 +226,39 @@ public class AegisOAuthTests : TestBase
         });
     }
 
+    /// <summary>
+    /// The widget's sign-up holds input to the same rules as the installed client's: a password the
+    /// client would refuse is refused here too, and no account is left behind.
+    /// </summary>
+    [Test, CancelAfter(300_000)]
+    public async Task A_registration_the_input_rules_refuse_creates_no_account()
+    {
+        using var client = AegisClient.For(host);
+
+        var email = $"aegis-reg-{Guid.NewGuid():N}@test.local";
+
+        var refused = await Post<OAuthRegisterResponse>(client, "/api/auth/oauth/register", new
+        {
+            email,
+            username    = $"reg_{Guid.NewGuid():N}"[..16],
+            displayName = "Short Password",
+            password    = "short",
+            birthDate   = "1990-01-01",
+            agreeTos    = true,
+            clientId
+        });
+
+        var scenario = await Post(client, "/api/auth/scenario", new { email });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(refused.Success, Is.False);
+            Assert.That(refused.Error, Is.EqualTo(RegistrationError.VALIDATION_FAILED.ToString()));
+            Assert.That(refused.Field, Is.EqualTo("password"));
+            Assert.That((string?)scenario["scenario"], Is.Empty, "a refused registration created the account anyway");
+        });
+    }
+
     [Test, CancelAfter(300_000)]
     public async Task An_unknown_application_is_refused_before_anything_else()
     {

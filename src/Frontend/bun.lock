@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "argon-frontend",
+      "devDependencies": {
+        "@intlify/message-compiler": "11.4.10",
+      },
     },
     "Aegis": {
       "name": "aegis-widget",

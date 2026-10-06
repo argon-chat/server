@@ -4,6 +4,7 @@ import { useToast } from "@argon/ui/toast";
 import { useUrlSearchParams } from "@vueuse/core";
 import { startAuthentication } from "@/composables/useWebAuthn";
 import { useLocale } from "@/store/localeStore";
+import { accessDenialKey, operatorRefusalKey, registrationErrorKey } from "@/store/authMessages";
 
 const { toast } = useToast();
 
@@ -113,8 +114,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
 
             if (response.status === 429) {
                 toast({
-                    title: "Too Many Attempts",
-                    description: "Please wait a moment before trying again",
+                    title: t("passkey_too_many_attempts"),
+                    description: t("passkey_too_many_attempts_desc"),
                     variant: "destructive",
                     duration: 5000,
                 });
@@ -127,8 +128,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
             if (data.requiresOtp) {
                 requiresOtp.value = true;
                 toast({
-                    title: "OTP Required",
-                    description: "Check your email for the verification code",
+                    title: t("passkey_otp_required"),
+                    description: t("passkey_otp_required_desc"),
                     duration: 3000,
                 });
                 return;
@@ -147,8 +148,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
 
             if (data.error) {
                 if (data.error === "access_denied") {
-                    errorTitle.value = "Access Denied";
-                    errorMessage.value = data.error_description || "You don't have permission to access this application.";
+                    errorTitle.value = t("access_denied");
+                    errorMessage.value = t(accessDenialKey(data.reason));
                 } else {
                     handleError(data.error);
                 }
@@ -163,10 +164,10 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
         } catch (error) {
             const isTimeout = error instanceof DOMException && error.name === "AbortError";
             toast({
-                title: isTimeout ? "Request Timeout" : "Login Failed",
+                title: isTimeout ? t("request_timeout") : t("login_failed"),
                 description: isTimeout
-                    ? "The server took too long to respond. Please try again."
-                    : "An error occurred during login",
+                    ? t("request_timeout_desc")
+                    : t("login_failed_desc"),
                 variant: "destructive",
                 duration: 3000,
             });
@@ -210,17 +211,25 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
             });
 
             if (response.status === 429) {
-                registerError.value = "Too many attempts. Please wait a moment before trying again.";
+                registerError.value = t("register_error_rate_limited");
                 return false;
             }
 
             const data = await response.json();
 
+            // The account exists by now; the application turned it away. Same screen a sign-in gets.
+            if (data.error === "access_denied") {
+                errorTitle.value = t("access_denied");
+                errorMessage.value = t(accessDenialKey(data.reason));
+                return false;
+            }
+
             if (data.error) {
-                if (data.field) registerFieldErrors.value[data.field] = data.message || "Invalid value";
+                const refusal = registrationErrorKey(data.error, data.field);
+                if (refusal.field) registerFieldErrors.value[refusal.field] = t(refusal.key);
                 // Only when no field owns it: a message shown twice, once under the input and once
                 // above the form, reads as two different problems.
-                else registerError.value = data.message || data.error_description || "Registration failed.";
+                else registerError.value = t(refusal.key);
                 return false;
             }
 
@@ -236,13 +245,13 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
                 return true;
             }
 
-            registerError.value = "Registration failed.";
+            registerError.value = t("register_failed");
             return false;
         } catch (error) {
             const isTimeout = error instanceof DOMException && error.name === "AbortError";
             registerError.value = isTimeout
-                ? "The server took too long to respond. Please try again."
-                : "An error occurred during registration.";
+                ? t("request_timeout_desc")
+                : t("register_failed_desc");
             return false;
         } finally {
             isLoading.value = false;
@@ -268,16 +277,16 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
                 await completeOAuthFlow();
             } else {
                 toast({
-                    title: "Authorization Failed",
-                    description: data.error || "Failed to complete authorization. Please try again.",
+                    title: t("authorization_failed"),
+                    description: t("authorization_failed_desc"),
                     variant: "destructive",
                     duration: 5000,
                 });
             }
         } catch (error) {
             toast({
-                title: "Error",
-                description: "An error occurred while processing your request.",
+                title: t("error"),
+                description: t("request_failed_desc"),
                 variant: "destructive",
                 duration: 5000,
             });
@@ -290,8 +299,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
         requiresConsent.value = false;
         consentInfo.value = null;
         toast({
-            title: "Authorization Cancelled",
-            description: "You denied access to the application",
+            title: t("authorization_cancelled"),
+            description: t("authorization_cancelled_desc"),
             duration: 3000,
         });
     }
@@ -367,8 +376,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
         
         if (!oauthParams || !oauthParams.includes("client_id")) {
             toast({
-                title: "Error",
-                description: "OAuth parameters are missing. Please try again.",
+                title: t("error"),
+                description: t("oauth_params_missing"),
                 variant: "destructive",
                 duration: 5000,
             });
@@ -405,22 +414,22 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
     function handleError(error: string) {
         const errorMessages: Record<string, { title: string; description: string }> = {
             BAD_CREDENTIALS: {
-                title: "Invalid Credentials",
-                description: "The email or password you entered is incorrect",
+                title: t("bad_credentials_title"),
+                description: t("bad_credentials"),
             },
             BAD_OTP: {
-                title: "Invalid OTP",
-                description: "The verification code you entered is incorrect",
+                title: t("passkey_error_bad_otp_title"),
+                description: t("passkey_error_bad_otp"),
             },
             REQUIRED_OTP: {
-                title: "OTP Required",
-                description: "Please check your email for the verification code",
+                title: t("passkey_otp_required"),
+                description: t("passkey_otp_required_desc"),
             },
         };
 
         const message = errorMessages[error] || {
-            title: "Error",
-            description: "An unexpected error occurred",
+            title: t("error"),
+            description: t("unexpected_error"),
         };
 
         toast({
@@ -442,8 +451,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
 
             if (response.status === 429) {
                 toast({
-                    title: "Too Many Attempts",
-                    description: "Please wait a moment before trying again",
+                    title: t("passkey_too_many_attempts"),
+                    description: t("passkey_too_many_attempts_desc"),
                     variant: "destructive",
                     duration: 5000,
                 });
@@ -501,8 +510,8 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
             // Проверяем access denied
             if (data.accessDenied) {
                 toast({
-                    title: "Access Denied",
-                    description: data.denialReason || "You don't have access to this application",
+                    title: t("access_denied"),
+                    description: t(accessDenialKey(data.denialReason)),
                     variant: "destructive",
                     duration: 5000,
                 });
@@ -564,7 +573,7 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
             } else {
                 toast({
                     title: t('operator_cert_failed'),
-                    description: result.error_description || result.error || t('operator_cert_failed_desc'),
+                    description: t(operatorRefusalKey(result)),
                     variant: "destructive",
                     duration: 5000,
                 });
@@ -730,7 +739,7 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
             BAD_OTP: { title: t('passkey_error_bad_otp_title'), description: t('passkey_error_bad_otp') },
             NONCE_EXPIRED: { title: t('passkey_error_nonce_expired_title'), description: t('passkey_error_nonce_expired') },
         };
-        const msg = errorMessages[error] || { title: "Error", description: "An unexpected error occurred" };
+        const msg = errorMessages[error] || { title: t("error"), description: t("unexpected_error") };
         toast({ title: msg.title, description: msg.description, variant: "destructive", duration: 3000 });
     }
 

@@ -2,9 +2,11 @@
 import router from "@/router";
 import { useSimpleAuthStore } from "@/store/simpleAuthStore";
 import { onMounted } from "vue";
+import { useLocale } from "@/store/localeStore";
 import AuthTabs from "@/components/login/AuthTabs.vue";
 import IconSw from "@argon/assets/icons/icon_cat.svg"
 
+const { t } = useLocale();
 const authStore = useSimpleAuthStore();
 onMounted(async () => {
   await authStore.checkExistingSession();
@@ -21,7 +23,7 @@ onMounted(async () => {
         <span class="text-base sm:text-lg">Argon Chat</span>
       </div>
       <div v-if="authStore.isCheckingSession" class="flex items-center justify-center flex-1">
-        <div class="text-white text-lg">Checking session...</div>
+        <div class="text-white text-lg">{{ t("checking_session") }}</div>
       </div>
       <AuthTabs v-else />
     </div>

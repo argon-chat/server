@@ -10,7 +10,9 @@ import AccountPicker from "./AccountPicker.vue";
 import ErrorScreen from "./ErrorScreen.vue";
 import CertificateAuthScreen from "./CertificateAuthScreen.vue";
 import { computed } from "vue";
+import { useLocale } from "@/store/localeStore";
 
+const { t } = useLocale();
 const auth = useSimpleAuthForm();
 const authStore = useSimpleAuthStore();
 
@@ -24,7 +26,7 @@ const tabValueForTabs = computed({
   <div class="mx-auto flex w-full flex-col justify-center space-y-6" aria-live="polite">
     <ErrorScreen
       v-if="authStore.errorMessage"
-      :title="authStore.errorTitle || 'Error'"
+      :title="authStore.errorTitle || t('error')"
       :message="authStore.errorMessage"
       @dismiss="authStore.clearError"
     />
@@ -52,6 +54,6 @@ const tabValueForTabs = computed({
     <LoginForm v-else-if="tabValueForTabs == 'login'" :auth="auth" />
     <SignUpForm v-else-if="tabValueForTabs == 'signup'" @back="auth.goBackToLogin" />
     <OtpForm v-else-if="tabValueForTabs == 'otp-code'" :auth="auth" />
-    <div v-else>error {{ tabValueForTabs }}</div>
+    <div v-else>{{ t("unexpected_error") }}</div>
   </div>
 </template>

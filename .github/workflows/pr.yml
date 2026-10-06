@@ -55,6 +55,26 @@ jobs:
           git -C docs/bot-api-docs ls-files --error-unmatch -- public/openapi.json src/data/api-manifest.json
           git -C docs/bot-api-docs diff --exit-code -- public/openapi.json src/data/api-manifest.json
 
+  # The sign-in widget's translations. vue-i18n renders a key defined in no locale as the key
+  # itself, so the user reads `editing_resets_step`; this fails on that before it ships.
+  locales:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        working-directory: src/Frontend
+        run: bun install --frozen-lockfile
+
+      - name: Locales
+        working-directory: src/Frontend
+        run: bun run validate:locales
+
   # PostgreSQL rather than CockroachDB: same migrations, same assertions, a fraction of the
   # start-up cost. The nightly canary replays the suite on CockroachDB.
   test:

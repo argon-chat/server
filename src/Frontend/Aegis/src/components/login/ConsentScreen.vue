@@ -43,6 +43,7 @@ onMounted(() => {
  * state what it grants.
  */
 const scopeKeys: Record<string, string> = {
+  "openid": "openid",
   "identity": "identity",
   "profile": "profile",
   "user.read": "user_read",

@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useToast } from "@argon/ui/toast";
+import { useLocale } from "@/store/localeStore";
+import { registrationErrorKey } from "@/store/authMessages";
 
 const { toast } = useToast();
 
@@ -17,6 +19,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = F
 }
 
 export const useRegisterStore = defineStore("register", () => {
+    const { t } = useLocale();
     const isLoading = ref(false);
     const inviteToken = ref("");
     const frozenEmail = ref("");
@@ -40,7 +43,7 @@ export const useRegisterStore = defineStore("register", () => {
 
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
-                errorMessage.value = data.error_description || "This invitation link has expired or is invalid.";
+                errorMessage.value = t("invite_invalid");
                 isTokenValid.value = false;
                 return;
             }
@@ -51,7 +54,7 @@ export const useRegisterStore = defineStore("register", () => {
             appAvatarFileId.value = data.appAvatarFileId;
             isTokenValid.value = true;
         } catch (error) {
-            errorMessage.value = "Failed to validate invitation. Please try again.";
+            errorMessage.value = t("invite_check_failed");
             isTokenValid.value = false;
         } finally {
             isLoading.value = false;
@@ -82,10 +85,9 @@ export const useRegisterStore = defineStore("register", () => {
             const data = await response.json();
 
             if (!response.ok) {
-                if (data.field) {
-                    fieldErrors.value[data.field] = data.message || "Invalid value";
-                }
-                errorMessage.value = data.message || data.error_description || "Registration failed.";
+                const refusal = registrationErrorKey(data.error ?? "", data.field);
+                if (refusal.field) fieldErrors.value[refusal.field] = t(refusal.key);
+                errorMessage.value = t(refusal.key);
                 return;
             }
 
@@ -93,8 +95,8 @@ export const useRegisterStore = defineStore("register", () => {
                 isRegistered.value = true;
                 redirectUrl.value = data.redirectUrl;
                 toast({
-                    title: "Account Created",
-                    description: "Redirecting you to the application...",
+                    title: t("account_created"),
+                    description: t("redirecting_to_app"),
                     duration: 3000,
                 });
 
@@ -116,8 +118,8 @@ export const useRegisterStore = defineStore("register", () => {
         } catch (error) {
             const isTimeout = error instanceof DOMException && error.name === "AbortError";
             errorMessage.value = isTimeout
-                ? "The server took too long to respond. Please try again."
-                : "An error occurred during registration.";
+                ? t("request_timeout_desc")
+                : t("register_failed_desc");
         } finally {
             isLoading.value = false;
         }

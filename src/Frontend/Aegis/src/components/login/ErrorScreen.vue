@@ -2,6 +2,7 @@
 import { Button } from "@argon/ui/button";
 import { XIcon, ArrowLeftIcon } from "@lucide/vue";
 import { ref, onMounted } from "vue";
+import { useLocale } from "@/store/localeStore";
 
 defineProps<{
   title: string;
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   dismiss: [];
 }>();
 
+const { t } = useLocale();
 const entered = ref(false);
 onMounted(() => {
   requestAnimationFrame(() => (entered.value = true));
@@ -63,7 +65,7 @@ onMounted(() => {
           class="w-full h-11 text-sm font-semibold rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white/70 hover:text-white border border-white/[0.06] hover:border-white/[0.1] transition-all duration-300"
         >
           <ArrowLeftIcon :size="14" class="mr-2" />
-          Go Back
+          {{ t("go_back") }}
         </Button>
       </div>
     </Transition>

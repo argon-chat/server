@@ -9,7 +9,9 @@ import { useRoute } from "vue-router";
 import { useRegisterStore } from "@/store/registerStore";
 import InputWithError from "../InputWithError.vue";
 import IconSw from "@argon/assets/icons/icon_cat.svg";
+import { useLocale } from "@/store/localeStore";
 
+const { t } = useLocale();
 const route = useRoute();
 const store = useRegisterStore();
 
@@ -33,28 +35,28 @@ const passwordsMatch = computed(() => password.value === confirmPassword.value);
 function validate(): boolean {
   localErrors.value = {};
 
-  if (!username.value || username.value.length < 3) {
-    localErrors.value.username = "Username must be at least 3 characters";
+  if (!/^[a-zA-Z0-9_]{4,32}$/.test(username.value)) {
+    localErrors.value.username = t("register_error_invalid_username");
     return false;
   }
   if (!password.value || password.value.length < 8) {
-    localErrors.value.password = "Password must be at least 8 characters";
+    localErrors.value.password = t("register_error_invalid_password");
     return false;
   }
   if (!passwordsMatch.value) {
-    localErrors.value.confirmPassword = "Passwords do not match";
+    localErrors.value.confirmPassword = t("passwords_do_not_match");
     return false;
   }
   if (!displayName.value) {
-    localErrors.value.displayName = "Display name is required";
+    localErrors.value.displayName = t("register_error_invalid_displayName");
     return false;
   }
   if (!birthDate.value) {
-    localErrors.value.birthDate = "Birth date is required";
+    localErrors.value.birthDate = t("dob_required");
     return false;
   }
   if (!tosAgreement.value) {
-    localErrors.value.tos = "You must agree to the Terms of Service";
+    localErrors.value.tos = t("register_error_invalid_argreeTos");
     return false;
   }
   return true;
@@ -77,16 +79,16 @@ async function handleSubmit(e?: Event) {
 
       <!-- Loading state -->
       <div v-if="store.isLoading && !store.isTokenChecked" class="flex items-center justify-center flex-1">
-        <div class="text-white text-lg">Validating invitation...</div>
+        <div class="text-white text-lg">{{ t("invite_validating") }}</div>
       </div>
 
       <!-- Invalid/expired token -->
       <div v-else-if="store.isTokenChecked && !store.isTokenValid" class="flex items-center justify-center flex-1">
         <Card class="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl w-full max-w-[420px]">
           <CardHeader class="text-center space-y-1">
-            <CardTitle class="text-2xl font-bold text-white">Invitation Expired</CardTitle>
+            <CardTitle class="text-2xl font-bold text-white">{{ t("invite_expired") }}</CardTitle>
             <CardDescription class="text-gray-400">
-              {{ store.errorMessage || "This invitation link has expired or has already been used." }}
+              {{ store.errorMessage || t("invite_invalid") }}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -96,8 +98,8 @@ async function handleSubmit(e?: Event) {
       <div v-else-if="store.isRegistered" class="flex items-center justify-center flex-1">
         <Card class="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl w-full max-w-[420px]">
           <CardHeader class="text-center space-y-1">
-            <CardTitle class="text-2xl font-bold text-white">Account Created!</CardTitle>
-            <CardDescription class="text-gray-400">Redirecting you to the application...</CardDescription>
+            <CardTitle class="text-2xl font-bold text-white">{{ t("account_created") }}</CardTitle>
+            <CardDescription class="text-gray-400">{{ t("redirecting_to_app") }}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -107,16 +109,16 @@ async function handleSubmit(e?: Event) {
         <Card class="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl w-full max-w-[420px]">
           <form @submit.prevent="handleSubmit" class="p-4 sm:p-6 flex flex-col">
             <CardHeader class="text-center space-y-1">
-              <CardTitle class="text-2xl font-bold text-white">Create Your Account</CardTitle>
+              <CardTitle class="text-2xl font-bold text-white">{{ t("create_account") }}</CardTitle>
               <CardDescription class="text-gray-400">
-                You've been invited to join <strong class="text-white">{{ store.appName }}</strong>
+                {{ t("invite_join", { app: store.appName }) }}
               </CardDescription>
             </CardHeader>
 
             <CardContent class="space-y-4 pt-4">
               <!-- Frozen email -->
               <div class="space-y-1">
-                <Label for="email" class="text-gray-200">Email</Label>
+                <Label for="email" class="text-gray-200">{{ t("email") }}</Label>
                 <Input
                   id="email"
                   :model-value="store.frozenEmail"
@@ -124,7 +126,7 @@ async function handleSubmit(e?: Event) {
                   disabled
                   class="h-11 rounded-xl bg-black/30 border-gray-700 text-gray-400 cursor-not-allowed"
                 />
-                <p class="text-xs text-gray-500">Email is set by invitation and cannot be changed</p>
+                <p class="text-xs text-gray-500">{{ t("invite_email_locked") }}</p>
               </div>
 
               <!-- Username -->
@@ -134,12 +136,12 @@ async function handleSubmit(e?: Event) {
                   :error="localErrors.username || store.fieldErrors.username || ''"
                   @clear-error="delete localErrors.username; delete store.fieldErrors.username"
                   type="text"
-                  placeholder="Choose a username"
+                  :placeholder="t('username_placeholder')"
                   :disabled="store.isLoading"
                   id="username"
                 >
                   <template #label>
-                    <Label for="username" class="text-gray-200">Username</Label>
+                    <Label for="username" class="text-gray-200">{{ t("username") }}</Label>
                   </template>
                 </InputWithError>
               </div>
@@ -151,12 +153,12 @@ async function handleSubmit(e?: Event) {
                   :error="localErrors.displayName || ''"
                   @clear-error="delete localErrors.displayName"
                   type="text"
-                  placeholder="Your display name"
+                  :placeholder="t('display_name_placeholder')"
                   :disabled="store.isLoading"
                   id="displayName"
                 >
                   <template #label>
-                    <Label for="displayName" class="text-gray-200">Display Name</Label>
+                    <Label for="displayName" class="text-gray-200">{{ t("display_name") }}</Label>
                   </template>
                 </InputWithError>
               </div>
@@ -173,7 +175,7 @@ async function handleSubmit(e?: Event) {
                   id="password"
                 >
                   <template #label>
-                    <Label for="password" class="text-gray-200">Password</Label>
+                    <Label for="password" class="text-gray-200">{{ t("password") }}</Label>
                   </template>
                 </InputWithError>
               </div>
@@ -190,14 +192,14 @@ async function handleSubmit(e?: Event) {
                   id="confirmPassword"
                 >
                   <template #label>
-                    <Label for="confirmPassword" class="text-gray-200">Confirm Password</Label>
+                    <Label for="confirmPassword" class="text-gray-200">{{ t("confirm_password") }}</Label>
                   </template>
                 </InputWithError>
               </div>
 
               <!-- Birth Date -->
               <div class="space-y-1">
-                <Label for="birthDate" class="text-gray-200">Birth Date</Label>
+                <Label for="birthDate" class="text-gray-200">{{ t("dob") }}</Label>
                 <Input
                   id="birthDate"
                   v-model="birthDate"
@@ -217,8 +219,8 @@ async function handleSubmit(e?: Event) {
                   :disabled="store.isLoading"
                 />
                 <Label for="tos" class="text-sm text-gray-300 leading-tight cursor-pointer">
-                  I agree to the <a href="https://argon.gl/tos" target="_blank" class="text-blue-400 hover:text-blue-300 underline">Terms of Service</a>
-                  and <a href="https://argon.gl/privacy" target="_blank" class="text-blue-400 hover:text-blue-300 underline">Privacy Policy</a>
+                  {{ t("accept") }} <a href="https://argon.gl/tos" target="_blank" class="text-blue-400 hover:text-blue-300 underline">{{ t("terms") }}</a>
+                  {{ t("and") }} <a href="https://argon.gl/privacy" target="_blank" class="text-blue-400 hover:text-blue-300 underline">{{ t("privacy_policy") }}</a>
                 </Label>
               </div>
               <p v-if="localErrors.tos" class="text-xs text-red-400">{{ localErrors.tos }}</p>
@@ -233,7 +235,7 @@ async function handleSubmit(e?: Event) {
                 :disabled="store.isLoading || !tosAgreement"
                 class="w-full hover:opacity-90 transition"
               >
-                {{ store.isLoading ? "Creating account..." : "Create Account" }}
+                {{ store.isLoading ? t("creating_account") : t("create_account") }}
               </Button>
             </CardFooter>
           </form>

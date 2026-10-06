@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { UserCircleIcon, CheckIcon, ChevronRightIcon, PlusIcon, UsersIcon } from "@lucide/vue";
 import { ref, onMounted } from "vue";
+import { useLocale } from "@/store/localeStore";
 
 interface Account {
   userId: string;
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   addAccount: [];
 }>();
 
+const { t } = useLocale();
 const entered = ref(false);
 onMounted(() => {
   requestAnimationFrame(() => (entered.value = true));
@@ -53,8 +55,8 @@ onMounted(() => {
             <UsersIcon :size="24" class="text-violet-400" />
           </div>
           <div class="text-center space-y-1.5">
-            <h2 class="text-lg font-semibold text-white tracking-tight">Choose an account</h2>
-            <p class="text-xs text-white/35">to continue to the application</p>
+            <h2 class="text-lg font-semibold text-white tracking-tight">{{ t("choose_account") }}</h2>
+            <p class="text-xs text-white/35">{{ t("choose_account_desc") }}</p>
           </div>
         </div>
 
@@ -65,7 +67,7 @@ onMounted(() => {
             :key="account.userId"
             @click="emit('select', account.userId)"
             :disabled="isLoading"
-            :aria-label="`Sign in as ${account.username}${account.isCurrent ? ' (currently signed in)' : ''}`"
+            :aria-label="t(account.isCurrent ? 'sign_in_as_current' : 'sign_in_as', { name: account.username })"
             class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.04] hover:bg-white/[0.06] hover:border-white/[0.08] transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
             :style="{ transitionDelay: `${i * 40}ms` }"
           >
@@ -93,7 +95,7 @@ onMounted(() => {
             <div class="flex-1 text-left min-w-0">
               <p class="text-[13px] font-medium text-white/80 truncate group-hover:text-white transition-colors">{{ account.username }}</p>
               <p class="text-[11px] text-white/25">
-                {{ account.isCurrent ? 'Currently signed in' : 'Tap to continue' }}
+                {{ account.isCurrent ? t('currently_signed_in') : t('tap_to_continue') }}
               </p>
             </div>
 
@@ -109,12 +111,12 @@ onMounted(() => {
           class="w-full flex items-center justify-center gap-2 h-10 text-xs text-white/30 hover:text-white/60 hover:bg-white/[0.04] rounded-xl transition-all border border-dashed border-white/[0.06] hover:border-white/[0.12]"
         >
           <PlusIcon :size="14" />
-          Use another account
+          {{ t("use_another_account") }}
         </button>
 
         <!-- Footer -->
         <p class="text-[10px] text-center text-white/15 pt-1">
-          Argon will share your name and profile picture
+          {{ t("share_profile_notice") }}
         </p>
       </div>
     </Transition>

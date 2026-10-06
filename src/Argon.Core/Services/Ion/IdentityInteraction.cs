@@ -46,7 +46,8 @@ public class IdentityInteraction(
         }
 
         if (!await CheckEmailRateLimitAsync("register", data.email, max: 5, TimeSpan.FromMinutes(15), ct))
-            return new FailedRegistration(RegistrationError.VALIDATION_FAILED, "email", "Too many attempts, please try again later");
+            // Not a field: the client reads "rate_limit" as "slow down" rather than "this address is wrong".
+            return new FailedRegistration(RegistrationError.VALIDATION_FAILED, "rate_limit", "Too many attempts, please try again later");
 
         await BindProvenDeviceAsync(ct);
 

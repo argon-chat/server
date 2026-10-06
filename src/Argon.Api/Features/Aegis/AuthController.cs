@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Argon.Features.Aegis;
 using Argon.Features.Auth;
+using Argon.Core.Services.Validators;
 using Argon.Features.Jwt;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
@@ -278,10 +279,27 @@ public class AuthController(
                     Message = "Enter your date of birth."
                 });
 
-            var result = await Authorization.ExternalRegister(new NewUserCredentialsInput(
+            var input = new NewUserCredentialsInput(
                 request.Email, request.Username, request.Password, request.DisplayName,
                 request.AgreeTos, birthDate, request.AgreeOptionalEmails,
-                request.CaptchaToken, request.TosVersion, request.PrivacyVersion));
+                request.CaptchaToken, request.TosVersion, request.PrivacyVersion);
+
+            // ExternalRegister checks only that the names are free; the input rules are the caller's.
+            var validation = await new NewUserCredentialsInputValidator(HttpContext.GetRegion()).ValidateAsync(input, ct);
+
+            if (!validation.IsValid)
+            {
+                var invalid = validation.Errors.First();
+
+                return Ok(new OAuthRegisterResponse
+                {
+                    Error   = RegistrationError.VALIDATION_FAILED.ToString(),
+                    Field   = invalid.PropertyName,
+                    Message = invalid.ErrorMessage
+                });
+            }
+
+            var result = await Authorization.ExternalRegister(input);
 
             if (!result.IsSuccess)
             {

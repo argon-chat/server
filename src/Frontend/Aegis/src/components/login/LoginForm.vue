@@ -48,7 +48,7 @@ async function getLoginScenario(email: string): Promise<"pwd" | "otp" | "pwd-otp
   const scenario = await authStore.getScenario(email);
 
   if (!scenario) {
-    authError.value = "Account does not exist";
+    authError.value = t("passkey_error_user_not_found");
     return "";
   }
 

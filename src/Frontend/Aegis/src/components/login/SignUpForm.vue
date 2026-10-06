@@ -151,7 +151,7 @@ async function submit() {
     const stepOf: Record<string, number> = {
         email: 1, displayName: 1,
         username: 2, password: 2,
-        birthDate: 3, tos: 3,
+        birthDate: 3, argreeTos: 3,
     };
 
     for (const field of Object.keys(authStore.registerFieldErrors)) {
@@ -250,7 +250,7 @@ const steps = computed(() => [
                                 <div class="input-group">
                                     <div class="flex items-center gap-2 mb-2">
                                         <MailIcon class="w-4 h-4 text-primary" />
-                                        <Label for="email" class="text-sm font-medium">Email</Label>
+                                        <Label for="email" class="text-sm font-medium">{{ t("email") }}</Label>
                                     </div>
                                     <div class="relative">
                                         <Input 
@@ -277,7 +277,7 @@ const steps = computed(() => [
                                             id="displayName" 
                                             v-model="displayName" 
                                             type="text" 
-                                            placeholder="John Doe" 
+                                            :placeholder="t('display_name_example')" 
                                             class="input-styled pl-10"
                                             :disabled="isLoading" 
                                         />
@@ -334,7 +334,8 @@ const steps = computed(() => [
                                             <EyeIcon v-else class="w-4 h-4 icon-appear" />
                                         </button>
                                     </div>
-                                    
+                                    <p v-if="errorFor('password')" role="alert" class="text-xs text-red-400 mt-1">{{ errorFor('password') }}</p>
+
                                     <!-- Password strength indicator - always visible, content changes -->
                                     <div class="mt-3 space-y-2">
                                         <div class="flex items-center justify-between text-xs">
@@ -362,6 +363,7 @@ const steps = computed(() => [
                                         <Label class="text-sm font-medium">{{ t("dob") }}</Label>
                                     </div>
                                     <DateOfBirthInput v-model="brithDate" :disabled="isLoading" :min-age="14" />
+                                    <p v-if="errorFor('birthDate')" role="alert" class="text-xs text-red-400 mt-1">{{ errorFor('birthDate') }}</p>
                                 </div>
 
                                 <!-- Agreements section -->
@@ -390,6 +392,7 @@ const steps = computed(() => [
                                             <span class="text-red-400">*</span>
                                         </label>
                                     </div>
+                                    <p v-if="errorFor('argreeTos')" role="alert" class="text-xs text-red-400">{{ errorFor('argreeTos') }}</p>
                                 </div>
                             </div>
                         </Transition>

@@ -44,7 +44,7 @@ function onReturn() {
                 <button
                     class="absolute top-4 left-4 p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-all"
                     @click="onReturn"
-                    aria-label="Go back to login"
+                    :aria-label="t('back_to_login')"
                 >
                     <ArrowLeftIcon :size="16" />
                 </button>
@@ -76,7 +76,7 @@ function onReturn() {
                             v-model="model"
                             placeholder="·"
                             @complete="handleComplete"
-                            aria-label="Enter verification code"
+                            :aria-label="t('enter_your_otp')"
                         >
                             <PinInputGroup class="gap-2">
                                 <template v-for="(id, index) in 6" :key="id">
@@ -106,7 +106,7 @@ function onReturn() {
 
                 <!-- Footer -->
                 <p class="text-[10px] text-center text-white/15 pt-1">
-                    Didn't receive the code? Check your spam folder
+                    {{ t("otp_check_spam") }}
                 </p>
             </div>
         </Transition>

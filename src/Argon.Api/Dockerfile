@@ -45,7 +45,7 @@ COPY src/Frontend/Console/package.json ./Console/
 RUN bun install --frozen-lockfile --no-progress
 
 COPY src/Frontend ./
-RUN bun run --cwd Aegis build && bun run --cwd Console build
+RUN bun run validate:locales && bun run --cwd Aegis build && bun run --cwd Console build
 
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build

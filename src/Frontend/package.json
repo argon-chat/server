@@ -10,6 +10,10 @@
   "scripts": {
     "build": "bun run --filter '*' build",
     "build:aegis": "bun run --cwd Aegis build",
-    "build:console": "bun run --cwd Console build"
+    "build:console": "bun run --cwd Console build",
+    "validate:locales": "bun run scripts/validate-locales.ts"
+  },
+  "devDependencies": {
+    "@intlify/message-compiler": "11.4.10"
   }
 }
