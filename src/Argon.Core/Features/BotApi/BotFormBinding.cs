@@ -134,7 +134,7 @@ public sealed class BotBodyOrForm<T> : IBotBoundRequest where T : notnull
         }
         catch (BadHttpRequestException e) when (e.StatusCode == StatusCodes.Status413PayloadTooLarge)
         {
-            return new BotBodyOrForm<T> { Error = BotErrors.TooLarge.Raise() };
+            return new BotBodyOrForm<T> { Error = BotFormBinder.Oversized(ctx) };
         }
     }
 }
@@ -164,6 +164,16 @@ public static class BotFormBinder
 {
     public const long DefaultLimit = 5 * 1024 * 1024;
 
+    /// <summary>
+    /// Refuses a body that is not read to its end. The rest of it is still on the connection, so the client is
+    /// told to close it; a reused one fails its next request when the server drops it.
+    /// </summary>
+    internal static BotApiException Oversized(HttpContext ctx, long? limit = null)
+    {
+        ctx.Response.Headers.Connection = "close";
+        return BotErrors.TooLarge.Raise(limit is null ? null : $"The request is over {limit} bytes.");
+    }
+
     public static async Task<T> BindAsync<T>(HttpContext ctx, long limit) where T : notnull
     {
         var request = ctx.Request;
@@ -171,7 +181,7 @@ public static class BotFormBinder
         if (!request.HasFormContentType)
             throw BotErrors.InvalidRequest.Raise("Send the request as multipart/form-data.");
         if (request.ContentLength > limit)
-            throw BotErrors.TooLarge.Raise($"The request is over {limit} bytes.");
+            throw Oversized(ctx, limit);
 
         if (ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } bodySize)
             bodySize.MaxRequestBodySize = limit;
@@ -190,11 +200,11 @@ public static class BotFormBinder
         }
         catch (BadHttpRequestException e) when (e.StatusCode == StatusCodes.Status413PayloadTooLarge)
         {
-            throw BotErrors.TooLarge.Raise($"The request is over {limit} bytes.");
+            throw Oversized(ctx, limit);
         }
         catch (InvalidDataException e) when (e.Message.Contains("length limit", StringComparison.OrdinalIgnoreCase))
         {
-            throw BotErrors.TooLarge.Raise($"The request is over {limit} bytes.");
+            throw Oversized(ctx, limit);
         }
         catch (InvalidDataException e)
         {

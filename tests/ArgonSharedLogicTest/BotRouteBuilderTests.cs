@@ -347,6 +347,25 @@ public class BotRouteBuilderTests
         });
     }
 
+    /// <summary>
+    /// An oversized body is refused before it is read, so the connection still carries the rest of it. Reusing
+    /// that connection made the next request on it fail when the server dropped it.
+    /// </summary>
+    [Test]
+    public async Task AnOversizedBody_IsRefusedWithTheConnectionClosed()
+    {
+        using var big = new MultipartFormDataContent { { new StringContent("big"), "text" } };
+        AddPart(big, "files", new string('x', FormLimit + 1));
+
+        using var response = await client.PostAsync("/test/Files", big);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.RequestEntityTooLarge));
+            Assert.That(response.Headers.ConnectionClose, Is.True);
+        });
+    }
+
     [Test]
     public async Task ADeclaredError_ComesBackWithItsStatusAndCode()
     {
