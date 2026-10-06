@@ -731,7 +731,7 @@ public class SecurityGrain(
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(authenticationResponse))
+            if (PasskeyAssertion.Read(authenticationResponse) is not { } response)
                 return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
 
             var optionsJson = await pendingPasskeyStore.GetValidationOptionsAsync(UserId, ct);
@@ -740,7 +740,7 @@ public class SecurityGrain(
 
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            var passkey = await PasskeyAssertion.CompleteAsync(db, fido2, UserId, optionsJson, authenticationResponse, ct);
+            var passkey = await PasskeyAssertion.CompleteAsync(db, fido2, UserId, optionsJson, response, ct);
             if (passkey is null)
                 return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
 

@@ -286,7 +286,8 @@ public sealed class VerificationGrain(
 
         try
         {
-            return await PasskeyAssertion.CompleteAsync(db, fido2, UserId, optionsJson, proof, ct) is not null;
+            return PasskeyAssertion.Read(proof) is { } response
+                && await PasskeyAssertion.CompleteAsync(db, fido2, UserId, optionsJson, response, ct) is not null;
         }
         catch (Exception e) when (e is Fido2VerificationException or JsonException or FormatException)
         {

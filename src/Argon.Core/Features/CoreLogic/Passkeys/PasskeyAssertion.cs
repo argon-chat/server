@@ -26,19 +26,19 @@ public static class PasskeyAssertion
         }).ToJson();
     }
 
-    /// <returns>The passkey that signed, with its counter moved on and saved; null when the response is
-    /// unreadable or names no passkey of this account.</returns>
+    /// <returns>The authenticator's response, or null when the text is not one.</returns>
+    public static AuthenticatorAssertionRawResponse? Read(string responseJson)
+        => string.IsNullOrWhiteSpace(responseJson)
+            ? null
+            : System.Text.Json.JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(responseJson);
+
+    /// <returns>The passkey that signed, with its counter moved on and saved; null when the response
+    /// names no passkey of this account.</returns>
     /// <exception cref="Fido2VerificationException">The signature does not verify.</exception>
     public static async Task<UserPasskeyEntity?> CompleteAsync(
-        ApplicationDbContext db, IFido2 fido2, Guid userId, string optionsJson, string responseJson, CancellationToken ct)
+        ApplicationDbContext db, IFido2 fido2, Guid userId, string optionsJson, AuthenticatorAssertionRawResponse response,
+        CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(responseJson))
-            return null;
-
-        var response = System.Text.Json.JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(responseJson);
-        if (response is null)
-            return null;
-
         var credentialId = Base64Url.DecodeFromChars(response.Id);
         var passkey = await db.Passkeys.FirstOrDefaultAsync(
             p => p.CredentialId != null && p.CredentialId == credentialId
