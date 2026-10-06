@@ -153,8 +153,11 @@ public class SpaceSettingsTests : TestBase
         var announced = await watcher.WaitForAsync<SpaceDetailsUpdated>(e => e.spaceId == spaceId, EventWait, mark, ct);
         var afterCommunity = await SpaceAsync(owner, spaceId, ct);
 
+        mark = watcher.Mark();
         await grain.SetPlatformSpaceFlags(isCommunity: null, isOfficial: true);
         var afterOfficial = await SpaceAsync(owner, spaceId, ct);
+        // Drain this call's own announcement before marking, or it lands inside the no-op's window.
+        await watcher.WaitForAsync<SpaceDetailsUpdated>(e => e.spaceId == spaceId && e.details.isOfficial, EventWait, mark, ct);
 
         mark = watcher.Mark();
         await grain.SetPlatformSpaceFlags(isCommunity: null, isOfficial: null);
