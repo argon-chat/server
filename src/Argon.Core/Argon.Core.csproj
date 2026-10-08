@@ -14,7 +14,7 @@
         <PackageReference Include="Livekit.Server.Sdk.Dotnet" Version="1.2.3" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
         <PackageReference Include="Hussien.SnowflakeId" Version="3.3.0" />
-        <PackageReference Include="MailKit" Version="4.18.0" />
+        <PackageReference Include="MailKit" Version="4.18.1" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.12" />
         <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.12" />
