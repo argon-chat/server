@@ -23,43 +23,27 @@ public sealed class ClusterScanScope
 
     /// <summary>
     /// Everything whose simple name starts with "Argon": what is loaded, plus what those assemblies
-    /// reference. The product is split across assemblies now, and one of them being loaded later than
-    /// the scan is not a reason for its grains to be invisible.
+    /// reference — the grain interfaces no longer live in the assembly that scans for them.
     /// </summary>
     public static ClusterScanScope Default()
     {
         var found = new Dictionary<string, Assembly>(StringComparer.Ordinal);
-        var queue = new Queue<Assembly>(AppDomain.CurrentDomain.GetAssemblies().Where(IsProduct));
-
-        if (Assembly.GetEntryAssembly() is { } entry && IsProduct(entry))
-            queue.Enqueue(entry);
+        var queue = new Queue<Assembly>(AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic && IsProduct(a.GetName())));
 
         while (queue.TryDequeue(out var assembly))
         {
-            if (!found.TryAdd(assembly.FullName ?? assembly.GetName().Name!, assembly))
+            if (!found.TryAdd(assembly.FullName!, assembly))
                 continue;
 
-            foreach (var reference in assembly.GetReferencedAssemblies())
-            {
-                if (reference.Name?.StartsWith("Argon", StringComparison.Ordinal) is not true)
-                    continue;
-
-                try
-                {
-                    queue.Enqueue(Assembly.Load(reference));
-                }
-                catch (Exception e) when (e is FileNotFoundException or FileLoadException or BadImageFormatException)
-                {
-                    // A reference the host never ships (a design-time-only package) is not ours to scan.
-                }
-            }
+            foreach (var reference in assembly.GetReferencedAssemblies().Where(IsProduct))
+                queue.Enqueue(Assembly.Load(reference));
         }
 
         return new() { Assemblies = found.Values.ToArray() };
-
-        static bool IsProduct(Assembly a)
-            => !a.IsDynamic && a.GetName().Name?.StartsWith("Argon", StringComparison.Ordinal) is true;
     }
+
+    private static bool IsProduct(AssemblyName name)
+        => name.Name?.StartsWith("Argon", StringComparison.Ordinal) is true;
 
     public static ClusterScanScope For(Assembly assembly, Func<Type, bool>? typeFilter = null)
         => new()
