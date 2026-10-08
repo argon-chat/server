@@ -35,7 +35,7 @@
         <PackageReference Include="OpenIddict.Validation.ServerIntegration" Version="7.7.0" />
         <PackageReference Include="Ulid" Version="1.4.1" />
         <!-- Pinned like Argon.Api; do not bump. -->
-        <PackageReference Include="SixLabors.ImageSharp" Version="[3.1.12]" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="[4.1.2]" />
     </ItemGroup>
 
     <ItemGroup>
