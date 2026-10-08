@@ -422,8 +422,9 @@ public sealed class RemoteRegionClient : IAsyncDisposable
         // grain boundary carry no [GenerateSerializer], so Orleans has no generated codec for them and
         // falls through to this — for the wire and for the deep copy both. Without it the client
         // cannot even construct a grain reference: building the proxy asks for a copier per argument
-        // type, and the first one it cannot find throws.
-        services.AddArgonSerializer();
+        // type, and the first one it cannot find throws. The profile is the host's; a bare container
+        // (a test building the registry by hand) gets the runtime converters alone.
+        services.AddArgonSerializer(host.GetService<ArgonOrleansProfile>() ?? new ArgonOrleansProfile());
 
         services.AddOrleansClient(builder =>
         {

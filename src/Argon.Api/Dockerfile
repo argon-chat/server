@@ -58,6 +58,7 @@ COPY Directory.Build.props .
 # ProjectReference it cannot resolve.
 COPY src/Argon.Api/Argon.Api.csproj src/Argon.Api/
 COPY src/Argon.Core/Argon.Core.csproj src/Argon.Core/
+COPY src/Argon.Framework/Argon.Framework.csproj src/Argon.Framework/
 COPY src/Argon.CodeGen/Argon.Ion.CodeGen.csproj src/Argon.CodeGen/
 COPY src/Argon.CodeGenAdmin/Argon.Ion.CodeGenAdmin.csproj src/Argon.CodeGenAdmin/
 COPY src/Argon.CodeGenAccount/Argon.Ion.CodeGenAccount.csproj src/Argon.CodeGenAccount/

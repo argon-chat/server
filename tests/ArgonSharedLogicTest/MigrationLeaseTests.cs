@@ -194,7 +194,7 @@ public class MigrationLeaseTests
         Assert.That(directory, Is.Not.Null, "could not find the repository root from the test directory");
 
         var file = new FileInfo(Path.Combine(
-            directory!.FullName, "src", "Argon.Core", "Features", "EF", "WarmUpExtensions.cs"));
+            directory!.FullName, "src", "Argon.Framework", "Features", "EF", "WarmUpExtensions.cs"));
 
         Assert.That(file.Exists, Is.True, $"nothing at '{file.FullName}'");
 

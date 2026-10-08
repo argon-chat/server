@@ -2,6 +2,7 @@ namespace Argon.Features.Sentry;
 
 using System.Diagnostics.CodeAnalysis;
 
+using Argon.Grains.Interfaces;
 using global::Sentry;
 using R3;
 using Serilog.Context;

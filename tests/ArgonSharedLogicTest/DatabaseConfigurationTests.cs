@@ -143,7 +143,7 @@ public class DatabaseConfigurationTests
     {
         var catalog = ArgonClusterCatalog.Build(new ClusterScanScope
         {
-            Assemblies = [typeof(CoreRole).Assembly, typeof(IArgonRole).Assembly]
+            Assemblies = [typeof(CoreRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly]
         });
 
         var builder = WebApplication.CreateBuilder();

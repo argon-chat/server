@@ -23,7 +23,7 @@ public class ExpressionSerializationTests
     private ServiceProvider services = null!;
 
     [OneTimeSetUp]
-    public void Build() => services = new ServiceCollection().AddArgonSerializer().BuildServiceProvider();
+    public void Build() => services = new ServiceCollection().AddArgonSerializer(ArgonProfile.Orleans).BuildServiceProvider();
 
     [OneTimeTearDown]
     public void Dispose() => services.Dispose();

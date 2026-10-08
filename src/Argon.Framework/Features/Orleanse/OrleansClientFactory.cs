@@ -4,7 +4,6 @@ using Argon.Features.Clustering.Regions;
 
 using Clustering;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using NatsStreaming;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using Orleans.Serialization.Configuration;
@@ -38,9 +37,10 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         services.Add(new ServiceDescriptor(typeof(IHostApplicationLifetime), null,
             (_, _) => provider.GetRequiredService(typeof(IHostApplicationLifetime)),
             ServiceLifetime.Singleton));
-        services.Add(new ServiceDescriptor(typeof(NatsContext), null,
-            (_, _) => provider.GetRequiredService(typeof(NatsContext)),
-            ServiceLifetime.Singleton));
+        foreach (var service in provider.GetRequiredService<ArgonOrleansProfile>().ForeignClientServices)
+            services.Add(new ServiceDescriptor(service, null,
+                (_, _) => provider.GetRequiredService(service),
+                ServiceLifetime.Singleton));
 
         services.AddOrleansClient(q => Builder(q, env, configuration, dc));
 

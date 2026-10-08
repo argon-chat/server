@@ -2,7 +2,7 @@
  * The Argon server dashboards in Sentry, as code.
  *
  * Every widget reads the trace metrics the server sends through
- * `src/Argon.Core/Features/Sentry/SentryMeterBridge.cs`, which forwards the
+ * `src/Argon.Framework/Features/Sentry/SentryMeterBridge.cs`, which forwards the
  * `System.Diagnostics.Metrics` meters named in `Sentry:Metrics:Meters` — today `Argon`, `Ion`,
  * `Microsoft.Orleans.*`, `Microsoft.AspNetCore.*`, `System.Runtime` and `System.Net.Http`. Edit
  * here, then re-run: a dashboard with the same title is replaced, so this file is the source of

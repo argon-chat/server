@@ -208,14 +208,14 @@ public static class DeviceBoundProof
     private static string Canonical(JsonElement jwk)
         => $$"""{"crv":"{{jwk.GetProperty("crv").GetString()}}","kty":"EC","x":"{{jwk.GetProperty("x").GetString()}}","y":"{{jwk.GetProperty("y").GetString()}}"}""";
 
-    internal static byte[] FromBase64Url(string value)
+    public static byte[] FromBase64Url(string value)
     {
         var padded = value.Replace('-', '+').Replace('_', '/');
 
         return Convert.FromBase64String(padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '='));
     }
 
-    internal static string Base64Url(byte[] value)
+    public static string Base64Url(byte[] value)
         => Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }
 

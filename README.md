@@ -55,7 +55,8 @@ From then on `git submodule update --recursive` keeps it in step with the others
 ```
 src/
 ├── Argon.Api/      # API & grains
-├── Argon.Core/     # Core library
+├── Argon.Core/     # Argon itself: entities, migrations, grain interfaces, Ion services
+├── Argon.Framework/ # Feature system, Orleans hosting, cache, EF, telemetry, integrations
 └── Argon.CodeGen/  # Code generation
 tests/
 └── ArgonComplexTest/

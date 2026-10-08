@@ -27,7 +27,7 @@ public class RegionOptionsRulesTests
     private static RoleDescriptor EntryPoint()
         => ArgonClusterCatalog.Build(new ClusterScanScope
         {
-            Assemblies = [typeof(EntryPointRole).Assembly, typeof(IArgonRole).Assembly]
+            Assemblies = [typeof(EntryPointRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly]
         }).Require(ArgonRoleId.EntryPoint);
 
     private static (string[] Errors, string[] Warnings) Validate(params (string Key, string? Value)[] values)

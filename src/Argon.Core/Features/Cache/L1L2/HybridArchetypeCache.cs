@@ -7,22 +7,6 @@ using NATS.Client.Core;
 
 public static class L1L2CacheExtensions
 {
-    public static void AddHybridCache(this WebApplicationBuilder builder)
-    {
-        builder.Services.AddHybridCache(options =>
-        {
-            options.MaximumPayloadBytes = 1024 * 1024 * 512;
-            options.MaximumKeyLength    = 512;
-            options.DisableCompression  = true;
-
-            options.DefaultEntryOptions = new HybridCacheEntryOptions
-            {
-                Expiration           = TimeSpan.FromHours(48),
-                LocalCacheExpiration = TimeSpan.FromHours(48),
-                Flags                = HybridCacheEntryFlags.DisableCompression
-            };
-        }).AddSerializerFactory<IonHybridCacheSerializerFactory>();
-    }
     public static void AddArchetypesCache(this WebApplicationBuilder builder)
     {
         builder.Services.AddScoped<IArchetypeAgent, ArchetypeAgentHub>();

@@ -1,5 +1,17 @@
 # Argon server — instructions for agents
 
+## Argon.Framework knows nothing about Argon (mandatory)
+
+`src/Argon.Framework` is the feature system, Orleans hosting, the Redis cache, EF engine helpers,
+telemetry and third-party integrations. It **must not reference** `Argon.Core`, the
+Ion codegen projects (`ArgonContracts`, `AccountContracts`, `ConsoleContracts`), an entity, a grain
+interface or a migration. Everything of that kind lives in `src/Argon.Core`, which references the
+framework. What the host needs from the product — storage provider names, Newtonsoft converters for
+contract types, the NATS context, the grains a silo calls at start — goes through
+`ArgonOrleansProfile` (framework) and is filled in by `ArgonProfile.Orleans` (core); `Program.cs`
+hands that profile to `AddArgonOrleans`, and the serialization tests hand it to
+`AddArgonSerializer`. A new framework file that needs a product type is in the wrong project.
+
 ## Ion services never touch the main database (mandatory)
 
 An Ion service — anything registered with `x.AddService<IContract, Impl>(...)` (see
@@ -40,8 +52,8 @@ What guards it:
 RS0030, severity error in `.editorconfig`): raw SQL does not follow a renamed property. Use
 `ExecuteUpdateAsync(s => s.SetProperty(x => x.N, x => x.N + d))`, `ExecuteDeleteAsync`, LINQ, and
 tracked `Attach` + one `SaveChanges` for batches. SQL that LINQ cannot express (system catalogs,
-`AS OF SYSTEM TIME`) goes into a typed helper in `src/Argon.Core/Features/EF/EngineSpecificQueries.cs`
-— that folder and `Migrations/` are the only places the rule is switched off.
+`AS OF SYSTEM TIME`) goes into a typed helper in `src/Argon.Framework/Features/EF/EngineSpecificQueries.cs`
+— that folder, `src/Argon.Core/Features/EF/` and `Migrations/` are the only places the rule is switched off.
 
 The same file bans legacy .NET Framework APIs and footguns: `BinaryFormatter` and friends,
 `System.Timers.Timer`/`System.Threading.Timer` (use `PeriodicTimer` or grain timers), `WebClient`/

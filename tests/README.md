@@ -364,7 +364,7 @@ compatibility gap would show up on: `SET … GET` under
 
 `tests/coverlet.runsettings` is passed to `dotnet test` only when `-Coverage` is asked for — a
 `<DataCollector>` is enabled by being declared, so handing that file to every run had coverlet
-instrument the whole of `Argon.Core` and `Argon.Api` and write a report nobody wanted. It restricts
-measurement to `Argon.Core` and `Argon.Api` and excludes machine-authored code — EF migration snapshots alone are ~120k lines no test can execute
+instrument the whole of `Argon.Framework`, `Argon.Core` and `Argon.Api` and write a report nobody wanted. It restricts
+measurement to those three and excludes machine-authored code — EF migration snapshots alone are ~120k lines no test can execute
 line-by-line. Reports land in `artifacts/coverage` (`index.html` for browsing, `Summary.txt` for the
 number the gate reads).

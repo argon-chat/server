@@ -290,7 +290,7 @@ public static class WarmUpExtension
     /// renewing it, because the caller cannot: the loop below is the only thing that knows where the
     /// safe renewal points are.
     /// </remarks>
-    internal async static Task ApplyMigrationsAsync<T>(
+    public async static Task ApplyMigrationsAsync<T>(
         T dbCtx, ILogger<T> logger, SchemaReconcileLease lease, List<string> pending)
         where T : DbContext
     {

@@ -14,6 +14,7 @@
     <Project Path="src/Argon.CodeGenAccount/Argon.Ion.CodeGenAccount.csproj" />
     <Project Path="src/Argon.CodeGenAdmin/Argon.Ion.CodeGenAdmin.csproj" />
     <Project Path="src/Argon.Core/Argon.Core.csproj" Id="40a1b0f1-5296-477d-91aa-aa12c936a85b" />
+    <Project Path="src/Argon.Framework/Argon.Framework.csproj" />
   </Folder>
   <Folder Name="/bench/">
     <Project Path="bench/ArgonBus/ArgonBus.csproj" />

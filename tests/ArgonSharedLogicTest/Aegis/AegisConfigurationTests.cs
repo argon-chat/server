@@ -20,7 +20,7 @@ public class AegisConfigurationTests
     private static RoleDescriptor Aegis()
         => ArgonClusterCatalog.Build(new ClusterScanScope
         {
-            Assemblies = [typeof(AegisRole).Assembly, typeof(IArgonRole).Assembly]
+            Assemblies = [typeof(AegisRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly]
         }).Require(ArgonRoleId.Aegis);
 
     /// <summary>

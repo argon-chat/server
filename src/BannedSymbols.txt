@@ -1,4 +1,4 @@
-// Raw SQL: grains and services use EF; engine-specific SQL lives in src/Argon.Core/Features/EF.
+// Raw SQL: grains and services use EF; engine-specific SQL lives in src/Argon.Framework/Features/EF.
 M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSql(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
 M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString,System.Threading.CancellationToken);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries
 M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolated(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.FormattableString);Raw SQL is banned outside Features/EF: use ExecuteUpdate/ExecuteDelete/LINQ or a typed helper in EngineSpecificQueries

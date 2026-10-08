@@ -13,7 +13,7 @@ public class ShippedConfigurationTests
     private static ArgonClusterCatalog Catalog()
         => ArgonClusterCatalog.Build(new ClusterScanScope
         {
-            Assemblies = [typeof(CoreRole).Assembly, typeof(IArgonRole).Assembly]
+            Assemblies = [typeof(CoreRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly]
         });
 
     /// <summary>

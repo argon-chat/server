@@ -9,7 +9,7 @@ public class ProductionTopologyTests
     private static ClusterScanScope Scope()
         => new()
         {
-            Assemblies = [typeof(CoreRole).Assembly, typeof(IArgonRole).Assembly]
+            Assemblies = [typeof(CoreRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly]
         };
 
     private static ArgonClusterCatalog Catalog()

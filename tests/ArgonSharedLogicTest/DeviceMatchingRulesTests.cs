@@ -29,7 +29,7 @@ public class DeviceMatchingRulesTests
     private static RoleDescriptor EntryPoint()
         => ArgonClusterCatalog.Build(new ClusterScanScope
         {
-            Assemblies = [typeof(EntryPointRole).Assembly, typeof(IArgonRole).Assembly]
+            Assemblies = [typeof(EntryPointRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly]
         }).Require(ArgonRoleId.EntryPoint);
 
     /// <summary>

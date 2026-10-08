@@ -1,12 +1,9 @@
 namespace Argon.Features.Clustering;
 
-using Argon.Api.Features.Utils;
 using Argon.Features.k8s;
-using Argon.Grains.Interfaces;
 using Argon.Services;
 using Drains;
 using HealthChecks;
-using NatsStreaming;
 using Orleans.Configuration;
 using Orleans.Storage;
 using Features.Orleanse.Storages;
@@ -20,7 +17,8 @@ using Services.Ion;
 
 /// <summary>
 /// Orleans hosting driven by the resolved role: a silo restricted to the grains the role hosts, or
-/// a client that hosts none.
+/// a client that hosts none. What the product adds — storage providers, converters, startup grains,
+/// the bus — comes in through the <see cref="ArgonOrleansProfile"/>.
 /// </summary>
 /// <remarks>
 /// Replaces <c>AddWorkerOrleans</c> / <c>AddGatewayOrleans</c> / <c>AddSingleOrleansClient</c> /
@@ -29,22 +27,7 @@ using Services.Ion;
 /// </remarks>
 public static class ArgonOrleansHosting
 {
-    /// <summary>
-    /// Storage providers are core configuration, identical on every silo rather than declared per
-    /// role: a role never has to register a provider on another role's behalf.
-    /// </summary>
-    private static readonly List<string> StorageProviders =
-    [
-        IUserSessionGrain.StorageId,
-        IServerInvitesGrain.StorageId,
-        "Default",
-        "meets"
-    ];
-
-    public static IReadOnlySet<string> KnownStorageProviders { get; } =
-        StorageProviders.Append(VolatileGrainStorage.ProviderName).ToHashSet(StringComparer.Ordinal);
-
-    public static WebApplicationBuilder AddArgonOrleans(this WebApplicationBuilder builder, RoleDescriptor role)
+    public static WebApplicationBuilder AddArgonOrleans(this WebApplicationBuilder builder, RoleDescriptor role, ArgonOrleansProfile profile)
     {
         // Every role, not just the ones that hold cluster clients for other regions: a silo mints
         // channel ids and an entry point mints space and user ids, and both have to stamp the region
@@ -57,7 +40,11 @@ public static class ArgonOrleansHosting
             Regions.ArgonRegionOptions.SelfIndexOf(builder.Configuration),
             Regions.ArgonRegionOptions.EpochOf(builder.Configuration));
 
-        return role.IsClient ? builder.AddArgonOrleansClient() : builder.AddArgonSilo(role);
+        // Cluster clients built later for other datacenters and regions read it back from here, so
+        // every container in the process serializes the same way.
+        builder.Services.AddSingleton(profile);
+
+        return role.IsClient ? builder.AddArgonOrleansClient(profile) : builder.AddArgonSilo(role, profile);
     }
 
     // ── shared ───────────────────────────────────────────────────────────────────────────────
@@ -66,9 +53,9 @@ public static class ArgonOrleansHosting
     /// The one serializer configuration. It used to exist three times, and a converter added to one
     /// copy was a converter missing from the other two.
     /// </summary>
-    private static WebApplicationBuilder AddArgonSerializer(this WebApplicationBuilder builder)
+    private static WebApplicationBuilder AddArgonSerializer(this WebApplicationBuilder builder, ArgonOrleansProfile profile)
     {
-        builder.Services.AddArgonSerializer();
+        builder.Services.AddArgonSerializer(profile);
         return builder;
     }
 
@@ -86,7 +73,7 @@ public static class ArgonOrleansHosting
     /// copies of it that drift would not fail — they would disagree about the wire, in one direction,
     /// between regions.</para>
     /// </remarks>
-    public static IServiceCollection AddArgonSerializer(this IServiceCollection services)
+    public static IServiceCollection AddArgonSerializer(this IServiceCollection services, ArgonOrleansProfile profile)
     {
         // Having a codec for a type is not the same as being allowed to name it, and the catch-all
         // below only supplies the first. See IonUnionTypeFilter for what the second one cost.
@@ -97,12 +84,10 @@ public static class ArgonOrleansHosting
             {
                 z.SerializerSettings                       ??= new JsonSerializerSettings();
                 z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
-                z.SerializerSettings.Converters.Add(new MessageEntityConverter());
-                // A union held inside an object is Newtonsoft's to write, and the type filter above
-                // does not reach it. Every union that can sit in a grain argument's graph is listed.
-                z.SerializerSettings.Converters.Add(new IonUnionConverter<IWornCosmetic>());
-                z.SerializerSettings.Converters.Add(new IonUnionConverter<ICosmeticPayload>());
-                z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
+
+                foreach (var configure in profile.Serializer)
+                    configure(z.SerializerSettings);
+
                 z.SerializerSettings.Converters.Add(new IonMaybeConverter());
                 z.SerializerSettings.Converters.Add(new IonArrayConverter());
                 z.SerializerSettings.Converters.Add(new IonPartialConverter());
@@ -114,13 +99,19 @@ public static class ArgonOrleansHosting
     private static string DatacenterOf(WebApplicationBuilder builder)
         => ArgonDatacenter.Current;
 
+    private static void AddProfileHost(this WebApplicationBuilder builder, ArgonOrleansProfile profile)
+    {
+        foreach (var configure in profile.Host)
+            configure(builder);
+    }
+
     // ── client ───────────────────────────────────────────────────────────────────────────────
 
-    private static WebApplicationBuilder AddArgonOrleansClient(this WebApplicationBuilder builder)
+    private static WebApplicationBuilder AddArgonOrleansClient(this WebApplicationBuilder builder, ArgonOrleansProfile profile)
     {
         builder.AddArgonDatacenter();
-        builder.AddArgonSerializer();
-        builder.AddNatsCtx();
+        builder.AddArgonSerializer(profile);
+        builder.AddProfileHost(profile);
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
 
         // Registered before the client is built, into this same container: an in-host client has no
@@ -147,14 +138,14 @@ public static class ArgonOrleansHosting
 
     // ── silo ─────────────────────────────────────────────────────────────────────────────────
 
-    private static WebApplicationBuilder AddArgonSilo(this WebApplicationBuilder builder, RoleDescriptor role)
+    private static WebApplicationBuilder AddArgonSilo(this WebApplicationBuilder builder, RoleDescriptor role, ArgonOrleansProfile profile)
     {
         var datacenter = DatacenterOf(builder);
         var endpoints  = ArgonClusterEndpoints.Resolve(builder.Configuration);
 
         builder.AddArgonDatacenter();
-        builder.AddArgonSerializer();
-        builder.AddNatsCtx();
+        builder.AddArgonSerializer(profile);
+        builder.AddProfileHost(profile);
         builder.Services.AddSingleton<ArgonRebalancerBackoffProvider>();
         builder.Services.AddSingleton<ArgonImbalanceToleranceRule>();
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
@@ -179,7 +170,7 @@ public static class ArgonOrleansHosting
             silo.AddStreaming()
                .AddActivityPropagation()
                .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
-               .UseRedisStorages(StorageProviders)
+               .UseRedisStorages(profile.StorageProviders)
 
                 // Stores nothing. It is here so a grain can declare in-memory state as
                 // IPersistentState and have the runtime carry it across a migration for free.
@@ -252,27 +243,17 @@ public static class ArgonOrleansHosting
                .UseRedisReminderService(x => x.ConfigurationOptions =
                     new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
 
-            // The declaration in the role drives validation (E5); the action itself still has to name
-            // the grain and the method, so it stays explicit and gated on the declaration.
-            if (role.StartupCalls.Contains(typeof(IAutoDeleteSchedulerGrain)))
-                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
-                   .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
-                   .EnsureSchedulerActiveAsync());
+            // The declaration in the role drives validation (E5); the call itself is the profile's,
+            // and a declaration the profile has no call for is a boot failure rather than a silent
+            // no-op.
+            foreach (var contract in role.StartupCalls)
+            {
+                if (!profile.StartupTasks.TryGetValue(contract, out var task))
+                    throw new InvalidOperationException(
+                        $"Role '{role.Id}' declares a startup call on {contract.Name}, and the Orleans profile has no task for it.");
 
-            if (role.StartupCalls.Contains(typeof(ITtlSweepGrain)))
-                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
-                   .GetGrain<ITtlSweepGrain>(ITtlSweepGrain.SingletonId)
-                   .EnsureSweeperActiveAsync());
-
-            if (role.StartupCalls.Contains(typeof(ISessionRegistryFlushGrain)))
-                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
-                   .GetGrain<ISessionRegistryFlushGrain>(ISessionRegistryFlushGrain.SingletonId)
-                   .EnsureActiveAsync());
-
-            if (role.StartupCalls.Contains(typeof(IConnectionsMaintenanceGrain)))
-                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
-                   .GetGrain<IConnectionsMaintenanceGrain>(IConnectionsMaintenanceGrain.SingletonId)
-                   .EnsureActiveAsync());
+                silo.AddStartupTask(task);
+            }
 
             silo.AddDistributedGrainDirectory()
                .UseRedisClustering(x => x.ConfigurationOptions =

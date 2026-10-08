@@ -16,7 +16,7 @@ public class IonPartialSerializationTests
 {
     private static Serializer Serializer()
         => new ServiceCollection()
-           .AddArgonSerializer()
+           .AddArgonSerializer(ArgonProfile.Orleans)
            .BuildServiceProvider()
            .GetRequiredService<Serializer>();
 

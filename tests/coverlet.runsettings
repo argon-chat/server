@@ -28,7 +28,7 @@
           <Format>cobertura</Format>
 
           <!-- Only Argon's own assemblies are interesting; third-party code inflates the denominator. -->
-          <Include>[Argon.Core]*,[Argon.Api]*</Include>
+          <Include>[Argon.Framework]*,[Argon.Core]*,[Argon.Api]*</Include>
 
           <Exclude>
             [*]Argon.Migrations.*,

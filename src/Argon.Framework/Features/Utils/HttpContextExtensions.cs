@@ -116,15 +116,6 @@ public static class HttpContextExtensions
                 ? ctx.Request.Headers["User-Agent"].ToString()
                 : "unknown";
 
-        /// <summary>
-        /// What the client says it is: the <c>X-Argon-Client</c> header a first-party client sends,
-        /// filled out from the User-Agent for everything it leaves unsaid. Display-only.
-        /// </summary>
-        public Features.Auth.ClientDescriptor GetClientDescriptor()
-            => Features.Auth.ClientDescriptor.From(
-                ctx.Request.Headers.TryGetValue(Features.Auth.ClientDescriptor.HeaderName, out var declared) ? declared.ToString() : null,
-                ctx.Request.Headers.TryGetValue("User-Agent", out var userAgent) ? userAgent.ToString() : null);
-
         // The client's current app locale (raw app code, e.g. "ru", "jp", "ru_pt").
         // Normalized to BCP-47 at the Bot API boundary via LocaleNormalizer.
         public string? GetClientLocale()

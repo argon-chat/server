@@ -417,7 +417,7 @@ dotnet_style_prefer_simplified_interpolation = true:suggestion
 [*.cs]
 dotnet_diagnostic.RS0030.severity = error
 
-[src/Argon.Core/{Features/EF,Migrations}/**.cs]
+[src/{Argon.Core/Features/EF,Argon.Core/Migrations,Argon.Framework/Features/EF}/**.cs]
 dotnet_diagnostic.RS0030.severity = none
 
 [src/Argon.Core/Features/Aegis/AegisKeyRingMigrations.cs]

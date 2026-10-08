@@ -10,19 +10,17 @@ using System.Diagnostics.CodeAnalysis;
 public static class ArgonClusterCli
 {
     /// <summary>
-    /// Validation options matching how the silos are actually configured, so <c>--validate</c>
-    /// checks E4 against the storage providers the core silo configuration really registers.
-    /// </summary>
-    /// <summary>
     /// Dependencies whose presence in a process is the thing the role split is meant to control.
     /// Reported by <c>ARGON_DUMP_LOADED=1</c>.
     /// </summary>
     public static readonly string[] HeavyAssemblyMarkers = ["Onnx", "SixLabors"];
 
-    public static ClusterValidationOptions DefaultValidationOptions { get; } = new()
-    {
-        StorageProviders = ArgonOrleansHosting.KnownStorageProviders
-    };
+    /// <summary>
+    /// Validation options matching how the silos are actually configured, so <c>--validate</c>
+    /// checks E4 against the storage providers the profile really registers.
+    /// </summary>
+    public static ClusterValidationOptions ValidationOptionsFor(ArgonOrleansProfile profile)
+        => new() { StorageProviders = profile.KnownStorageProviders };
 
     /// <summary>
     /// Runs a clustering command if the arguments describe one.

@@ -15,7 +15,7 @@ using Argon.Features.Clustering;
 public class DerivedRootsTests
 {
     private static ClusterScanScope Scope()
-        => new() { Assemblies = [typeof(CoreRole).Assembly, typeof(IArgonRole).Assembly] };
+        => new() { Assemblies = [typeof(CoreRole).Assembly, typeof(ArgonProfile).Assembly, typeof(IArgonRole).Assembly] };
 
     private static IReadOnlySet<Type> RootsOf<TFeature>() where TFeature : IArgonFeature
         => new ServiceRegistrationScanner(Scope()).RegistrationsOf(typeof(TFeature));
