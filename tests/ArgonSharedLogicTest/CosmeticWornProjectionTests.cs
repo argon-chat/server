@@ -77,7 +77,7 @@ public class CosmeticWornProjectionTests
     [Test]
     public void A_kind_this_build_does_not_declare_is_left_out()
     {
-        var old = Item("profile.background");
+        var old = Item("profile.aurora");
 
         Assert.That(CosmeticWornProjection.Project([Worn(old)], Servable(old), Registry, AllKinds()), Is.Empty);
     }
@@ -171,5 +171,36 @@ public class CosmeticWornProjectionTests
             Is.EqualTo(new[] { typeof(WornItem), typeof(WornNickname), typeof(WornItem) }));
 
         Assert.That(((WornItem)worn[0]).itemId, Is.EqualTo(halo.Id));
+    }
+
+    /// <summary>Badges are worn several at once, and the order is the wearer's: slot by slot.</summary>
+    [Test]
+    public void Rows_of_a_kind_worn_several_at_once_arrive_in_slot_order()
+    {
+        var first  = Item("profile.badge", "first");
+        var second = Item("profile.badge", "second");
+
+        var worn = CosmeticWornProjection.Project(
+            [Worn(second) with { SlotIndex = 1 }, Worn(first)], Servable(first, second), Registry, AllKinds());
+
+        Assert.That(worn, Is.EqualTo(new IWornCosmetic[] { new WornItem(first.Id), new WornItem(second.Id) }));
+    }
+
+    /// <summary>A scene whose wearer chose its reach carries the choice; one with none is a plain item.</summary>
+    [Test]
+    public void A_scene_carries_its_reach_only_when_one_was_chosen()
+    {
+        var scene = Item(ProfileSceneKind.Key);
+
+        var chosen   = Worn(scene) with { Tuning = """{"reach":"card"}""" };
+        var deferred = Worn(scene);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(CosmeticWornProjection.Project([chosen], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornScene(scene.Id, SceneReach.Card)));
+            Assert.That(CosmeticWornProjection.Project([deferred], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornItem(scene.Id)));
+        });
     }
 }

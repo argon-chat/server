@@ -83,9 +83,15 @@ public static class CosmeticWornProjection
     {
         if (!kind.IsBare)
         {
-            return row.CosmeticItemId is { } itemId && servable.ContainsKey(itemId)
-                ? new WornItem(itemId)
-                : null;
+            if (row.CosmeticItemId is not { } itemId || !servable.ContainsKey(itemId))
+                return null;
+
+            return kind.Key switch
+            {
+                ProfileSceneKind.Key => ProfileSceneKind.ToWire(itemId, TuningOf<ProfileSceneTuning>(row)),
+
+                _ => new WornItem(itemId)
+            };
         }
 
         // A bare kind has no row to point at. One that does was written by something other than this
