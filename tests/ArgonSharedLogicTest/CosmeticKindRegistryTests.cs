@@ -29,9 +29,23 @@ public class CosmeticKindRegistryTests
 
         Assert.That(keys, Is.EquivalentTo(new[]
         {
-            "profile.frame", "avatar.decoration", "nickname.style",
+            "profile.background", "profile.badge", "profile.frame", "profile.scene",
+            "avatar.decoration", "avatar.orbit", "nickname.style",
             "option.font", "option.text-effect"
         }));
+    }
+
+    [Test]
+    public void A_required_asset_is_reported_as_one()
+    {
+        var background = Shipped().Find("profile.background")!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(background.RequiredAssets().Select(asset => asset.Slot),
+                Is.EquivalentTo(new[] { CosmeticAssetSlot.Primary }));
+            Assert.That(background.Assets[CosmeticAssetSlot.Poster].IsRequired, Is.False);
+        });
     }
 
     [Test]
@@ -129,9 +143,9 @@ public class CosmeticKindRegistryTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(registry.Contains("profile.background"), Is.False);
-            Assert.That(registry.Find("profile.background"), Is.Null);
-            Assert.That(registry.TryGet("profile.background", out _), Is.False);
+            Assert.That(registry.Contains("profile.aurora"), Is.False);
+            Assert.That(registry.Find("profile.aurora"), Is.Null);
+            Assert.That(registry.TryGet("profile.aurora", out _), Is.False);
         });
     }
 

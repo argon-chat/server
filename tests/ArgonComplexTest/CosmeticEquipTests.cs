@@ -235,7 +235,7 @@ public class CosmeticEquipTests : TestBase
             // An option is only ever chosen on somebody's axis, never worn on its own.
             Assert.That(((FailedEquip)await session.Cosmetics.Equip(new WornItem(face.Id), ct)).error, Is.EqualTo(CosmeticError.ITEM_UNAVAILABLE));
 
-            Assert.That(((FailedEquip)await session.Cosmetics.Unequip("profile.background", ct)).error, Is.EqualTo(CosmeticError.UNKNOWN_KIND));
+            Assert.That(((FailedEquip)await session.Cosmetics.Unequip("profile.aurora", ct)).error, Is.EqualTo(CosmeticError.UNKNOWN_KIND));
         });
     }
 
@@ -575,5 +575,124 @@ public class CosmeticEquipTests : TestBase
             Assert.That(Items(seen), Is.Empty, "the frame stayed on after the extended grant ran out");
             Assert.That(DateTimeOffset.UtcNow, Is.GreaterThanOrEqualTo(newEnd));
         });
+    }
+
+    private const string Orbit =
+        """
+        {"satellites":[{"type":"satellite","slot":"Primary","radiusPct":62,"widthPct":30,"heightPct":24,"periodMs":6000}]}
+        """;
+
+    private const string ChoiceScene =
+        """
+        {"reach":"choice","defaultReach":"content","sheet":{"w":64,"h":64},"actors":[
+          {"type":"wash","source":"atlas","atlas":{"x":0,"y":0,"w":64,"h":64}}
+        ]}
+        """;
+
+    [Test, CancelAfter(120_000)]
+    public async Task The_catalogue_carries_every_kind_typed(CancellationToken ct = default)
+    {
+        var session = await CreateSessionAsync(ct);
+
+        var background = await PublishAsync("profile.background", "aurora", """{"loop":false}""",
+            assets: new() { ["primary"] = "clip", ["poster"] = "still" }, ct: ct);
+        var badge = await PublishAsync("profile.badge", "staff", """{"tooltipKey":"badge_staff","tint":-1}""", ct: ct);
+        var orbit = await PublishAsync("avatar.orbit", "cat", Orbit, ct: ct);
+        var scene = await PublishAsync("profile.scene", "sakura", ChoiceScene, ct: ct);
+
+        var catalogue = await session.Cosmetics.GetCatalogue(ct);
+
+        CatalogueCosmetic Row(CosmeticItemEntity item) => catalogue.items.Single(row => row.cosmeticId == item.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(catalogue.enabledKinds,
+                Is.SupersetOf(new[] { "profile.background", "profile.badge", "avatar.orbit", "profile.scene" }));
+
+            Assert.That(Row(background).payload, Is.EqualTo(new PayloadProfileBackground(false, 0.35d)));
+            Assert.That(Row(background).assets.Select(asset => asset.slot),
+                Is.EquivalentTo(new[] { AssetSlot.Primary, AssetSlot.Poster }));
+
+            Assert.That(Row(badge).payload, Is.EqualTo(new PayloadBadge("badge_staff", -1)));
+
+            var figure = (OrbitSatellite)((PayloadAvatarOrbit)Row(orbit).payload).satellites.Single();
+            Assert.That(figure.radiusPct, Is.EqualTo(62d));
+
+            var stage = (PayloadProfileScene)Row(scene).payload;
+            Assert.That(stage.reach, Is.EqualTo(SceneReachRule.Choice));
+            Assert.That(stage.actors.Single(), Is.InstanceOf<SceneWash>());
+        });
+    }
+
+    /// <summary>Badges are worn several at once, in the wearer's order, and come off together.</summary>
+    [Test, CancelAfter(120_000)]
+    public async Task Badges_are_worn_in_the_order_given_and_replaced_as_a_row(CancellationToken ct = default)
+    {
+        var (wearer, onlooker, spaceId) = await TwoInASpaceAsync(ct);
+
+        var badges = new List<CosmeticItemEntity>();
+
+        for (var at = 0; at < 9; at++)
+        {
+            badges.Add(await PublishAsync("profile.badge", $"badge-{at}", """{"tooltipKey":"badge"}""", ct: ct));
+        }
+
+        var three = badges.Take(3).Select(badge => badge.Id).ToArray();
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornItems(new IonArray<Guid>(three)), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(Items(await SeenBy(onlooker, spaceId, wearer.UserId, ct)), Is.EqualTo(three));
+
+        // Reordered and shortened: the row is what was given, nothing left over from before.
+        var two = new[] { three[2], three[0] };
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornItems(new IonArray<Guid>(two)), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(Items(await SeenBy(onlooker, spaceId, wearer.UserId, ct)), Is.EqualTo(two));
+
+        // One badge put on the ordinary way is the whole row.
+        Assert.That(await wearer.Cosmetics.Equip(new WornItem(badges[5].Id), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(Items(await SeenBy(onlooker, spaceId, wearer.UserId, ct)), Is.EqualTo(new[] { badges[5].Id }));
+
+        var nine     = await wearer.Cosmetics.Equip(new WornItems(new IonArray<Guid>(badges.Select(badge => badge.Id).ToArray())), ct);
+        var twice    = await wearer.Cosmetics.Equip(new WornItems(new IonArray<Guid>([three[0], three[0]])), ct);
+        var none     = await wearer.Cosmetics.Equip(new WornItems(IonArray<Guid>.Empty), ct);
+        var halo     = await PublishAsync("avatar.decoration", "halo", """{"insetPct":10,"beneath":false}""", ct: ct);
+        var twoKinds = await wearer.Cosmetics.Equip(new WornItems(new IonArray<Guid>([three[0], halo.Id])), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((nine as FailedEquip)?.error, Is.EqualTo(CosmeticError.VALUE_OUT_OF_RANGE), "past the kind's eight slots");
+            Assert.That((twice as FailedEquip)?.error, Is.EqualTo(CosmeticError.VALUE_OUT_OF_RANGE), "one badge twice");
+            Assert.That((none as FailedEquip)?.error, Is.EqualTo(CosmeticError.VALUE_OUT_OF_RANGE), "a row that names no kind");
+            Assert.That((twoKinds as FailedEquip)?.error, Is.EqualTo(CosmeticError.VALUE_OUT_OF_RANGE), "two kinds in one row");
+        });
+
+        Assert.That(Items(await SeenBy(onlooker, spaceId, wearer.UserId, ct)), Is.EqualTo(new[] { badges[5].Id }),
+            "a refused row changed what was worn");
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornItems(new IonArray<Guid>(two)), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(await wearer.Cosmetics.Unequip("profile.badge", ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct), Is.Empty);
+    }
+
+    /// <summary>A scene's reach is the wearer's, carried on the profile exactly as it was put on.</summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_scene_is_worn_with_the_reach_its_wearer_chose(CancellationToken ct = default)
+    {
+        var (wearer, onlooker, spaceId) = await TwoInASpaceAsync(ct);
+
+        var scene = await PublishAsync("profile.scene", "sakura", ChoiceScene, ct: ct);
+        var orbit = await PublishAsync("avatar.orbit", "cat", Orbit, ct: ct);
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornScene(scene.Id, SceneReach.Card), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct),
+            Is.EqualTo(new IWornCosmetic[] { new WornScene(scene.Id, SceneReach.Card) }));
+
+        // Put on with no reach, it defers to the row's default again rather than keeping the old choice.
+        Assert.That(await wearer.Cosmetics.Equip(new WornItem(scene.Id), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct), Is.EqualTo(new IWornCosmetic[] { new WornItem(scene.Id) }));
+
+        var notAScene = await wearer.Cosmetics.Equip(new WornScene(orbit.Id, SceneReach.Card), ct);
+
+        Assert.That((notAScene as FailedEquip)?.error, Is.EqualTo(CosmeticError.NOT_FOUND));
     }
 }
