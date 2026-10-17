@@ -18,17 +18,21 @@ public static class CosmeticAssetMedia
 
         return kind switch
         {
-            CosmeticAssetKind.Image => contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase),
-            CosmeticAssetKind.Font  => IsFont(contentType),
-            _                       => false
+            CosmeticAssetKind.Image       => contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase),
+            CosmeticAssetKind.SpriteSheet => contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase),
+            CosmeticAssetKind.Video       => contentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase),
+            CosmeticAssetKind.Font        => IsFont(contentType),
+            _                             => false
         };
     }
 
     public static string Describe(CosmeticAssetKind kind) => kind switch
     {
-        CosmeticAssetKind.Image => "an image",
-        CosmeticAssetKind.Font  => "a font file",
-        _                       => kind.ToString()
+        CosmeticAssetKind.Image       => "an image",
+        CosmeticAssetKind.SpriteSheet => "a sprite sheet image",
+        CosmeticAssetKind.Video       => "a video",
+        CosmeticAssetKind.Font        => "a font file",
+        _                             => kind.ToString()
     };
 
     private static bool IsFont(string contentType)

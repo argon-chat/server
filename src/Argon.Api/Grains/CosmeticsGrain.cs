@@ -22,8 +22,8 @@ using Services.L1L2;
 /// the moment the soonest grant anything worn depends on runs out. The read path never asks — see
 /// <see cref="CosmeticWear"/>.</para>
 ///
-/// <para>Every kind this build ships is worn one at a time, so everything goes in slot 0. The column
-/// stays for the kinds that will be worn several at once.</para>
+/// <para>A kind worn one at a time goes in slot 0. One worn several at once — badges — takes slots
+/// from 0 in the order the wearer gave them, and putting the kind on again replaces all of them.</para>
 /// </remarks>
 public sealed class CosmeticsGrain(
     IDbContextFactory<ApplicationDbContext> context,
@@ -81,7 +81,9 @@ public sealed class CosmeticsGrain(
     public async Task<IEquipResult> EquipAsync(IWornCosmetic cosmetic)
         => cosmetic switch
         {
-            WornItem item         => await EquipItemAsync(item.itemId),
+            WornItem item         => await EquipItemsAsync([item.itemId], null),
+            WornItems items       => await EquipItemsAsync([.. items.itemIds], null),
+            WornScene scene       => await EquipItemsAsync([scene.itemId], ProfileSceneKind.TuningOf(scene.reach), ProfileSceneKind.Key),
             WornNickname nickname => NicknameStyleKind.FromWire(nickname) is { } look
                 ? await ComposeAsync(NicknameStyleKind.Key, look.Options, look.Tuning)
                 : Fail(CosmeticError.VALUE_OUT_OF_RANGE),
@@ -97,8 +99,9 @@ public sealed class CosmeticsGrain(
 
         await using var ctx = await context.CreateDbContextAsync();
 
+        // Every slot: a kind worn several at once comes off whole, the way it went on.
         var removed = await ctx.CosmeticEquips
-           .Where(row => row.UserId == UserId && row.KindKey == kindKey && row.SlotIndex == Slot)
+           .Where(row => row.UserId == UserId && row.KindKey == kindKey)
            .ExecuteDeleteAsync();
 
         if (removed is 0)
@@ -210,50 +213,105 @@ public sealed class CosmeticsGrain(
         return true;
     }
 
-    private async Task<IEquipResult> EquipItemAsync(Guid cosmeticId)
+    /// <summary>
+    /// Puts on catalogue rows of one kind, in slots from 0 in the order given, replacing whatever that
+    /// kind had: one row for a kind worn one at a time, up to its slot count for one worn several at
+    /// once.
+    /// </summary>
+    /// <remarks>
+    /// <para>A kind its wearer tunes stores what this equip says about it, and an equip that says
+    /// nothing clears it: what a profile carries back is exactly what was put on. Only a scene's
+    /// reach is tuning on a kind with rows, so <paramref name="kindKey"/> holds the rows to the kind
+    /// the tuning was written for.</para>
+    /// </remarks>
+    private async Task<IEquipResult> EquipItemsAsync(IReadOnlyList<Guid> itemIds, object? tuning, string? kindKey = null)
     {
+        // An empty list names no kind, and the same row twice is one badge shown twice.
+        if (itemIds.Count is 0 || itemIds.Distinct().Count() != itemIds.Count)
+            return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
+
         await using var ctx = await context.CreateDbContextAsync();
 
-        var item = await ctx.Cosmetics
+        var items = await ctx.Cosmetics
            .AsNoTracking()
-           .FirstOrDefaultAsync(row => row.Id == cosmeticId);
+           .Where(row => itemIds.Contains(row.Id))
+           .ToDictionaryAsync(row => row.Id);
 
-        if (item is null)
+        if (items.Count != itemIds.Count)
             return Fail(CosmeticError.NOT_FOUND);
 
-        if (await CheckKindAsync(item.KindKey) is { } refused)
+        var first = items[itemIds[0]];
+
+        if (kindKey is not null && first.KindKey != kindKey)
+            return Fail(CosmeticError.NOT_FOUND);
+
+        // One kind per call: the slots being replaced are that kind's.
+        if (items.Values.Any(item => item.KindKey != first.KindKey))
+            return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
+
+        if (await CheckKindAsync(first.KindKey) is { } refused)
             return refused;
 
-        var kind = registry.Find(item.KindKey)!;
+        var kind = registry.Find(first.KindKey)!;
+        var now  = DateTimeOffset.UtcNow;
 
         // A bare kind is composed, not equipped, and an option is only ever chosen on somebody's axis.
-        if (kind.IsBare || kind.IsCompositional || !CosmeticAvailability.IsServable(item, DateTimeOffset.UtcNow))
+        if (kind.IsBare || kind.IsCompositional || items.Values.Any(item => !CosmeticAvailability.IsServable(item, now)))
             return Fail(CosmeticError.ITEM_UNAVAILABLE);
 
-        var grants = await ActiveGrantsAsync(ctx);
+        if (itemIds.Count > kind.MaxSlots)
+            return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
 
-        if (!CosmeticWear.MayWear(item, kind, await HasPremiumAsync(ctx), grants.ContainsKey(item.Id)))
+        string? tuningJson = null;
+
+        if (tuning is not null)
+        {
+            // Held to the kind's own schema before it is stored, the same check a stored document gets.
+            tuningJson = kind.Tuning is null ? null : CosmeticJson.Default.Write(tuning);
+
+            if (tuningJson is null || IsEmptyTuning(tuningJson) || !kind.ValidateTuning(tuningJson).IsValid)
+                return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
+        }
+
+        var premium = await HasPremiumAsync(ctx);
+        var grants  = await ActiveGrantsAsync(ctx);
+
+        if (items.Values.Any(item => !CosmeticWear.MayWear(item, kind, premium, grants.ContainsKey(item.Id))))
             return Fail(CosmeticError.NOT_OWNED);
 
-        var row = await SlotRowAsync(ctx, item.KindKey);
+        var rows = await ctx.CosmeticEquips
+           .Where(row => row.UserId == UserId && row.KindKey == kind.Key)
+           .ToListAsync();
 
-        if (row is null)
+        for (var slot = 0; slot < itemIds.Count; slot++)
         {
-            ctx.CosmeticEquips.Add(new CosmeticEquipEntity
+            var row = rows.FirstOrDefault(existing => existing.SlotIndex == slot);
+
+            if (row is null)
             {
-                UserId         = UserId,
-                KindKey        = item.KindKey,
-                SlotIndex      = Slot,
-                CosmeticItemId = item.Id,
-                UpdatedAt      = DateTimeOffset.UtcNow
-            });
-        }
-        else
-        {
+                row = new CosmeticEquipEntity
+                {
+                    UserId    = UserId,
+                    KindKey   = kind.Key,
+                    SlotIndex = slot
+                };
+
+                ctx.CosmeticEquips.Add(row);
+            }
+
             // What was chosen on the slot's axes belongs to the slot, not to the item in it, so
             // swapping the item keeps it.
-            row.CosmeticItemId = item.Id;
-            row.UpdatedAt      = DateTimeOffset.UtcNow;
+            row.CosmeticItemId = itemIds[slot];
+            row.UpdatedAt      = now;
+
+            if (kind.Tuning is not null)
+                row.Tuning = tuningJson;
+        }
+
+        foreach (var row in rows)
+        {
+            if (row.SlotIndex >= itemIds.Count)
+                ctx.CosmeticEquips.Remove(row);
         }
 
         await ctx.SaveChangesAsync();
