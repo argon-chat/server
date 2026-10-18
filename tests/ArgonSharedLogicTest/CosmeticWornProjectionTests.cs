@@ -57,6 +57,15 @@ public class CosmeticWornProjectionTests
         Assert.That(worn.Single(), Is.EqualTo(new WornItem(halo.Id)));
     }
 
+    /// <summary>A row of a kind with rows that names none is half-written, and half a thing is not drawn.</summary>
+    [Test]
+    public void A_row_of_an_item_kind_that_names_no_item_is_left_out()
+    {
+        var halo = Item("avatar.decoration");
+
+        Assert.That(CosmeticWornProjection.Project([Worn(halo) with { CosmeticItemId = null }], Servable(halo), Registry, AllKinds()), Is.Empty);
+    }
+
     /// <summary>Unpublished, switched off or out of its window: the read left it out of the servable set.</summary>
     [Test]
     public void An_item_that_may_not_be_served_is_left_out()
@@ -200,6 +209,21 @@ public class CosmeticWornProjectionTests
             Assert.That(CosmeticWornProjection.Project([chosen], Servable(scene), Registry, AllKinds()).Single(),
                 Is.EqualTo(new WornScene(scene.Id, SceneReach.Card)));
             Assert.That(CosmeticWornProjection.Project([deferred], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornItem(scene.Id)));
+        });
+    }
+
+    /// <summary>Either reach the wearer can choose arrives as chosen; a tuning this build cannot read is no choice.</summary>
+    [Test]
+    public void A_scene_carries_either_reach_and_an_unreadable_tuning_is_no_choice()
+    {
+        var scene = Item(ProfileSceneKind.Key);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(CosmeticWornProjection.Project([Worn(scene) with { Tuning = """{"reach":"content"}""" }], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornScene(scene.Id, SceneReach.Content)));
+            Assert.That(CosmeticWornProjection.Project([Worn(scene) with { Tuning = "not json" }], Servable(scene), Registry, AllKinds()).Single(),
                 Is.EqualTo(new WornItem(scene.Id)));
         });
     }

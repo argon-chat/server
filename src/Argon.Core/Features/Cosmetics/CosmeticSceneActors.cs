@@ -618,11 +618,46 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     // every sort of actor draws something, so every sort of actor may throw a shadow of it; and
     // whether there is a clock to restart is a question of the source, not of the sort, so `replay`
     // is refused where it applies rather than by name.
-    private static readonly string[] WashFields    = ["fit", "periodMs"];
-    private static readonly string[] SpriteFields  = ["from", "to", "ease", "turn", "rotate", "bowPct", "bowAxis", "bankDeg"];
-    private static readonly string[] BandFields    = ["thicknessPct", "cornerPct"];
-    private static readonly string[] WrapFields    = ["widthPct"];
-    private static readonly string[] EmitterFields = ["count", "seed", "sizeVarPct", "durationVarMs", "driftPct", "swayPct", "swayPeriodMs", "swayVarMs", "spinDeg", "flutterDeg", "depthSpreadPct"];
+    private static readonly SortField[] WashFields =
+    [
+        new("fit", actor => actor.Fit is not null),
+        new("periodMs", actor => actor.PeriodMs is not null)
+    ];
+
+    private static readonly SortField[] SpriteFields =
+    [
+        new("from", actor => actor.From is not null),
+        new("to", actor => actor.To is not null),
+        new("ease", actor => actor.Ease is not null),
+        new("turn", actor => actor.Turn is not null),
+        new("rotate", actor => actor.Rotate is not null),
+        new("bowPct", actor => actor.BowPct is not null),
+        new("bowAxis", actor => actor.BowAxis is not null),
+        new("bankDeg", actor => actor.BankDeg is not null)
+    ];
+
+    private static readonly SortField[] BandFields =
+    [
+        new("thicknessPct", actor => actor.ThicknessPct is not null),
+        new("cornerPct", actor => actor.CornerPct is not null)
+    ];
+
+    private static readonly SortField[] WrapFields = [new("widthPct", actor => actor.WidthPct is not null)];
+
+    private static readonly SortField[] EmitterFields =
+    [
+        new("count", actor => actor.Count is not null),
+        new("seed", actor => actor.Seed is not null),
+        new("sizeVarPct", actor => actor.SizeVarPct is not null),
+        new("durationVarMs", actor => actor.DurationVarMs is not null),
+        new("driftPct", actor => actor.DriftPct is not null),
+        new("swayPct", actor => actor.SwayPct is not null),
+        new("swayPeriodMs", actor => actor.SwayPeriodMs is not null),
+        new("swayVarMs", actor => actor.SwayVarMs is not null),
+        new("spinDeg", actor => actor.SpinDeg is not null),
+        new("flutterDeg", actor => actor.FlutterDeg is not null),
+        new("depthSpreadPct", actor => actor.DepthSpreadPct is not null)
+    ];
 
     /// <summary>
     /// What the two nine-slices both carry.
@@ -634,7 +669,12 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// shape: a band's thickness on the one side it lies on, a wrap's four.
     /// </remarks>
     /// <summary>What the two nine-slices share: where to cut the picture and how to lay it.</summary>
-    private static readonly string[] SliceFields = ["slice", "outsetPct", "tile"];
+    private static readonly SortField[] SliceFields =
+    [
+        new("slice", actor => actor.Slice is not null),
+        new("outsetPct", actor => actor.OutsetPct is not null),
+        new("tile", actor => actor.Tile is not null)
+    ];
 
     /// <summary>
     /// Being revealed into place — a band, a wrap, and a picture over the whole card.
@@ -646,7 +686,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// belongs to the three actors that stand still. A sprite and a scatter are already going
     /// somewhere; being uncovered as well is two answers to one question.
     /// </remarks>
-    private static readonly string[] GrowFields = ["grow"];
+    private static readonly SortField[] GrowFields = [new("grow", actor => actor.Grow is not null)];
 
     /// <summary>What a sprite and an emitter both carry, and nothing else does.</summary>
     /// <remarks>
@@ -656,13 +696,18 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// <see cref="EmitterFields"/> is foreign to both, so each sort would refuse its own field.
     /// A shared meaning is not what puts a name in this group; a shared set of owners is.
     /// </remarks>
-    private static readonly string[] TravelFields = ["sizePct", "durationMs", "bobPct"];
+    private static readonly SortField[] TravelFields =
+    [
+        new("sizePct", actor => actor.SizePct is not null),
+        new("durationMs", actor => actor.DurationMs is not null),
+        new("bobPct", actor => actor.BobPct is not null)
+    ];
 
     /// <summary>What a band and an emitter both carry. A wrap has no one edge to lie on.</summary>
-    private static readonly string[] EdgeFields = ["edge"];
+    private static readonly SortField[] EdgeFields = [new("edge", actor => actor.Edge is not null)];
 
     /// <summary>What a wash and a sprite both carry.</summary>
-    private static readonly string[] ScaleFields = ["scale"];
+    private static readonly SortField[] ScaleFields = [new("scale", actor => actor.Scale is not null)];
 
     /// <summary>
     /// How an actor's own cycle repeats — everything but the two nine-slices.
@@ -674,7 +719,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// forever underneath the parts that had finished. A band and a wrap have no <c>repeat</c> only
     /// because theirs is inside <c>grow</c>, where the hold lives with it.
     /// </remarks>
-    private static readonly string[] CycleFields = ["repeat"];
+    private static readonly SortField[] CycleFields = [new("repeat", actor => actor.Repeat is not null)];
 
     /// <summary>
     /// Showing past the card's edge — a picture over the whole card, and a figure crossing it.
@@ -683,7 +728,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// The two nine-slices already reach past the edge by <c>outsetPct</c>, and a scatter's spill is
     /// not drawn; a name that does nothing is refused rather than kept, for the reason the type gives.
     /// </remarks>
-    private static readonly string[] SpillFields = ["spillPct"];
+    private static readonly SortField[] SpillFields = [new("spillPct", actor => actor.SpillPct is not null)];
 
     /// <summary>
     /// Withdrawing from the reading zone — everything but a scatter.
@@ -692,7 +737,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// A scatter is its copies, each already on a cycle of its own, and one that should stop
     /// covering the card plays once — which <c>repeat</c> already says.
     /// </remarks>
-    private static readonly string[] RetreatFields = ["retreat"];
+    private static readonly SortField[] RetreatFields = [new("retreat", actor => actor.Retreat is not null)];
 
     public void Validate(ICosmeticPayloadReport report)
     {
@@ -740,7 +785,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
     /// carrying one that nothing reads is two dimensions somebody measured and will expect to see
     /// used, which is the same trap as a <c>defaultReach</c> nothing consults.
     /// </remarks>
-    private CosmeticSceneSheet? ValidateSheet(ICosmeticPayloadReport report)
+    private SheetSize? ValidateSheet(ICosmeticPayloadReport report)
     {
         var read = false;
 
@@ -770,14 +815,17 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         var width = Require(report, Sheet.W, "sheet.w", 1, CosmeticSceneLimits.MaxAtlasPx);
         var height = Require(report, Sheet.H, "sheet.h", 1, CosmeticSceneLimits.MaxAtlasPx);
 
-        return width is null || height is null ? null : Sheet;
+        return width is { } across && height is { } down ? new SheetSize(across, down) : null;
     }
+
+    /// <summary>A sheet that passed <see cref="ValidateSheet"/>: both sides there and in range.</summary>
+    private readonly record struct SheetSize(int Width, int Height);
 
     private static void ValidateActor(
         ICosmeticPayloadReport report,
         CosmeticSceneActor actor,
         int index,
-        CosmeticSceneSheet? sheet)
+        SheetSize? sheet)
     {
         var at = $"actors[{index}]";
 
@@ -870,7 +918,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         if (actor.Source is not "file")
             report.Error($"{at} is a nine-slice band, so it needs a file of its own rather than a rectangle of the sheet");
 
-        ValidateSides(report, actor.Slice, $"{at}.slice", 0, CosmeticSceneLimits.MaxSlice, required: true);
+        ValidateSides(report, actor.Slice, $"{at}.slice", 0, CosmeticSceneLimits.MaxSlice);
 
         RequireDouble(report, actor.ThicknessPct, $"{at}.thicknessPct", 1d, 100d);
         Bound(report, actor.CornerPct, $"{at}.cornerPct", 0d, 100d);
@@ -889,8 +937,8 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         if (actor.Source is not "file")
             report.Error($"{at} is a nine-slice wrap, so it needs a file of its own rather than a rectangle of the sheet");
 
-        ValidateSides(report, actor.Slice, $"{at}.slice", 0, CosmeticSceneLimits.MaxSlice, required: true);
-        ValidateSidesDouble(report, actor.WidthPct, $"{at}.widthPct", 0d, 100d, required: true);
+        ValidateSides(report, actor.Slice, $"{at}.slice", 0, CosmeticSceneLimits.MaxSlice);
+        ValidateSidesDouble(report, actor.WidthPct, $"{at}.widthPct", 0d, 100d);
 
         // Four sides of nothing is a wrap somebody meant to shape and left empty — it publishes, it
         // renders, and it draws no pixels at all, which on a card is indistinguishable from a file
@@ -955,7 +1003,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         ICosmeticPayloadReport report,
         CosmeticSceneActor actor,
         string at,
-        CosmeticSceneSheet? sheet)
+        SheetSize? sheet)
     {
         var source = actor.Source ?? "atlas";
 
@@ -1080,10 +1128,10 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
                 report.Error($"{where}.v is {value}, and the range is {low} to {high}");
         }
 
-        if (stops[0].At is not 0d)
+        if (stops[0].At != 0d)
             report.Error($"{at} starts at {stops[0].At}, and an envelope covers the whole cycle from 0");
 
-        if (stops[^1].At is not 1d)
+        if (stops[^1].At != 1d)
             report.Error($"{at} ends at {stops[^1].At}, and an envelope covers the whole cycle to 1");
     }
 
@@ -1203,7 +1251,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         ICosmeticPayloadReport report,
         CosmeticSceneAtlas atlas,
         string at,
-        CosmeticSceneSheet? sheet)
+        SheetSize? sheet)
     {
         Bound(report, atlas.X, $"{at}.x", 0, CosmeticSceneLimits.MaxAtlasPx);
         Bound(report, atlas.Y, $"{at}.y", 0, CosmeticSceneLimits.MaxAtlasPx);
@@ -1225,16 +1273,16 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
 
         Bound(report, atlas.Fps, $"{at}.fps", 1, 60);
 
-        if (frames is null || columns is null)
+        if (frames is not { } frameCount || columns is not { } columnCount)
             return;
 
-        if (columns > frames || frames % columns is not 0)
-            report.Error($"{at}.frames must divide evenly into rows of {columns}");
+        if (columnCount > frameCount || frameCount % columnCount is not 0)
+            report.Error($"{at}.frames must divide evenly into rows of {columnCount}");
         else
-            ValidateFitsTheSheet(report, atlas, at, sheet, width, height, columns.Value, frames.Value / columns.Value);
+            ValidateFitsTheSheet(report, atlas, at, sheet, width, height, columnCount, frameCount / columnCount);
 
-        if (atlas.Still is { } still && (still < 0 || still >= frames))
-            report.Error($"{at}.still names frame {still}, and the strip has {frames}");
+        if (atlas.Still is { } still && (still < 0 || still >= frameCount))
+            report.Error($"{at}.still names frame {still}, and the strip has {frameCount}");
     }
 
     /// <summary>
@@ -1251,13 +1299,13 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         ICosmeticPayloadReport report,
         CosmeticSceneAtlas atlas,
         string at,
-        CosmeticSceneSheet? sheet,
+        SheetSize? sheet,
         int? width,
         int? height,
         int columns,
         int rows)
     {
-        if (sheet?.W is not { } sheetWidth || sheet.H is not { } sheetHeight)
+        if (sheet is not { } bounds)
             return;
 
         if (width is not { } cell || height is not { } row)
@@ -1265,71 +1313,33 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
 
         var right = (atlas.X ?? 0) + (columns * cell);
 
-        if (right > sheetWidth)
-            report.Error($"{at} runs {right - sheetWidth}px past the right edge of the sheet");
+        if (right > bounds.Width)
+            report.Error($"{at} runs {right - bounds.Width}px past the right edge of the sheet");
 
         var bottom = (atlas.Y ?? 0) + (rows * row);
 
-        if (bottom > sheetHeight)
-            report.Error($"{at} runs {bottom - sheetHeight}px past the bottom of the sheet");
+        if (bottom > bounds.Height)
+            report.Error($"{at} runs {bottom - bounds.Height}px past the bottom of the sheet");
     }
 
     private static void RefuseStrayFields(
         ICosmeticPayloadReport report,
         CosmeticSceneActor actor,
         string at,
-        params string[][] foreign)
+        params SortField[][] foreign)
     {
         foreach (var group in foreign)
         {
             foreach (var field in group)
             {
-                if (IsFilled(actor, field))
-                    report.Error($"{at} is a {actor.Type} and has no '{field}'");
+                if (field.IsFilled(actor))
+                    report.Error($"{at} is a {actor.Type} and has no '{field.Name}'");
             }
         }
     }
 
-    private static bool IsFilled(CosmeticSceneActor actor, string field) => field switch
-    {
-        "fit"            => actor.Fit is not null,
-        "periodMs"       => actor.PeriodMs is not null,
-        "sizePct"        => actor.SizePct is not null,
-        "durationMs"     => actor.DurationMs is not null,
-        "bobPct"         => actor.BobPct is not null,
-        "from"           => actor.From is not null,
-        "to"             => actor.To is not null,
-        "repeat"         => actor.Repeat is not null,
-        "ease"           => actor.Ease is not null,
-        "turn"           => actor.Turn is not null,
-        "rotate"         => actor.Rotate is not null,
-        "bowPct"         => actor.BowPct is not null,
-        "bowAxis"        => actor.BowAxis is not null,
-        "bankDeg"        => actor.BankDeg is not null,
-        "scale"          => actor.Scale is not null,
-        "spillPct"       => actor.SpillPct is not null,
-        "edge"           => actor.Edge is not null,
-        "slice"          => actor.Slice is not null,
-        "thicknessPct"   => actor.ThicknessPct is not null,
-        "cornerPct"      => actor.CornerPct is not null,
-        "widthPct"       => actor.WidthPct is not null,
-        "outsetPct"      => actor.OutsetPct is not null,
-        "tile"           => actor.Tile is not null,
-        "grow"           => actor.Grow is not null,
-        "retreat"        => actor.Retreat is not null,
-        "count"          => actor.Count is not null,
-        "seed"           => actor.Seed is not null,
-        "sizeVarPct"     => actor.SizeVarPct is not null,
-        "durationVarMs"  => actor.DurationVarMs is not null,
-        "driftPct"       => actor.DriftPct is not null,
-        "swayPct"        => actor.SwayPct is not null,
-        "swayPeriodMs"   => actor.SwayPeriodMs is not null,
-        "swayVarMs"      => actor.SwayVarMs is not null,
-        "spinDeg"        => actor.SpinDeg is not null,
-        "flutterDeg"     => actor.FlutterDeg is not null,
-        "depthSpreadPct" => actor.DepthSpreadPct is not null,
-        _                => false
-    };
+    /// <summary>A field only some sorts of actor carry: its name in the document, and whether an actor has it.</summary>
+    private sealed record SortField(string Name, Func<CosmeticSceneActor, bool> IsFilled);
 
     private static bool IsAnchor(string? anchor) => anchor is
         "topLeft" or "top" or "topRight"
@@ -1343,14 +1353,11 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         int[]? sides,
         string at,
         int low,
-        int high,
-        bool required)
+        int high)
     {
         if (sides is null)
         {
-            if (required)
-                report.Error($"{at} is missing; it is four numbers — top, right, bottom, left");
-
+            report.Error($"{at} is missing; it is four numbers — top, right, bottom, left");
             return;
         }
 
@@ -1376,14 +1383,11 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         double[]? sides,
         string at,
         double low,
-        double high,
-        bool required)
+        double high)
     {
         if (sides is null)
         {
-            if (required)
-                report.Error($"{at} is missing; it is four numbers — top, right, bottom, left");
-
+            report.Error($"{at} is missing; it is four numbers — top, right, bottom, left");
             return;
         }
 

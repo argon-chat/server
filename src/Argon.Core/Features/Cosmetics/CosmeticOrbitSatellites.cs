@@ -439,15 +439,15 @@ public sealed class AvatarOrbitPayload : IValidatableCosmeticPayload, ICosmeticW
 
         Bound(report, sprite.Fps, $"{at}.fps", 1, 60);
 
-        if (frames is null || columns is null)
+        if (frames is not { } frameCount || columns is not { } columnCount)
             return;
 
         // The strip is read as a grid, so a row that runs out halfway would play a blank frame.
-        if (columns > frames || frames % columns is not 0)
-            report.Error($"{at}.frames must divide evenly into rows of {columns}");
+        if (columnCount > frameCount || frameCount % columnCount is not 0)
+            report.Error($"{at}.frames must divide evenly into rows of {columnCount}");
 
-        if (sprite.Still is { } still && (still < 0 || still >= frames))
-            report.Error($"{at}.still names frame {still}, and the strip has {frames}");
+        if (sprite.Still is { } still && (still < 0 || still >= frameCount))
+            report.Error($"{at}.still names frame {still}, and the strip has {frameCount}");
     }
 
     private static void RequireSlot(ICosmeticPayloadReport report, CosmeticOrbitSatellite satellite, string at)

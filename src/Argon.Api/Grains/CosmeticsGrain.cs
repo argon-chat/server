@@ -267,9 +267,10 @@ public sealed class CosmeticsGrain(
         if (tuning is not null)
         {
             // Held to the kind's own schema before it is stored, the same check a stored document gets.
-            tuningJson = kind.Tuning is null ? null : CosmeticJson.Default.Write(tuning);
+            // A kind with no tuning schema is refused by ValidateTuning itself.
+            tuningJson = CosmeticJson.Default.Write(tuning);
 
-            if (tuningJson is null || IsEmptyTuning(tuningJson) || !kind.ValidateTuning(tuningJson).IsValid)
+            if (IsEmptyTuning(tuningJson) || !kind.ValidateTuning(tuningJson).IsValid)
                 return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
         }
 

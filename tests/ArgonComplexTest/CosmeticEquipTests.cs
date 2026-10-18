@@ -695,4 +695,25 @@ public class CosmeticEquipTests : TestBase
 
         Assert.That((notAScene as FailedEquip)?.error, Is.EqualTo(CosmeticError.NOT_FOUND));
     }
+
+    /// <summary>
+    /// The reach enum is open on the wire, so a newer client can name one this build has no word for.
+    /// Stored, it would be no choice at all — the scene quietly worn at the row's default — so it is
+    /// refused, and what was on stays on.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_scene_put_on_with_a_reach_this_build_has_no_word_for_is_refused(CancellationToken ct = default)
+    {
+        var (wearer, onlooker, spaceId) = await TwoInASpaceAsync(ct);
+
+        var scene = await PublishAsync("profile.scene", "sakura", ChoiceScene, ct: ct);
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornScene(scene.Id, SceneReach.Content), ct), Is.InstanceOf<SuccessEquip>());
+
+        var unknown = await wearer.Cosmetics.Equip(new WornScene(scene.Id, (SceneReach)9), ct);
+
+        Assert.That((unknown as FailedEquip)?.error, Is.EqualTo(CosmeticError.VALUE_OUT_OF_RANGE));
+        Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct),
+            Is.EqualTo(new IWornCosmetic[] { new WornScene(scene.Id, SceneReach.Content) }), "a refused reach changed what was worn");
+    }
 }
