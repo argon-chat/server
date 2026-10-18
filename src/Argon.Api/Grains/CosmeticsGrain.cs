@@ -272,6 +272,13 @@ public sealed class CosmeticsGrain(
 
             if (IsEmptyTuning(tuningJson) || !kind.ValidateTuning(tuningJson).IsValid)
                 return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
+
+            // A reach is only the wearer's to choose where the row says so. Stored beside a fixed one,
+            // it would be sent to everybody looking and contradict the row.
+            if (!ProfileSceneKind.LeavesReachToWearer(first.Payload))
+            {
+                return Fail(CosmeticError.VALUE_OUT_OF_RANGE);
+            }
         }
 
         var premium = await HasPremiumAsync(ctx);

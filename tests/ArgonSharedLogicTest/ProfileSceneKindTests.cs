@@ -41,6 +41,18 @@ public class ProfileSceneKindTests
     public void No_stored_tuning_goes_out_as_a_plain_item()
         => Assert.That(ProfileSceneKind.ToWire(Scene, null), Is.EqualTo(new WornItem(Scene)));
 
+    [Test]
+    public void A_row_that_offers_the_choice_leaves_the_reach_to_its_wearer()
+        => Assert.That(ProfileSceneKind.LeavesReachToWearer("""{"reach":"choice","defaultReach":"card"}"""), Is.True);
+
+    /// <summary>A fixed reach is the row's answer, and a document that cannot be read offers nothing.</summary>
+    [TestCase("""{"reach":"content"}""")]
+    [TestCase("""{"reach":"card"}""")]
+    [TestCase("{}")]
+    [TestCase("not a document")]
+    public void A_row_that_fixes_its_reach_leaves_the_wearer_none(string payload)
+        => Assert.That(ProfileSceneKind.LeavesReachToWearer(payload), Is.False);
+
     [TestCase(SceneReach.Content)]
     [TestCase(SceneReach.Card)]
     public void A_choice_survives_being_stored_and_sent(SceneReach reach)

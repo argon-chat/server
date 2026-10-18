@@ -411,6 +411,14 @@ public class CosmeticSceneRefusalTests
         yield return Refused("nine actors", Scene(Wash(), scene => scene.Actors = Enumerable.Range(0, 9).Select(_ => Wash()).ToArray()),
             "actors is capped at 8");
 
+        // The sheet is still asked for by the actor after it: a null one reads nothing, and is not walked.
+        yield return Refused("an actor that is not there", Scene(Wash(), scene => scene.Actors = [null!, Wash()]),
+            "actors[0] is null");
+
+        yield return Refused("only actors that are not there", Scene(Band(), scene => scene.Actors = [null!, null!]),
+            "actors[0] is null",
+            "actors[1] is null");
+
         yield return Refused("a sheet nothing reads", Scene(Band(), scene => scene.Sheet = new CosmeticSceneSheet { W = 256, H = 256 }),
             "sheet is only read when an actor reads a rectangle out of it");
 
@@ -715,6 +723,16 @@ public class CosmeticSceneRefusalTests
         yield return Refused("a slot by a number no slot has", Scene(Wash(actor => actor.Slot = "9")),
             "actors[0].slot '9' is not an asset slot");
 
+        // Enum.TryParse reads all of these as a member, and none of them is a name anybody wrote.
+        foreach (var slot in new[] { "0", "4", "7", "Primary, Secondary", " Primary", "Primary ", "primary", "PRIMARY" })
+        {
+            yield return Refused($"a slot spelled '{slot}'", Scene(Wash(actor => actor.Slot = slot)),
+                $"actors[0].slot '{slot}' is not an asset slot");
+        }
+
+        yield return Refused("a part of the card that is not there", Scene(Wash(actor => actor.Occlude = ["avatar", null!])),
+            "actors[0].occlude[1] is null");
+
         yield return Refused("two parts of a card that hide nothing", Scene(Wash(actor => actor.Occlude = ["avatar", "glass", "name"])),
             "actors[0].occlude names 'glass', and the only part of a card that hides anything is 'avatar'",
             "actors[0].occlude names 'name', and the only part of a card that hides anything is 'avatar'");
@@ -748,6 +766,15 @@ public class CosmeticSceneRefusalTests
 
         yield return Refused("a stop with no place, which ends the reading", Opacity(Stop(0d, 1d), Stop(null, 9d), Stop(1d, 1d)),
             "actors[0].opacity[1].at is missing");
+
+        yield return Refused("an opacity stop that is not there, which ends the reading", Opacity(Stop(0d, 1d), null!, Stop(9d, 1d)),
+            "actors[0].opacity[1] is null");
+
+        yield return Refused("a scale stop that is not there", Scene(Wash(actor => actor.Scale = [null!, Stop(1d, 1d)])),
+            "actors[0].scale[0] is null");
+
+        yield return Refused("a rotation stop that is not there", Scene(Sprite(actor => actor.Rotate = [Stop(0d, 0d), null!])),
+            "actors[0].rotate[1] is null");
 
         yield return Refused("a stop before the cycle", Opacity(Stop(-0.5d, 1d), Stop(1d, 1d)),
             "actors[0].opacity[0].at is -0.5, and the range is 0 to 1");

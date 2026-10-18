@@ -19,6 +19,9 @@ using ArgonContracts;
 [SetCulture("")]
 public class CosmeticOrbitPayloadTests
 {
+    private static readonly CosmeticKindDefinition OrbitKind =
+        CosmeticKindRegistry.FromAssembly(typeof(ICosmeticKind).Assembly).Find("avatar.orbit")!;
+
     /// <summary>
     /// A square figure exactly at the reach ceiling when it lies square to the screen: 160 out, half
     /// of 80 across, less the 50 that is the face itself, is 150.
@@ -102,6 +105,23 @@ public class CosmeticOrbitPayloadTests
 
         yield return Refused("a slot by a number no slot has", Orbit(satellite => satellite.Slot = "9"),
             "satellites[0].slot '9' is not an asset slot");
+
+        // Enum.TryParse reads all of these as a member, and none of them is a name anybody wrote.
+        foreach (var slot in new[] { "0", "4", "7", "Primary, Secondary", " Primary", "Primary ", "primary", "PRIMARY" })
+        {
+            yield return Refused($"a slot spelled '{slot}'", Orbit(satellite => satellite.Slot = slot),
+                $"satellites[0].slot '{slot}' is not an asset slot");
+        }
+
+        yield return Refused("a slot the kind has no file for", Orbit(satellite => satellite.Slot = "Poster"),
+            "satellites[0].slot 'Poster' is not a slot an orbit has a file in");
+
+        yield return Refused("a figure that is not there", Orbit(Satellite(), null!, Satellite()),
+            "satellites[1] is null");
+
+        yield return Refused("only figures that are not there", Orbit(null!, null!),
+            "satellites[0] is null",
+            "satellites[1] is null");
 
         yield return Refused("no radius, so no reach to measure", Orbit(satellite => satellite.RadiusPct = null),
             "satellites[0].radiusPct is missing");
@@ -300,9 +320,24 @@ public class CosmeticOrbitPayloadTests
             satellite.Sprite      = new CosmeticOrbitSprite { Frames = 64, Columns = 8, Fps = 60, Still = 63 };
         }));
 
-        foreach (var slot in Enum.GetNames<CosmeticAssetSlot>())
+        foreach (var slot in OrbitKind.Assets.Keys)
         {
-            yield return Accepted($"the {slot} slot", Orbit(satellite => satellite.Slot = slot));
+            yield return Accepted($"the {slot} slot", Orbit(satellite => satellite.Slot = slot.ToString()));
+        }
+    }
+
+    /// <summary>
+    /// The payload's own list of slots is the kind's. A slot the kind gained would otherwise be one no
+    /// figure may name, and one it lost a figure that names a file nobody can upload.
+    /// </summary>
+    [Test]
+    public void A_figure_may_name_exactly_the_slots_the_kind_declares()
+    {
+        foreach (var slot in Enum.GetValues<CosmeticAssetSlot>())
+        {
+            var errors = ErrorsOf(Orbit(satellite => satellite.Slot = slot.ToString()));
+
+            Assert.That(errors, OrbitKind.Assets.ContainsKey(slot) ? Is.Empty : Is.Not.Empty, slot.ToString());
         }
     }
 

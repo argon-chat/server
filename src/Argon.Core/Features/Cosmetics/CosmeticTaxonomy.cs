@@ -200,6 +200,29 @@ public static class CosmeticAssetSlots
         return false;
     }
 
+    /// <summary>
+    /// The slot a payload names by its member name, spelled exactly as the enum spells it.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="Enum.TryParse{TEnum}(string?, out TEnum)"/>, which also reads a number — "4" is
+    /// <see cref="CosmeticAssetSlot.Poster"/> — and a comma-joined list of names, and neither is a slot
+    /// anybody chose.
+    /// </remarks>
+    public static bool TryParseName(string? name, out CosmeticAssetSlot slot)
+    {
+        foreach (var candidate in Enum.GetValues<CosmeticAssetSlot>())
+        {
+            if (candidate.ToString() == name)
+            {
+                slot = candidate;
+                return true;
+            }
+        }
+
+        slot = default;
+        return false;
+    }
+
     public static AssetSlot ToWire(CosmeticAssetSlot slot) => slot switch
     {
         CosmeticAssetSlot.Primary    => AssetSlot.Primary,

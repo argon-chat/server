@@ -772,7 +772,13 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
 
         for (var index = 0; index < Actors.Length; index++)
         {
-            ValidateActor(report, Actors[index], index, sheet);
+            if (Actors[index] is not { } actor)
+            {
+                report.Error($"actors[{index}] is null");
+                continue;
+            }
+
+            ValidateActor(report, actor, index, sheet);
         }
     }
 
@@ -791,7 +797,8 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
 
         foreach (var actor in Actors!)
         {
-            if (actor.Source is null or "atlas")
+            // A null actor reads nothing: it is reported where the actors are walked one by one.
+            if (actor is { Source: null or "atlas" })
             {
                 read = true;
                 break;
@@ -1029,7 +1036,7 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         if (source is "atlas" && actor.Replay is true)
             report.Error($"{at}.replay is only read for a file; a rectangle of the sheet has no clock of its own");
 
-        if (actor.Slot is { Length: > 0 } slot && (!Enum.TryParse<CosmeticAssetSlot>(slot, out var named) || !Enum.IsDefined(named)))
+        if (actor.Slot is { Length: > 0 } slot && !CosmeticAssetSlots.TryParseName(slot, out _))
             report.Error($"{at}.slot '{slot}' is not an asset slot");
 
         if (actor.Depth is { Length: > 0 } and not ("deep" or "over" or "front"))
@@ -1037,10 +1044,16 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
 
         if (actor.Occlude is { Length: > 0 } occlude)
         {
-            foreach (var part in occlude)
+            for (var index = 0; index < occlude.Length; index++)
             {
-                if (part is not "avatar")
+                if (occlude[index] is not { } part)
+                {
+                    report.Error($"{at}.occlude[{index}] is null");
+                }
+                else if (part is not "avatar")
+                {
                     report.Error($"{at}.occlude names '{part}', and the only part of a card that hides anything is 'avatar'");
+                }
             }
         }
 
@@ -1095,8 +1108,13 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
 
         for (var index = 0; index < stops.Length; index++)
         {
-            var stop = stops[index];
             var where = $"{at}[{index}]";
+
+            if (stops[index] is not { } stop)
+            {
+                report.Error($"{where} is null");
+                return;
+            }
 
             if (stop.At is not { } position)
             {

@@ -225,6 +225,10 @@ public class CosmeticPayloadWireTests
             Assert.That(Wire("avatar.orbit",
                 """{"satellites":[{"type":"satellite","slot":"Primary","radiusPct":62,"widthPct":30,"heightPct":24,"periodMs":6000,"turn":"flip"}]}"""),
                 Is.Null);
+            Assert.That(Wire("avatar.orbit",
+                """{"satellites":[{"type":"satellite","slot":"4","radiusPct":62,"widthPct":30,"heightPct":24,"periodMs":6000}]}"""),
+                Is.Null);
+            Assert.That(Wire("avatar.orbit", """{"satellites":[null]}"""), Is.Null);
         });
     }
 
@@ -292,9 +296,23 @@ public class CosmeticPayloadWireTests
     /// <summary>A field another sort of actor owns keeps the whole row out, rather than being dropped.</summary>
     [Test]
     public void A_scene_that_does_not_fit_its_kind_is_not_sent()
-        => Assert.That(Wire("profile.scene", """
-            {"reach":"card","actors":[
-              {"type":"band","source":"file","slot":"Secondary","edge":"top","slice":[8,8,8,8],"thicknessPct":10,"count":3}
-            ]}
-            """), Is.Null);
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Wire("profile.scene", """
+                {"reach":"card","actors":[
+                  {"type":"band","source":"file","slot":"Secondary","edge":"top","slice":[8,8,8,8],"thicknessPct":10,"count":3}
+                ]}
+                """), Is.Null);
+
+            // A null in a list is a refusal like any other, never something the wire is asked to read.
+            Assert.That(Wire("profile.scene", """{"reach":"card","actors":[null]}"""), Is.Null);
+            Assert.That(Wire("profile.scene", """
+                {"reach":"card","actors":[
+                  {"type":"band","source":"file","slot":"Secondary","edge":"top","slice":[8,8,8,8],"thicknessPct":10,
+                   "opacity":[{"at":0,"v":1},null],"occlude":[null]}
+                ]}
+                """), Is.Null);
+        });
+    }
 }

@@ -331,7 +331,13 @@ public sealed class AvatarOrbitPayload : IValidatableCosmeticPayload, ICosmeticW
 
         for (var index = 0; index < Satellites.Length; index++)
         {
-            ValidateSatellite(report, Satellites[index], index);
+            if (Satellites[index] is not { } satellite)
+            {
+                report.Error($"satellites[{index}] is null");
+                continue;
+            }
+
+            ValidateSatellite(report, satellite, index);
         }
     }
 
@@ -458,8 +464,18 @@ public sealed class AvatarOrbitPayload : IValidatableCosmeticPayload, ICosmeticW
             return;
         }
 
-        if (!Enum.TryParse<CosmeticAssetSlot>(slot, out var named) || !Enum.IsDefined(named))
+        if (!CosmeticAssetSlots.TryParseName(slot, out var named))
+        {
             report.Error($"{at}.slot '{slot}' is not an asset slot");
+            return;
+        }
+
+        // The slots AvatarOrbitKind declares. A figure is a strip that stands on its own still frame,
+        // so there is no poster, and a slot the kind has no upload for is a figure that draws nothing.
+        if (named is not (CosmeticAssetSlot.Primary or CosmeticAssetSlot.Secondary or CosmeticAssetSlot.Tertiary or CosmeticAssetSlot.Quaternary))
+        {
+            report.Error($"{at}.slot '{slot}' is not a slot an orbit has a file in");
+        }
     }
 
     private static double? Require(ICosmeticPayloadReport report, double? value, string at, double low, double high)

@@ -66,6 +66,17 @@ public sealed class ProfileSceneKind : ICosmeticKind
             _         => new WornItem(itemId)
         };
 
+    /// <summary>
+    /// Whether a scene row leaves its reach to the wearer, which is the only time a worn reach is read.
+    /// </summary>
+    /// <remarks>
+    /// A row whose reach is fixed says how far it plays, and a wearer's reach beside it would be a
+    /// second answer that viewers are sent and the row contradicts.
+    /// </remarks>
+    public static bool LeavesReachToWearer(string payloadJson)
+        => CosmeticJson.Default.TryRead<ProfileScenePayload>(payloadJson, out var payload, out _)
+        && payload.Reach is "choice";
+
     /// <summary>What a wearer's choice of reach is stored as.</summary>
     public static ProfileSceneTuning TuningOf(SceneReach reach) => new()
     {

@@ -716,4 +716,34 @@ public class CosmeticEquipTests : TestBase
         Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct),
             Is.EqualTo(new IWornCosmetic[] { new WornScene(scene.Id, SceneReach.Content) }), "a refused reach changed what was worn");
     }
+
+    /// <summary>
+    /// A row that fixes its own reach leaves the wearer nothing to choose. Stored, a reach beside it
+    /// would be sent to everybody looking and contradict the row, so it is refused — the same reach
+    /// that a row offering the choice accepts — and what was on stays on.
+    /// </summary>
+    [Test, CancelAfter(120_000)]
+    public async Task A_scene_whose_row_fixes_its_reach_is_refused_a_reach_of_the_wearers(CancellationToken ct = default)
+    {
+        var (wearer, onlooker, spaceId) = await TwoInASpaceAsync(ct);
+
+        var chosen  = await PublishAsync("profile.scene", "sakura", ChoiceScene, ct: ct);
+        var fixedAt =await PublishAsync("profile.scene", "snow", """
+            {"reach":"content","sheet":{"w":64,"h":64},"actors":[
+              {"type":"wash","source":"atlas","atlas":{"x":0,"y":0,"w":64,"h":64}}
+            ]}
+            """, ct: ct);
+
+        Assert.That(await wearer.Cosmetics.Equip(new WornScene(chosen.Id, SceneReach.Card), ct), Is.InstanceOf<SuccessEquip>());
+
+        var refused = await wearer.Cosmetics.Equip(new WornScene(fixedAt.Id, SceneReach.Content), ct);
+
+        Assert.That((refused as FailedEquip)?.error, Is.EqualTo(CosmeticError.VALUE_OUT_OF_RANGE));
+        Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct),
+            Is.EqualTo(new IWornCosmetic[] { new WornScene(chosen.Id, SceneReach.Card) }), "a refused reach changed what was worn");
+
+        // Put on as the row has it, the same scene goes on.
+        Assert.That(await wearer.Cosmetics.Equip(new WornItem(fixedAt.Id), ct), Is.InstanceOf<SuccessEquip>());
+        Assert.That(await SeenBy(onlooker, spaceId, wearer.UserId, ct), Is.EqualTo(new IWornCosmetic[] { new WornItem(fixedAt.Id) }));
+    }
 }

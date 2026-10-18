@@ -195,11 +195,15 @@ public class CosmeticWornProjectionTests
         Assert.That(worn, Is.EqualTo(new IWornCosmetic[] { new WornItem(first.Id), new WornItem(second.Id) }));
     }
 
+    /// <summary>A scene row that leaves its reach to the wearer, which is the only kind a worn reach is read on.</summary>
+    private static CosmeticItemEntity ChoiceScene()
+        => Item(ProfileSceneKind.Key) with { Payload = """{"reach":"choice","defaultReach":"content"}""" };
+
     /// <summary>A scene whose wearer chose its reach carries the choice; one with none is a plain item.</summary>
     [Test]
     public void A_scene_carries_its_reach_only_when_one_was_chosen()
     {
-        var scene = Item(ProfileSceneKind.Key);
+        var scene = ChoiceScene();
 
         var chosen   = Worn(scene) with { Tuning = """{"reach":"card"}""" };
         var deferred = Worn(scene);
@@ -217,7 +221,7 @@ public class CosmeticWornProjectionTests
     [Test]
     public void A_scene_carries_either_reach_and_an_unreadable_tuning_is_no_choice()
     {
-        var scene = Item(ProfileSceneKind.Key);
+        var scene = ChoiceScene();
 
         Assert.Multiple(() =>
         {
@@ -225,6 +229,26 @@ public class CosmeticWornProjectionTests
                 Is.EqualTo(new WornScene(scene.Id, SceneReach.Content)));
             Assert.That(CosmeticWornProjection.Project([Worn(scene) with { Tuning = "not json" }], Servable(scene), Registry, AllKinds()).Single(),
                 Is.EqualTo(new WornItem(scene.Id)));
+        });
+    }
+
+    /// <summary>
+    /// A row re-authored to a fixed reach outranks a choice made while it offered one. The choice is
+    /// not sent, and it is not erased either: offering the choice again brings it back.
+    /// </summary>
+    [Test]
+    public void A_reach_chosen_on_a_row_that_has_since_fixed_its_own_is_not_sent()
+    {
+        var offered = ChoiceScene();
+        var fixedAt = offered with { Payload = """{"reach":"content"}""" };
+        var worn    = Worn(offered) with { Tuning = """{"reach":"card"}""" };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(CosmeticWornProjection.Project([worn], Servable(fixedAt), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornItem(offered.Id)));
+            Assert.That(CosmeticWornProjection.Project([worn], Servable(offered), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornScene(offered.Id, SceneReach.Card)));
         });
     }
 }
