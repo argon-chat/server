@@ -1036,6 +1036,13 @@ public sealed class ProfileScenePayload : IValidatableCosmeticPayload, ICosmetic
         if (source is "atlas" && actor.Replay is true)
             report.Error($"{at}.replay is only read for a file; a rectangle of the sheet has no clock of its own");
 
+        // An emitter is left out: it is refused a file by name in ValidateEmitter, and a second
+        // refusal for the same actor would only say the same thing twice.
+        if (source is "file" && actor.Type is not "emitter" && actor.Slot is not { Length: > 0 })
+        {
+            report.Error($"{at}.slot names no file, and this actor draws a whole file");
+        }
+
         if (actor.Slot is { Length: > 0 } slot && !CosmeticAssetSlots.TryParseName(slot, out _))
             report.Error($"{at}.slot '{slot}' is not an asset slot");
 

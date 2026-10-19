@@ -315,6 +315,7 @@ public class CosmeticSceneRefusalTests
             {
                 actor.Source = word;
                 actor.Atlas  = word is "atlas" ? Cell() : null;
+                actor.Slot   = word is "file" ? "Secondary" : null;
             }), scene => scene.Sheet = word is "atlas" ? new CosmeticSceneSheet { W = 256, H = 256 } : null),
             "actors[0].source is 'atlas' or 'file'");
 
@@ -711,8 +712,33 @@ public class CosmeticSceneRefusalTests
         yield return Refused("a sheet reader with no rectangle", Scene(Wash(actor => actor.Atlas = null)),
             "actors[0].atlas is missing, and this actor reads the sheet");
 
-        yield return Refused("a file with a rectangle", Scene(Wash(actor => actor.Source = "file")),
+        yield return Refused("a file with a rectangle", Scene(Wash(actor =>
+            {
+                actor.Source = "file";
+                actor.Slot   = "Secondary";
+            })),
             "actors[0] draws a whole file and has no atlas rectangle");
+
+        yield return Refused("a file that names no slot", Scene(Wash(actor =>
+            {
+                actor.Source = "file";
+                actor.Atlas  = null;
+            })),
+            "actors[0].slot names no file, and this actor draws a whole file");
+
+        yield return Refused("a file that names an empty slot", Scene(Wash(actor =>
+            {
+                actor.Source = "file";
+                actor.Atlas  = null;
+                actor.Slot   = string.Empty;
+            })),
+            "actors[0].slot names no file, and this actor draws a whole file");
+
+        yield return Refused("a band that names no slot", Scene(Band(actor => actor.Slot = null)),
+            "actors[0].slot names no file, and this actor draws a whole file");
+
+        yield return Refused("a wrap that names no slot", Scene(Wrap(actor => actor.Slot = null)),
+            "actors[0].slot names no file, and this actor draws a whole file");
 
         yield return Refused("a rectangle told to replay", Scene(Wash(actor => actor.Replay = true)),
             "actors[0].replay is only read for a file; a rectangle of the sheet has no clock of its own");
