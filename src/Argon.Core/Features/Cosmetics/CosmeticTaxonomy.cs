@@ -44,7 +44,40 @@ public enum RenderPrimitive
     FrameAssembly,
 
     /// <summary>The font, colour and motion of written text.</summary>
-    TextStyle
+    TextStyle,
+
+    VideoLayer,
+    IconBadge,
+
+    /// <summary>
+    /// Bodies travelling a ring around an avatar, drawn with a near half and a far half.
+    /// </summary>
+    /// <remarks>
+    /// <para>The thing no other member can express is <b>occlusion</b>. Every primitive above draws
+    /// a layer, and a layer is on one side of what it decorates — there is no arrangement of an
+    /// inset, an opacity and a z-order that puts half of a picture behind a head and the other half
+    /// in front of it, because the picture is one layer and the head is one box.</para>
+    ///
+    /// <para>Not <see cref="FrameAssembly"/>, which is also a list of parts: its parts are pinned to
+    /// the edges of a card and move a little way from where they were pinned. These have positions
+    /// in three dimensions and the arithmetic is the primitive.</para>
+    /// </remarks>
+    OrbitStage,
+
+    /// <summary>
+    /// Actors moving across a whole profile card: a picture, a figure travelling a path, a band
+    /// along one edge, or a scatter of one sprite.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>What no other member can express is a list of moving things with a depth.</b> A
+    /// <see cref="FrameAssembly"/> is a set of pieces pinned to a card's edges and standing still. It
+    /// cannot put one figure in front of the card's own text and another behind its glass, and it has
+    /// nowhere to put a path.</para>
+    ///
+    /// <para>Unlike a frame, it is bounded by the card: a scene clips. A thing that both moves and
+    /// leaves the card is a thing that moves over somebody else's messages.</para>
+    /// </remarks>
+    SceneStage
 }
 
 /// <summary>
@@ -90,7 +123,9 @@ public enum CosmeticEntitlement
 public enum CosmeticAssetKind
 {
     Image,
-    Font
+    Font,
+    Video,
+    SpriteSheet
 }
 
 /// <summary>
@@ -121,7 +156,17 @@ public enum CosmeticAssetSlot
     /// </remarks>
     Secondary,
     Tertiary,
-    Quaternary
+    Quaternary,
+
+    /// <summary>
+    /// The still drawn in place of something that moves when motion is off.
+    /// </summary>
+    /// <remarks>
+    /// A role rather than an ordinal, unlike the three above: it means the same thing on every kind
+    /// that has one, and no payload can say it instead — a self-animating file cannot be paused, only
+    /// replaced. Appended, so the ordinals before it stay what the wire already carries.
+    /// </remarks>
+    Poster
 }
 
 /// <summary>
@@ -135,6 +180,7 @@ public static class CosmeticAssetSlots
         CosmeticAssetSlot.Secondary  => "secondary",
         CosmeticAssetSlot.Tertiary   => "tertiary",
         CosmeticAssetSlot.Quaternary => "quaternary",
+        CosmeticAssetSlot.Poster     => "poster",
         _                            => throw new ArgumentOutOfRangeException(nameof(slot))
     };
 
@@ -154,12 +200,36 @@ public static class CosmeticAssetSlots
         return false;
     }
 
+    /// <summary>
+    /// The slot a payload names by its member name, spelled exactly as the enum spells it.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="Enum.TryParse{TEnum}(string?, out TEnum)"/>, which also reads a number — "4" is
+    /// <see cref="CosmeticAssetSlot.Poster"/> — and a comma-joined list of names, and neither is a slot
+    /// anybody chose.
+    /// </remarks>
+    public static bool TryParseName(string? name, out CosmeticAssetSlot slot)
+    {
+        foreach (var candidate in Enum.GetValues<CosmeticAssetSlot>())
+        {
+            if (candidate.ToString() == name)
+            {
+                slot = candidate;
+                return true;
+            }
+        }
+
+        slot = default;
+        return false;
+    }
+
     public static AssetSlot ToWire(CosmeticAssetSlot slot) => slot switch
     {
         CosmeticAssetSlot.Primary    => AssetSlot.Primary,
         CosmeticAssetSlot.Secondary  => AssetSlot.Secondary,
         CosmeticAssetSlot.Tertiary   => AssetSlot.Tertiary,
         CosmeticAssetSlot.Quaternary => AssetSlot.Quaternary,
+        CosmeticAssetSlot.Poster     => AssetSlot.Poster,
         _                            => throw new ArgumentOutOfRangeException(nameof(slot))
     };
 }

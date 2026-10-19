@@ -132,6 +132,66 @@ public class CosmeticGrainSerializationTests
         }
     }
 
+    /// <summary>A scene's actors and an orbit's figures are unions inside a union inside a catalogue.</summary>
+    [Test]
+    public void A_catalogue_arrives_with_its_scenes_and_orbits_typed()
+    {
+        var sprite = new SceneSprite(null, SceneSource.Atlas, new SceneAtlas(0, 0, 32, 32, 4, 4, 8, null), null,
+            SceneDepth.Front, new IonArray<SceneOccluder>([SceneOccluder.Avatar]), null,
+            new IonArray<SceneStop>([new SceneStop(0d, 0d), new SceneStop(1d, 1d)]), null,
+            20d, 4000, null, SceneRepeat.Once, new ScenePoint(SceneAnchor.TopRight, -2.5d, null),
+            new ScenePoint(SceneAnchor.BottomLeft, null, null), SceneEase.InOut, SceneTurn.Mirror, null, 10d,
+            SceneBowAxis.Auto, null, null, null, null);
+
+        var figure = new OrbitSatellite(AssetSlot.Primary, new OrbitSprite(8, 4, 12, null), 62d, 70d, null, null, null,
+            6000, null, null, null, 30d, 24d, null, null, true, OrbitTurn.Spin, 1.2d, 0.8d, null, null, null, true, null, null);
+
+        var original = new CosmeticCatalogue(new IonArray<string>(["profile.scene", "avatar.orbit"]),
+            new IonArray<CatalogueCosmetic>([
+                new CatalogueCosmetic(Guid.NewGuid(), "profile.scene", "sakura", "cosmetic.sakura.name", null, null, 1,
+                    new PayloadProfileScene(SceneReachRule.Choice, SceneReach.Content, null, new SceneSheet(256, 128),
+                        new IonArray<ISceneActor>([sprite])),
+                    new IonArray<CosmeticAsset>([new CosmeticAsset(AssetSlot.Poster, "file-2")]),
+                    null, false, true, IonArray<CosmeticText>.Empty),
+                new CatalogueCosmetic(Guid.NewGuid(), "avatar.orbit", "cat", "cosmetic.cat.name", null, null, 1,
+                    new PayloadAvatarOrbit(new IonArray<IOrbitBody>([figure]), 34),
+                    IonArray<CosmeticAsset>.Empty, null, false, true, IonArray<CosmeticText>.Empty)
+            ]));
+
+        foreach (var carried in new[] { RoundTrip(original), Copy(original), ThroughCache(original) })
+        {
+            var scene = (PayloadProfileScene)carried.items[0].payload;
+            var orbit = (PayloadAvatarOrbit)carried.items[1].payload;
+            var back  = (SceneSprite)scene.actors.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(carried.items[0].assets.Single().slot, Is.EqualTo(AssetSlot.Poster));
+                Assert.That(scene.reach, Is.EqualTo(SceneReachRule.Choice));
+                Assert.That(back.from, Is.EqualTo(sprite.from));
+                Assert.That(back.occlude, Is.EqualTo(new[] { SceneOccluder.Avatar }));
+                Assert.That(back.opacity!.Value.Select(stop => stop.v), Is.EqualTo(new[] { 0d, 1d }));
+                Assert.That(back.bowPct, Is.EqualTo(10d));
+                Assert.That(orbit.satellites.Single(), Is.EqualTo(figure));
+            });
+        }
+    }
+
+    /// <summary>The two cases a wardrobe puts on that are not a name: several badges, and a scene's reach.</summary>
+    [Test]
+    public void Badges_and_a_scene_arrive_as_their_cases()
+    {
+        var badges = new WornItems(new IonArray<Guid>([Guid.NewGuid(), Guid.NewGuid()]));
+        var scene  = new WornScene(Guid.NewGuid(), SceneReach.Card);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(((WornItems)RoundTrip<IWornCosmetic>(badges)).itemIds.ToArray(), Is.EqualTo(badges.itemIds.ToArray()));
+            Assert.That(RoundTrip<IWornCosmetic>(scene), Is.EqualTo(scene));
+            Assert.That(RoundTrip(Profile(new IonArray<IWornCosmetic>([scene]))).cosmetics!.Value.Single(), Is.EqualTo(scene));
+        });
+    }
+
     /// <summary>How the catalogue is held in the cache: its own Ion encoding.</summary>
     private static CosmeticCatalogue ThroughCache(CosmeticCatalogue catalogue)
     {

@@ -83,9 +83,15 @@ public static class CosmeticWornProjection
     {
         if (!kind.IsBare)
         {
-            return row.CosmeticItemId is { } itemId && servable.ContainsKey(itemId)
-                ? new WornItem(itemId)
-                : null;
+            if (row.CosmeticItemId is not { } itemId || !servable.ContainsKey(itemId))
+                return null;
+
+            return kind.Key switch
+            {
+                ProfileSceneKind.Key => ProfileSceneKind.ToWire(itemId, ReachOf(row, servable[itemId])),
+
+                _ => new WornItem(itemId)
+            };
         }
 
         // A bare kind has no row to point at. One that does was written by something other than this
@@ -115,6 +121,19 @@ public static class CosmeticWornProjection
             _ => null
         };
     }
+
+    /// <summary>
+    /// The reach a scene's wearer chose, while the row still leaves it to them.
+    /// </summary>
+    /// <remarks>
+    /// A row re-authored to a fixed reach outranks a choice made before it was. The choice stays in
+    /// the worn row rather than being sent, so offering the choice again brings it back — the same rule
+    /// as anything else that stops resolving. The row is only read when there is a choice to weigh.
+    /// </remarks>
+    private static ProfileSceneTuning? ReachOf(CosmeticEquipEntity row, CosmeticItemEntity scene)
+        => TuningOf<ProfileSceneTuning>(row) is { } tuning && ProfileSceneKind.LeavesReachToWearer(scene.Payload)
+            ? tuning
+            : null;
 
     private static T? TuningOf<T>(CosmeticEquipEntity row) where T : class
         => row.Tuning is { } json && CosmeticJson.Default.TryRead<T>(json, out var tuning, out _) ? tuning : null;

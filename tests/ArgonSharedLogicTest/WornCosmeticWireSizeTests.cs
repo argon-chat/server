@@ -80,21 +80,45 @@ public class WornCosmeticWireSizeTests
         Assert.That(size, Is.LessThanOrEqualTo(100));
     }
 
-    /// <summary>A frame, a decoration and a styled name — what somebody who has bought everything wears.</summary>
     [Test]
-    public void Everything_this_build_can_put_on_one_person_stays_under_a_hundred_and_fifty_bytes()
+    public void A_scene_with_its_reach_is_its_id_and_one_more_number()
     {
-        var worn = new IonArray<IWornCosmetic>([
-            new WornItem(Guid.NewGuid()),
-            new WornNickname(Guid.NewGuid(), Guid.NewGuid(),
-                new IonArray<int>([unchecked((int)0xFFFF0000), unchecked((int)0xFF0000FF)]), 90, null, null, 700, null),
-            new WornItem(Guid.NewGuid())
-        ]);
+        var size = Encoded(new IonArray<IWornCosmetic>([new WornScene(Guid.NewGuid(), SceneReach.Card)]));
 
-        var size = Encoded(worn);
+        TestContext.Out.WriteLine($"one worn scene with a reach: {size} bytes");
+
+        Assert.That(size, Is.LessThanOrEqualTo(28));
+    }
+
+    /// <summary>
+    /// A background, eight badges, a frame, a scene with its reach, a decoration, an orbit and a styled
+    /// name — what somebody who has bought everything wears.
+    /// </summary>
+    /// <remarks>
+    /// Thirteen references where there were three, which is what the budget grew by: the badges alone
+    /// are eight rows, and each is an id.
+    /// </remarks>
+    [Test]
+    public void Everything_this_build_can_put_on_one_person_stays_under_four_hundred_bytes()
+    {
+        var worn = new List<IWornCosmetic> { new WornItem(Guid.NewGuid()) };
+
+        for (var badge = 0; badge < 8; badge++)
+        {
+            worn.Add(new WornItem(Guid.NewGuid()));
+        }
+
+        worn.Add(new WornItem(Guid.NewGuid()));
+        worn.Add(new WornScene(Guid.NewGuid(), SceneReach.Content));
+        worn.Add(new WornItem(Guid.NewGuid()));
+        worn.Add(new WornItem(Guid.NewGuid()));
+        worn.Add(new WornNickname(Guid.NewGuid(), Guid.NewGuid(),
+            new IonArray<int>([unchecked((int)0xFFFF0000), unchecked((int)0xFF0000FF)]), 90, null, null, 700, null));
+
+        var size = Encoded(new IonArray<IWornCosmetic>(worn));
 
         TestContext.Out.WriteLine($"a fully dressed profile: {size} bytes");
 
-        Assert.That(size, Is.LessThanOrEqualTo(150));
+        Assert.That(size, Is.LessThanOrEqualTo(400));
     }
 }

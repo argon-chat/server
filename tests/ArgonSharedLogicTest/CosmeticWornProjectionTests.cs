@@ -57,6 +57,15 @@ public class CosmeticWornProjectionTests
         Assert.That(worn.Single(), Is.EqualTo(new WornItem(halo.Id)));
     }
 
+    /// <summary>A row of a kind with rows that names none is half-written, and half a thing is not drawn.</summary>
+    [Test]
+    public void A_row_of_an_item_kind_that_names_no_item_is_left_out()
+    {
+        var halo = Item("avatar.decoration");
+
+        Assert.That(CosmeticWornProjection.Project([Worn(halo) with { CosmeticItemId = null }], Servable(halo), Registry, AllKinds()), Is.Empty);
+    }
+
     /// <summary>Unpublished, switched off or out of its window: the read left it out of the servable set.</summary>
     [Test]
     public void An_item_that_may_not_be_served_is_left_out()
@@ -77,7 +86,7 @@ public class CosmeticWornProjectionTests
     [Test]
     public void A_kind_this_build_does_not_declare_is_left_out()
     {
-        var old = Item("profile.background");
+        var old = Item("profile.aurora");
 
         Assert.That(CosmeticWornProjection.Project([Worn(old)], Servable(old), Registry, AllKinds()), Is.Empty);
     }
@@ -171,5 +180,75 @@ public class CosmeticWornProjectionTests
             Is.EqualTo(new[] { typeof(WornItem), typeof(WornNickname), typeof(WornItem) }));
 
         Assert.That(((WornItem)worn[0]).itemId, Is.EqualTo(halo.Id));
+    }
+
+    /// <summary>Badges are worn several at once, and the order is the wearer's: slot by slot.</summary>
+    [Test]
+    public void Rows_of_a_kind_worn_several_at_once_arrive_in_slot_order()
+    {
+        var first  = Item("profile.badge", "first");
+        var second = Item("profile.badge", "second");
+
+        var worn = CosmeticWornProjection.Project(
+            [Worn(second) with { SlotIndex = 1 }, Worn(first)], Servable(first, second), Registry, AllKinds());
+
+        Assert.That(worn, Is.EqualTo(new IWornCosmetic[] { new WornItem(first.Id), new WornItem(second.Id) }));
+    }
+
+    /// <summary>A scene row that leaves its reach to the wearer, which is the only kind a worn reach is read on.</summary>
+    private static CosmeticItemEntity ChoiceScene()
+        => Item(ProfileSceneKind.Key) with { Payload = """{"reach":"choice","defaultReach":"content"}""" };
+
+    /// <summary>A scene whose wearer chose its reach carries the choice; one with none is a plain item.</summary>
+    [Test]
+    public void A_scene_carries_its_reach_only_when_one_was_chosen()
+    {
+        var scene = ChoiceScene();
+
+        var chosen   = Worn(scene) with { Tuning = """{"reach":"card"}""" };
+        var deferred = Worn(scene);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(CosmeticWornProjection.Project([chosen], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornScene(scene.Id, SceneReach.Card)));
+            Assert.That(CosmeticWornProjection.Project([deferred], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornItem(scene.Id)));
+        });
+    }
+
+    /// <summary>Either reach the wearer can choose arrives as chosen; a tuning this build cannot read is no choice.</summary>
+    [Test]
+    public void A_scene_carries_either_reach_and_an_unreadable_tuning_is_no_choice()
+    {
+        var scene = ChoiceScene();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(CosmeticWornProjection.Project([Worn(scene) with { Tuning = """{"reach":"content"}""" }], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornScene(scene.Id, SceneReach.Content)));
+            Assert.That(CosmeticWornProjection.Project([Worn(scene) with { Tuning = "not json" }], Servable(scene), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornItem(scene.Id)));
+        });
+    }
+
+    /// <summary>
+    /// A row re-authored to a fixed reach outranks a choice made while it offered one. The choice is
+    /// not sent, and it is not erased either: offering the choice again brings it back.
+    /// </summary>
+    [Test]
+    public void A_reach_chosen_on_a_row_that_has_since_fixed_its_own_is_not_sent()
+    {
+        var offered = ChoiceScene();
+        var fixedAt = offered with { Payload = """{"reach":"content"}""" };
+        var worn    = Worn(offered) with { Tuning = """{"reach":"card"}""" };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(CosmeticWornProjection.Project([worn], Servable(fixedAt), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornItem(offered.Id)));
+            Assert.That(CosmeticWornProjection.Project([worn], Servable(offered), Registry, AllKinds()).Single(),
+                Is.EqualTo(new WornScene(offered.Id, SceneReach.Card)));
+        });
     }
 }
