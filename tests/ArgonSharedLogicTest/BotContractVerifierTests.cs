@@ -106,6 +106,50 @@ public class BotContractVerifierTests
     }
 
     [Test]
+    public void GenerateDocsManifest_DescribesEnumsAsTheyAreWritten()
+    {
+        // Clients generated from the manifest have to send 10 for bold, not "bold": the names alone
+        // in enumValues used to be all a reader had to go on.
+        var enums = BotContractVerifier.GenerateDocsManifest().Enums.ToDictionary(e => e.Name);
+
+        Assert.Multiple(() =>
+        {
+            var entity = enums["BotEntityType"];
+            Assert.That(entity.Wire, Is.EqualTo("number"));
+            Assert.That(entity.IsFlags, Is.False);
+            Assert.That(entity.Members.Single(m => m.Name == "bold").Value, Is.EqualTo(10L));
+
+            Assert.That(enums["BotExpressionKind"].Wire, Is.EqualTo("string"));
+
+            var userFlags = enums["UserFlag"];
+            Assert.That(userFlags.IsFlags, Is.True);
+            Assert.That(userFlags.Members.Single(m => m.Name == "verified").Value, Is.EqualTo(4L));
+
+            var entitlement = enums["ArgonEntitlement"];
+            Assert.That(entitlement.UnderlyingType, Is.EqualTo("uint64"));
+            Assert.That(entitlement.Members.Single(m => m.Name == "manageExpressions").Value, Is.EqualTo(1UL << 57));
+        });
+    }
+
+    [Test]
+    public void GenerateDocsManifest_EnumFieldsCarryTheirWireTypeAndEnum()
+    {
+        var docs    = BotContractVerifier.GenerateDocsManifest();
+        var message = docs.Events.Single(e => e.Name == "MessageCreate").PayloadTypeShape!
+           .Single(p => p.Name == "message").Properties!;
+        var type    = message.Single(p => p.Name == "entities").Properties!.Single(p => p.Name == "type");
+        var flags   = message.Single(p => p.Name == "sender").Properties!.Single(p => p.Name == "flags");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(type.Type, Is.EqualTo("int32"));
+            Assert.That(type.EnumType, Is.EqualTo("BotEntityType"));
+            Assert.That(flags.EnumType, Is.EqualTo("UserFlag"));
+            Assert.That(docs.Enums.Select(e => e.Name), Does.Contain("BotEntityType").And.Contain("UserFlag"));
+        });
+    }
+
+    [Test]
     public void DiffDtoVersions_OfATypeAgainstItself_IsEmpty()
         => Assert.That(
             BotContractVerifier.DiffDtoVersions(typeof(BotControlV1), typeof(BotControlV1)),

@@ -48,6 +48,9 @@ public static class BotContractVerifier
         // Build events from discovered [BotEventDefinition]-attributed types
         var eventDefs = DiscoverEventDefinitions();
 
+        // Every enum a payload or DTO uses, described once below with the values it has on the wire
+        var enums = new HashSet<Type>();
+
         // Build intent → event names from event definitions
         var intentEvents = new Dictionary<BotIntent, List<string>>();
         foreach (var (_, defAttr, _, _) in eventDefs)
@@ -81,7 +84,7 @@ public static class BotContractVerifier
            .Select(ed =>
             {
                 var (type, defAttr, descAttr, stableAttr) = ed;
-                var payloadShape = BuildWebTypeShape(type);
+                var payloadShape = BuildWebTypeShape(type, enums);
                 var hash = ComputeEventContractHash(type);
 
                 return new EventManifest(
@@ -121,14 +124,77 @@ public static class BotContractVerifier
                 return new DtoManifest(
                     type.Name,
                     version,
-                    BuildWebTypeShape(type),
+                    BuildWebTypeShape(type, enums),
                     prevType?.Name,
                     changes);
             })
            .OrderBy(d => d.Name)
            .ToList();
 
-        return new DocsManifest(intents, events, rateLimits, dtos);
+        var enumManifests = enums
+           .Select(DescribeEnum)
+           .OrderBy(e => e.Name, StringComparer.Ordinal)
+           .ToList();
+
+        return new DocsManifest(intents, events, rateLimits, dtos, enumManifests);
+    }
+
+    /// <summary>
+    /// An enum as a client has to read and write it: whether it travels as its number or as its
+    /// camelCase name, whether its values combine as flags, and every member's number. The names in
+    /// <see cref="TypeProperty.EnumValues"/> alone cannot say any of that.
+    /// </summary>
+    public static EnumManifest DescribeEnum(Type enumType)
+    {
+        var underlying = Enum.GetUnderlyingType(enumType);
+        var unsigned   = underlying == typeof(ulong) || underlying == typeof(uint)
+                      || underlying == typeof(ushort) || underlying == typeof(byte);
+
+        var members = Enum.GetNames(enumType)
+           .Select(name =>
+            {
+                var raw = Enum.Parse(enumType, name);
+                // ulong flags reach 1 << 57, past what a long holds once signed values are mixed in;
+                // each value keeps its own sign so it is written exactly.
+                object value = unsigned ? Convert.ToUInt64(raw) : Convert.ToInt64(raw);
+                return new EnumMemberManifest(ToCamelCase(name), value);
+            })
+           .ToList();
+
+        return new EnumManifest(
+            enumType.Name,
+            IsStringEnum(enumType) ? "string" : "number",
+            GetWebBaseTypeName(underlying),
+            enumType.IsDefined(typeof(FlagsAttribute), false),
+            members);
+    }
+
+    /// <summary>
+    /// True for an enum that is written as its camelCase name. Both serializers have to agree, so
+    /// the type carries a converter attribute for each (see <see cref="BotStringEnumConverter{TEnum}"/>).
+    /// </summary>
+    public static bool IsStringEnum(Type enumType)
+    {
+        var stj = enumType.GetCustomAttribute<System.Text.Json.Serialization.JsonConverterAttribute>()?.ConverterType;
+        if (stj is not null && IsStringEnumConverter(stj, typeof(System.Text.Json.Serialization.JsonStringEnumConverter<>)))
+            return true;
+
+        var newtonsoft = enumType.GetCustomAttribute<Newtonsoft.Json.JsonConverterAttribute>()?.ConverterType;
+        return newtonsoft is not null && typeof(Newtonsoft.Json.Converters.StringEnumConverter).IsAssignableFrom(newtonsoft);
+    }
+
+    private static bool IsStringEnumConverter(Type converter, Type genericDefinition)
+    {
+        if (converter == typeof(System.Text.Json.Serialization.JsonStringEnumConverter))
+            return true;
+
+        for (var t = converter; t is not null; t = t.BaseType)
+        {
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == genericDefinition)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -277,14 +343,14 @@ public static class BotContractVerifier
 
     // --- Structured type shapes for documentation (camelCase, JSON types) ---
 
-    private static List<TypeProperty>? BuildWebTypeShape(Type? type)
+    private static List<TypeProperty>? BuildWebTypeShape(Type? type, HashSet<Type> enums)
     {
         if (type is null) return null;
-        var result = BuildWebTypeProperties(type, []);
+        var result = BuildWebTypeProperties(type, [], enums);
         return result.Count > 0 ? result : null;
     }
 
-    private static List<TypeProperty> BuildWebTypeProperties(Type type, HashSet<Type> visited)
+    private static List<TypeProperty> BuildWebTypeProperties(Type type, HashSet<Type> visited, HashSet<Type> enums)
     {
         if (!visited.Add(type))
             return [];
@@ -306,27 +372,31 @@ public static class BotContractVerifier
             string? discriminatorType = null;
             List<UnionVariant>? variants = null;
 
+            string? enumType = null;
+
             if (innerType.IsEnum)
             {
                 enumValues = Enum.GetNames(innerType)
                     .Select(ToCamelCase)
                     .ToArray();
+                enumType = innerType.Name;
+                enums.Add(innerType);
             }
             else if (IsIonUnionType(innerType))
             {
                 isUnion = true;
-                (discriminatorField, discriminatorType, variants) = BuildUnionVariants(innerType, visited);
+                (discriminatorField, discriminatorType, variants) = BuildUnionVariants(innerType, visited, enums);
             }
             else if (!IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
             {
                 if (visited.Contains(innerType))
                     isCircular = true;
                 else
-                    children = BuildWebTypeProperties(innerType, visited);
+                    children = BuildWebTypeProperties(innerType, visited, enums);
             }
 
             result.Add(new TypeProperty(camelName, typeName, isArray, isNullable, isCircular, children, enumValues,
-                isUnion, discriminatorField, discriminatorType, variants));
+                isUnion, discriminatorField, discriminatorType, variants, enumType));
         }
 
         visited.Remove(type);
@@ -347,7 +417,7 @@ public static class BotContractVerifier
     /// Scans assemblies for all concrete implementations and extracts their property shapes.
     /// </summary>
     private static (string? DiscriminatorField, string? DiscriminatorType, List<UnionVariant> Variants)
-        BuildUnionVariants(Type unionInterfaceType, HashSet<Type> visited)
+        BuildUnionVariants(Type unionInterfaceType, HashSet<Type> visited, HashSet<Type> enums)
     {
         var concreteTypes = AppDomain.CurrentDomain.GetAssemblies()
            .Where(a => a.FullName?.StartsWith("Argon") == true)
@@ -376,6 +446,7 @@ public static class BotContractVerifier
             {
                 discriminatorField = char.ToLowerInvariant(enumProp.Name[0]) + enumProp.Name[1..];
                 discriminatorType = enumProp.PropertyType.Name;
+                enums.Add(enumProp.PropertyType);
             }
         }
 
@@ -384,6 +455,7 @@ public static class BotContractVerifier
         {
             // Get discriminator value from enum property if available
             string? discriminatorValue = null;
+            object? discriminatorNumber = null;
             if (discriminatorField is not null)
             {
                 var enumProp = concreteType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -404,6 +476,9 @@ public static class BotContractVerifier
                                 || typeName.Contains(enumName, StringComparison.OrdinalIgnoreCase))
                             {
                                 discriminatorValue = ToCamelCase(enumName);
+                                discriminatorNumber = IsStringEnum(enumType)
+                                    ? null
+                                    : Convert.ToInt64(Enum.Parse(enumType, enumName));
                                 break;
                             }
                         }
@@ -430,23 +505,28 @@ public static class BotContractVerifier
                     var isCircular = false;
                     string[]? enumValues = null;
 
+                    string? enumType = null;
+
                     if (innerType.IsEnum)
                     {
                         enumValues = Enum.GetNames(innerType).Select(ToCamelCase).ToArray();
+                        enumType = innerType.Name;
+                        enums.Add(innerType);
                     }
                     else if (!IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
                     {
                         if (visited.Contains(innerType))
                             isCircular = true;
                         else
-                            children = BuildWebTypeProperties(innerType, visited);
+                            children = BuildWebTypeProperties(innerType, visited, enums);
                     }
 
-                    return new TypeProperty(camelName, webTypeName, isArray, isNullable, isCircular, children, enumValues);
+                    return new TypeProperty(camelName, webTypeName, isArray, isNullable, isCircular, children, enumValues,
+                        EnumType: enumType);
                 })
                .ToList();
 
-            variants.Add(new UnionVariant(concreteType.Name, discriminatorValue, variantProps));
+            variants.Add(new UnionVariant(concreteType.Name, discriminatorValue, variantProps, discriminatorNumber));
         }
 
         return (discriminatorField, discriminatorType, variants);
@@ -498,7 +578,8 @@ public static class BotContractVerifier
 
     private static string GetWebBaseTypeName(Type type)
     {
-        if (type.IsEnum) return "string";
+        // An enum is written as its number unless it carries a string converter; see DescribeEnum.
+        if (type.IsEnum) return IsStringEnum(type) ? "string" : GetWebBaseTypeName(Enum.GetUnderlyingType(type));
 
         return type.Name switch
         {
@@ -519,6 +600,8 @@ public static class BotContractVerifier
             "TimeSpan"       => "string",
             "Object"         => "any",
             "Byte"           => "uint8",
+            "UInt16"         => "uint16",
+            "SByte"          => "int8",
             _                => type.Name
         };
     }
@@ -604,18 +687,38 @@ public sealed record TypeProperty(
     bool                IsUnion = false,
     string?             DiscriminatorField = null,
     string?             DiscriminatorType = null,
-    List<UnionVariant>? Variants = null);
+    List<UnionVariant>? Variants = null,
+    string?             EnumType = null);
 
+/// <param name="DiscriminatorNumber">The discriminator as it is written, when its enum travels as a number.</param>
 public sealed record UnionVariant(
     string             Name,
     string?            DiscriminatorValue,
-    List<TypeProperty> Properties);
+    List<TypeProperty> Properties,
+    object?            DiscriminatorNumber = null);
 
 public sealed record DocsManifest(
     List<IntentManifest>    Intents,
     List<EventManifest>     Events,
     List<RateLimitManifest> RateLimits,
-    List<DtoManifest>       Dtos);
+    List<DtoManifest>       Dtos,
+    List<EnumManifest>      Enums);
+
+/// <param name="Wire"><c>number</c> or <c>string</c>: how the value is written in JSON, in requests and events alike.</param>
+/// <param name="UnderlyingType">The JSON number type of the values, as for a property (<c>int32</c>, <c>uint64</c>…).</param>
+/// <param name="IsFlags">Values combine as a bitmask.</param>
+public sealed record EnumManifest(
+    string                   Name,
+    string                   Wire,
+    string                   UnderlyingType,
+    bool                     IsFlags,
+    List<EnumMemberManifest> Members);
+
+/// <param name="Name">camelCase, as a string enum writes it and as <see cref="TypeProperty.EnumValues"/> lists it.</param>
+/// <param name="Value">The number (a <c>long</c>, or a <c>ulong</c> for unsigned enums).</param>
+public sealed record EnumMemberManifest(
+    string Name,
+    object Value);
 
 public sealed record IntentManifest(
     string   Name,
