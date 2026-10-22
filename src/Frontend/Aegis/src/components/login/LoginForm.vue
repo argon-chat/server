@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Button } from "@argon/ui/button";
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref } from "vue";
 import { LogInIcon, ArrowRightIcon, LockKeyholeIcon, Loader2Icon, EyeIcon, EyeOffIcon, FingerprintIcon } from "@lucide/vue";
 import QRStyled from "./QRStyled.vue";
 import { useLocale } from "@/store/localeStore";
 import InputWithError from "../InputWithError.vue";
+import { useLoginStep } from '@/composables/useLoginStep';
 
 const { t } = useLocale();
 const props = defineProps<{ auth: ReturnType<typeof import("@/composables/useSimpleAuthForm").useSimpleAuthForm> }>();
@@ -24,7 +25,12 @@ function pickRandomHeading() {
 
 const qrLoginUrl = ref("https://www.youtube.com/watch?v=HIcSWuKMwOw");
 
-const step = ref<"email" | "password">("email");
+const { step, stepBusy, handleFormSubmit } = useLoginStep({
+  email, password, isLoading, authError, onSubmit,
+  getScenario: (email) => authStore.getScenario(email),
+  beginPasskeyLogin: (email) => authStore.beginPasskeyLogin(email),
+  userNotFound: () => t('passkey_error_user_not_found'),
+});
 const showPassword = ref(false);
 const entered = ref(false);
 
@@ -44,56 +50,11 @@ function goToSignUp() {
   props.auth.tabValue.value = "signup";
 }
 
-async function getLoginScenario(email: string): Promise<"pwd" | "otp" | "pwd-otp" | "passkey" | "passkey-otp" | ""> {
-  const scenario = await authStore.getScenario(email);
-
-  if (!scenario) {
-    authError.value = t("passkey_error_user_not_found");
-    return "";
-  }
-
-  console.log("Scenario", scenario);
-
-  if (scenario == "EmailPassword") return "pwd";
-  if (scenario == "EmailPasswordOtp") return "pwd-otp";
-  if (scenario == "EmailOtp") return "otp";
-  if (scenario == "PasskeyOnly") return "passkey";
-  if (scenario == "PasskeyWithOtp") return "passkey-otp";
-  return "pwd";
-}
-
-async function handleNext(e?: Event) {
-  e?.preventDefault();
-  if (!email.value) return;
-  
-  const scenario = await getLoginScenario(email.value);
-  if (!scenario) return;
-
-  if (scenario === "otp") {
-    onSubmit();
-  } else if (scenario === "passkey" || scenario === "passkey-otp") {
-    // Start passkey flow with email (narrows allowedCredentials)
-    await authStore.beginPasskeyLogin(email.value);
-  } else {
-    step.value = "password";
-  }
-}
-
 async function handlePasskeyLogin() {
   // Discoverable credential flow — no email needed
   await authStore.beginPasskeyLogin();
 }
 
-async function handlePasswordSubmit(e?: Event) {
-  e?.preventDefault();
-  onSubmit();
-}
-
-watch(email, (newVal, oldVal) => {
-  if (step.value !== "email" && newVal !== oldVal) {
-    step.value = "email";
-  }
-});
 </script>
 
 <template>
@@ -108,7 +69,7 @@ watch(email, (newVal, oldVal) => {
         class="flex flex-col md:flex-row w-full max-w-sm md:max-w-none md:w-auto rounded-3xl border border-white/[0.08] bg-black/60 backdrop-blur-2xl shadow-[0_0_80px_-20px_rgba(99,102,241,0.12)] overflow-hidden relative"
       >
         <!-- ── Left: Login form ── -->
-        <form @submit.prevent="onSubmit" class="w-full md:w-[380px] p-8 space-y-7 relative">
+        <form @submit.prevent="handleFormSubmit" class="w-full md:w-[380px] p-8 space-y-7 relative">
           <!-- Ambient glow -->
           <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-60 h-60 bg-indigo-500/[0.05] rounded-full blur-3xl pointer-events-none" />
 
@@ -142,7 +103,7 @@ watch(email, (newVal, oldVal) => {
                 @clear-error="authError = ''"
                 type="email"
                 placeholder="example@email.com"
-                :disabled="isLoading"
+                :disabled="isLoading || stepBusy"
                 id="email"
               />
             </div>
@@ -184,15 +145,14 @@ watch(email, (newVal, oldVal) => {
           <div class="space-y-3 relative">
             <Button
               v-if="step === 'email'"
-              type="button"
-              :disabled="isLoading || !email"
+              type="submit"
+              :disabled="isLoading || stepBusy || !email.trim()"
               class="w-full h-11 text-sm font-semibold rounded-xl transition-all duration-300"
               :class="isLoading
                 ? 'bg-indigo-500/20 text-indigo-300 cursor-wait'
                 : 'bg-indigo-500 hover:bg-indigo-400 text-white hover:shadow-[0_0_24px_-4px_rgba(99,102,241,0.4)]'"
-              @click.prevent="handleNext"
             >
-              <Loader2Icon v-if="isLoading" :size="16" class="mr-2 animate-spin" />
+              <Loader2Icon v-if="isLoading || stepBusy" :size="16" class="mr-2 animate-spin" />
               <template v-else>
                 {{ t("next") }}
                 <ArrowRightIcon :size="16" class="ml-2" />
@@ -207,7 +167,6 @@ watch(email, (newVal, oldVal) => {
               :class="isLoading
                 ? 'bg-indigo-500/20 text-indigo-300 cursor-wait'
                 : 'bg-indigo-500 hover:bg-indigo-400 text-white hover:shadow-[0_0_24px_-4px_rgba(99,102,241,0.4)]'"
-              @click.prevent="handlePasswordSubmit"
             >
               <Loader2Icon v-if="isLoading" :size="16" class="mr-2 animate-spin" />
               <LogInIcon v-else :size="16" class="mr-2" />
