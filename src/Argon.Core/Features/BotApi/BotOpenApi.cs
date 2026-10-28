@@ -229,6 +229,36 @@ public static class BotOpenApi
         // In one pass: a route's own 429 (slow_mode, space_rate_limited) shares the status with the limiter's.
         DescribeErrors(operation, [..route?.Errors ?? [], BotErrors.Unauthorized, BotErrors.RateLimited]);
         CamelCaseQueryParameters(operation);
+        DescribeEventStream(operation);
+    }
+
+    /// <summary>
+    /// The stream route declares <see cref="BotSseEvent"/> as its payload type, but that record is the
+    /// server's internal envelope: only its <c>Data</c> is written, as the <c>data:</c> line of a frame
+    /// whose <c>event:</c> is the camelCase event name (<c>EventsV1.ToSseItem</c>). Describing the
+    /// envelope as the body would have clients parse fields that never arrive.
+    /// </summary>
+    private static void DescribeEventStream(OpenApiOperation operation)
+    {
+        if (operation.Responses is null)
+            return;
+
+        foreach (var response in operation.Responses.Values)
+        {
+            if (response is not OpenApiResponse { Content: { } content }
+             || !content.TryGetValue("text/event-stream", out var media))
+                continue;
+
+            media.Schema = new OpenApiSchema
+            {
+                Type        = JsonSchemaType.String,
+                Description =
+                    "A stream of server-sent events. In each frame `event:` is the camelCase event name (e.g. "
+                  + "`messageCreate`), `data:` is that event's payload as one line of JSON, and `id:` is an opaque "
+                  + "cursor. There is no envelope around the payload. The payloads are described by the events in "
+                  + "`api-manifest.json`, not by this document."
+            };
+        }
     }
 
     /// <summary>
@@ -347,6 +377,10 @@ public static class BotOpenApi
         if (type.IsEnum && schema.Type is null && schema.Enum is { Count: > 0 })
             schema.Type = JsonSchemaType.String;
 
+        // Only used as optional fields, ButtonVariant and TextInputStyle reach here as Nullable<T>.
+        if ((Nullable.GetUnderlyingType(type) ?? type) is { IsEnum: true } enumType && !BotContractVerifier.IsStringEnum(enumType))
+            DescribeNumberEnum(schema, enumType);
+
         // A request with a file field is a form, and may carry the parts it attaches. A list of files is also given
         // as fileIds in JSON, so its request is left as it is.
         if (type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(p => p.PropertyType == typeof(BotInputFile)))
@@ -379,6 +413,45 @@ public static class BotOpenApi
             schema.Items = items;
         }
     }
+
+    /// <summary>
+    /// A number enum otherwise comes out as a bare <c>integer</c>, which leaves a client to guess what
+    /// <c>10</c> means. A plain enum lists its values in <c>enum</c> and their names in
+    /// <c>x-enum-varnames</c> (the key client generators read); a flags enum takes any combination of
+    /// its bits, so it is not restricted by <c>enum</c> and maps names to bits in <c>x-argon-flags</c>.
+    /// </summary>
+    private static void DescribeNumberEnum(OpenApiSchema schema, Type type)
+    {
+        var description = BotContractVerifier.DescribeEnum(type);
+
+        schema.Type ??= JsonSchemaType.Integer;
+        schema.Extensions ??= new Dictionary<string, IOpenApiExtension>();
+
+        if (description.IsFlags)
+        {
+            var bits = new JsonObject();
+            foreach (var member in description.Members)
+                bits[member.Name] = NumberNode(member.Value);
+
+            schema.Extensions["x-argon-flags"] = new JsonNodeExtension(bits);
+            return;
+        }
+
+        schema.Enum = description.Members.Select(m => NumberNode(m.Value)).ToList();
+
+        var names = new JsonArray();
+        foreach (var member in description.Members)
+            names.Add(member.Name);
+
+        schema.Extensions["x-enum-varnames"] = new JsonNodeExtension(names);
+    }
+
+    // The OpenAPI writer drops a ulong node without a word, and Ion enums are unsigned. Every value
+    // fits a long except bits past 1 << 62, which only a decimal keeps exact.
+    private static JsonNode NumberNode(object value)
+        => value is ulong unsigned and > long.MaxValue
+            ? JsonValue.Create((decimal)unsigned)
+            : JsonValue.Create(Convert.ToInt64(value));
 
     private static void DescribeInputFile(OpenApiSchema schema, bool partOnly)
     {

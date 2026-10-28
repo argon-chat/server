@@ -244,6 +244,41 @@ public class BotOpenApiTests
     }
 
     [Test]
+    public void NumberEnumsListTheirValuesAndNames()
+    {
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+
+        Assert.Multiple(() =>
+        {
+            // Ion enums are unsigned, which the writer would drop if they were not written as longs.
+            var entity = schemas.GetProperty("EntityType");
+            Assert.That(entity.GetProperty("type").GetString(), Is.EqualTo("integer"));
+            Assert.That(entity.GetProperty("enum").EnumerateArray().Select(e => e.GetInt32()), Does.Contain(10));
+            Assert.That(entity.GetProperty("x-enum-varnames")[10].GetString(), Is.EqualTo("bold"));
+
+            // Only ever an optional field, so the schema is made for Nullable<ButtonVariant>.
+            var variant = schemas.GetProperty("ButtonVariant");
+            Assert.That(variant.GetProperty("enum").EnumerateArray().Select(e => e.GetInt32()), Is.EqualTo(new[] { 0, 1 }));
+            Assert.That(variant.GetProperty("x-enum-varnames").EnumerateArray().Select(e => e.GetString()),
+                Is.EqualTo(new[] { "callback", "link" }));
+        });
+    }
+
+    [Test]
+    public void TheEventStreamIsDescribedWithoutTheInternalEnvelope()
+    {
+        var body = paths.GetProperty("/IEvents/v1/Stream").GetProperty("get").GetProperty("responses")
+           .GetProperty("200").GetProperty("content").GetProperty("text/event-stream").GetProperty("schema");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(body.TryGetProperty("$ref", out _), Is.False, "the stream body is not a BotSseEvent");
+            Assert.That(body.GetProperty("type").GetString(), Is.EqualTo("string"));
+            Assert.That(body.GetProperty("description").GetString(), Does.Contain("no envelope"));
+        });
+    }
+
+    [Test]
     public void BotsAreGivenNoRouteThatDeletesOrReordersExpressions()
     {
         var operations = Operations().Where(o => o.Path.StartsWith("/IExpressions/", StringComparison.Ordinal)).ToList();
