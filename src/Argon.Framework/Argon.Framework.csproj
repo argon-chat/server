@@ -17,9 +17,9 @@
         <PackageReference Include="ionpath.runtime.network.redis" Version="2.0.1" />
         <PackageReference Include="ionpath.runtime.streams" Version="2.0.1" />
         <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.12" />
-        <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.10.0" />
-        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.12" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.14" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.14" />
         <PackageReference Include="Fluid.Core" Version="2.40.0" />
         <PackageReference Include="Genbox.SimpleS3.Core" Version="3.2.14" />
         <PackageReference Include="Genbox.SimpleS3.Extensions.GenericS3" Version="3.2.14" />
@@ -29,9 +29,9 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
-        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.12" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.14" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
         <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.4.0" />
         <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.4.0" />
         <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.4.0" />
@@ -76,7 +76,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.403" />
     </ItemGroup>
 
 </Project>

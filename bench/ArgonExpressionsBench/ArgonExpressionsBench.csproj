@@ -18,7 +18,7 @@
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
         <!-- BenchmarkDotNet pins Roslyn 4.14; Orleans, through Argon.Core, needs 5.0. -->
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -26,7 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.403" />
     </ItemGroup>
 
 </Project>
