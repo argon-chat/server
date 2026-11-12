@@ -124,6 +124,8 @@ public sealed class IonRealtimeClient : IAsyncDisposable
 
     public Task UnsubscribeFromChannel(Guid channelId) => SendAsync(new UnsubscribeFromChannel(channelId));
 
+    public Task SubscribeToSpace(Guid spaceId) => SendAsync(new SubscribeToSpace(spaceId));
+
     public Task Typing(Guid spaceId, Guid channelId) => SendAsync(new Typing(spaceId, channelId));
 
     /// <summary>Sends a Resume and waits for its <see cref="Resumed"/>, which the server sends after the replay.</summary>

@@ -214,6 +214,42 @@ public class IonRealtimeTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
+    public async Task A_space_created_after_connect_is_joined_on_request_and_only_by_a_member(CancellationToken ct = default)
+    {
+        var owner    = await CreateSessionAsync(ct);
+        var stranger = await CreateSessionAsync(ct);
+
+        await using var member  = await IonRealtimeClient.ConnectAsync(owner, ct);
+        await using var outside = await IonRealtimeClient.ConnectAsync(stranger, ct);
+
+        // Created after both connected, so neither stream joined its group on connect.
+        var spaceId = await CreateSpaceAsync(owner, "Ion late space", ct);
+
+        await member.SubscribeToSpace(spaceId);
+        await outside.SubscribeToSpace(spaceId);
+        await member.BarrierAsync(ct);
+        await outside.BarrierAsync(ct);
+
+        var (memberMark, outsideMark) = (member.Mark(), outside.Mark());
+
+        var channelId = await CreateTextChannelAsync(owner, spaceId, ct);
+
+        var created = await member.WaitForRecordAsync<ChannelCreated>(
+            e => e.data.channelId == channelId, PresenceWaits.Settle, memberMark, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(created.Stream, Is.EqualTo(RealtimeStream.BroadcastSpace));
+            Assert.That(created.SpaceId, Is.EqualTo(spaceId));
+            Assert.That(outside.IsConnected, Is.True, "a refused subscribe must cost the command, not the connection");
+        });
+
+        var leaked = await outside.FirstWithinAsync<ChannelCreated>(_ => true, PresenceWaits.Converge, outsideMark, ct);
+
+        Assert.That(leaked, Is.Null, "a non-member subscribed itself to a space it is not in");
+    }
+
+    [Test, CancelAfter(120_000)]
     public async Task A_device_signed_out_elsewhere_is_told_and_its_stream_closed(CancellationToken ct = default)
     {
         var laptop = await CreateSessionAsync(ct);

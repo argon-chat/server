@@ -136,6 +136,9 @@ public sealed class IonRealtimeHub(
                 case SubscribeToChannel subscribe:
                     await SubscribeToChannelAsync(context, ticket, subscribe.channelId);
                     break;
+                case ArgonContracts.SubscribeToSpace subscribeSpace:
+                    await SubscribeToSpaceAsync(context, ticket, subscribeSpace.spaceId);
+                    break;
                 case UnsubscribeFromChannel unsubscribe:
                     MarkSeen(context, ticket);
                     await context.RemoveFromGroupAsync($"channels/{unsubscribe.channelId}", ct);
@@ -225,6 +228,22 @@ public sealed class IonRealtimeHub(
         }
 
         await context.AddToGroupAsync($"channels/{channelId}");
+    }
+
+    /// <summary>A space joined or created after connect; only a member is put on its group.</summary>
+    private async Task SubscribeToSpaceAsync(IIonStreamContext context, ArgonIonTicket ticket, Guid spaceId)
+    {
+        if (!await EnsureSessionIsLiveAsync(context, ticket))
+            return;
+
+        if (!(await factory.GetGrain<IUserGrain>(ticket.userId).GetMyServersIds()).Contains(spaceId))
+        {
+            logger.LogInformation("Realtime connection {ConnectionId} of user {UserId} was refused space {SpaceId}",
+                context.ConnectionId, ticket.userId, spaceId);
+            return;
+        }
+
+        await context.AddToGroupAsync($"spaces/{spaceId}");
     }
 
     private async Task<bool> EnsureSessionIsLiveAsync(IIonStreamContext context, ArgonIonTicket ticket, bool markSeen = true)
