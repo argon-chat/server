@@ -96,10 +96,15 @@ jobs:
 
       # The first-frame renderer's native libraries, the same packages as the image's (src/Argon.Api/Dockerfile).
       # Without them its tests skip and the animated-upload tests take the client-thumbnail path.
+      # libvpx's package is named after its soname and moves with the runner image (libvpx9 is gone
+      # from 26.04); NativeLibraries probes libvpx.so.7 to .12, so whichever the image has will do.
       - name: Install rlottie and libvpx
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends librlottie0-1 libvpx9
+          vpx=$(apt-cache pkgnames libvpx | grep -E '^libvpx[0-9]+$' | sort -V | tail -n1)
+          test -n "$vpx" || { echo "no libvpx runtime package on this image"; exit 1; }
+          echo "installing $vpx"
+          sudo apt-get install -y --no-install-recommends librlottie0-1 "$vpx"
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
