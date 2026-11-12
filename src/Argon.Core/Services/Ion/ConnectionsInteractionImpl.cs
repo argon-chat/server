@@ -49,6 +49,28 @@ public sealed class ConnectionsInteractionImpl(
         }
     }
 
+    public async Task<ICompleteConnectResult> CompleteConnect(Guid handshakeId, string key, CancellationToken ct = default)
+    {
+        this.EnforceLockdown(LockdownSeverity.Middle);
+
+        if (string.IsNullOrEmpty(key) || key.Length > 128)
+            return new FailedCompleteConnect(CompleteConnectError.EXPIRED);
+
+        try
+        {
+            var outcome = await Handshake.CompleteFromAppAsync(handshakeId, key, this.GetUserId(), ct);
+
+            return outcome.Error == CompleteConnectError.NONE
+                ? new SuccessCompleteConnect(outcome.Provider, outcome.Name ?? "")
+                : new FailedCompleteConnect(outcome.Error);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "CompleteConnect {HandshakeId} failed for {UserId}", handshakeId, this.GetUserId());
+            return new FailedCompleteConnect(CompleteConnectError.INTERNAL_ERROR);
+        }
+    }
+
     public Task<bool> Disconnect(ConnectionProvider provider, CancellationToken ct = default)
         => Mine.UnlinkAsync(provider, ct);
 

@@ -80,9 +80,10 @@
     <div class="actions">
         {% if signin_url != "" %}<a class="primary" href="{{ signin_url }}" target="_blank" rel="noopener">Sign in to Argon</a>{% endif %}
         {% if continue_url != "" %}<a class="{% if signin_url != "" %}secondary{% else %}primary{% endif %}" href="{{ continue_url }}">Continue</a>{% endif %}
-        {% if deep_link != "" %}<a class="primary" href="{{ deep_link }}">Back to Argon</a>{% endif %}
+        {% if deep_link != "" %}<a id="open-app" class="primary" href="{{ deep_link }}">Open Argon</a>{% endif %}
     </div>
     <div class="footer">You can close this tab once you are done.</div>
 </div>
+{% if auto_open == "1" %}<script>location.href = document.getElementById("open-app").href;</script>{% endif %}
 </body>
 </html>

@@ -37,13 +37,17 @@ public enum HandshakePageKind
     Disabled,
 
     /// <summary>An operator suspended this user's connection of the provider.</summary>
-    Suspended
+    Suspended,
+
+    /// <summary>Parked for the desktop that started it: the page opens the argon:// link that finishes it there.</summary>
+    HandOff
 }
 
 /// <param name="SignInUrl">
 /// The web client, for the "sign in to finish" page. Carried here so the entry point binds no
 /// configuration of its own for this feature.
 /// </param>
+/// <param name="AppKey">The one-time key of a <see cref="HandshakePageKind.HandOff"/>, for its argon:// link.</param>
 public sealed record HandshakePage(
     HandshakePageKind Kind,
     ConnectionProvider Provider,
@@ -52,7 +56,11 @@ public sealed record HandshakePage(
     string? ExpectedUsername,
     string? SignedInUsername,
     ConnectReturnKind ReturnTo,
-    string? SignInUrl = null);
+    string? SignInUrl = null,
+    string? AppKey = null);
+
+/// <summary>What the desktop's <c>CompleteConnect</c> gets back.</summary>
+public sealed record AppCompleteOutcome(CompleteConnectError Error, ConnectionProvider Provider, string? Name);
 
 /// <summary>
 /// The OAuth handshake: mints and consumes the state, runs the provider's completion, parks the
@@ -81,4 +89,11 @@ public interface IConnectionHandshakeGrain : IGrainWithGuidKey
     /// <summary>The same-site continuation: the parked result, and who the browser is now.</summary>
     [Alias(nameof(ResumeAsync))]
     Task<HandshakePage> ResumeAsync(Guid handshakeId, Guid? browserUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// The desktop's continuation of a hand-off: the key from the argon:// link, and the account the
+    /// app is signed in to, which has to be the one that started the handshake.
+    /// </summary>
+    [Alias(nameof(CompleteFromAppAsync))]
+    Task<AppCompleteOutcome> CompleteFromAppAsync(Guid handshakeId, string appKey, Guid callerUserId, CancellationToken ct = default);
 }

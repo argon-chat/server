@@ -87,13 +87,51 @@ public sealed class ConnectionHandshakeGrain(
 
         // Parked before anything is asked of the browser: the code has been spent and cannot be spent
         // again, so whatever the browser turns out to be, the exchange is kept for it to finish.
-        await store.ParkAsync(started.HandshakeId, started.UserId, provider, result, started.ReturnTo, started.Replace, ct);
+        var parked = await store.ParkAsync(started.HandshakeId, started.UserId, provider, result, started.ReturnTo, started.Replace, ct);
+
+        // Started from the desktop: the app is signed in already, so it finishes the link, not the browser.
+        if (parked.AppKey is { } appKey)
+        {
+            return Page(HandshakePageKind.HandOff, provider, started.HandshakeId, parked.Identity.Name, null, null, started.ReturnTo)
+                with { AppKey = appKey };
+        }
 
         return await SettleAsync(started.HandshakeId, browserUserId, fromCallback: true, ct);
     }
 
     public Task<HandshakePage> ResumeAsync(Guid handshakeId, Guid? browserUserId, CancellationToken ct = default)
         => SettleAsync(handshakeId, browserUserId, fromCallback: false, ct);
+
+    public async Task<AppCompleteOutcome> CompleteFromAppAsync(Guid handshakeId, string appKey, Guid callerUserId, CancellationToken ct = default)
+    {
+        var pending = await store.ConsumeParkedForAppAsync(handshakeId, appKey, ct);
+
+        if (pending is null)
+            return new AppCompleteOutcome(CompleteConnectError.EXPIRED, default, null);
+
+        if (pending.UserId != callerUserId)
+        {
+            logger.LogWarning("Handshake {HandshakeId} for {Provider} was started by {Expected} and finished in an app signed in as {Actual}; refused",
+                handshakeId, pending.Provider, pending.UserId, callerUserId);
+
+            return new AppCompleteOutcome(CompleteConnectError.WRONG_USER, pending.Provider, null);
+        }
+
+        var error = await LinkAsync(pending, ct) switch
+        {
+            LinkOutcome.Linked                 => CompleteConnectError.NONE,
+            LinkOutcome.AlreadyLinkedElsewhere => CompleteConnectError.ALREADY_LINKED_ELSEWHERE,
+            LinkOutcome.ProviderAlreadyLinked  => CompleteConnectError.PROVIDER_ALREADY_LINKED,
+            LinkOutcome.Suspended              => CompleteConnectError.SUSPENDED,
+            _                                  => CompleteConnectError.INTERNAL_ERROR
+        };
+
+        return new AppCompleteOutcome(error, pending.Provider, pending.Identity.Name);
+    }
+
+    private Task<LinkOutcome> LinkAsync(ConnectionHandshakeStore.Parked pending, CancellationToken ct)
+        => GrainFactory.GetGrain<IUserConnectionsGrain>(pending.UserId).LinkAsync(
+            new LinkRequest(pending.Provider, pending.Identity, store.OpenParkedToken(pending), pending.Details, pending.Scopes, pending.Replace), ct);
 
     /// <summary>
     /// The gate: the parked result becomes a row only when the browser's user is the one that started
@@ -126,10 +164,7 @@ public sealed class ConnectionHandshakeGrain(
                 await UsernameAsync(pending.UserId, ct), await UsernameAsync(browserUserId.Value, ct), pending.ReturnTo);
         }
 
-        var outcome = await GrainFactory.GetGrain<IUserConnectionsGrain>(pending.UserId).LinkAsync(
-            new LinkRequest(pending.Provider, pending.Identity, store.OpenParkedToken(pending), pending.Details, pending.Scopes, pending.Replace), ct);
-
-        var kind = outcome switch
+        var kind = await LinkAsync(pending, ct) switch
         {
             LinkOutcome.Linked                 => HandshakePageKind.Linked,
             LinkOutcome.AlreadyLinkedElsewhere => HandshakePageKind.AlreadyLinkedElsewhere,

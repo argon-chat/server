@@ -1,5 +1,6 @@
 namespace Argon.Features.Integrations.Connections;
 
+using System.Security.Cryptography;
 using Argon.Services;
 
 /// <summary>
@@ -44,7 +45,8 @@ public sealed class ConnectionHandshakeStore(IArgonCacheDatabase cache, TokenSea
         string Scopes,
         ConnectReturnKind ReturnTo,
         bool Replace,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        string? AppKey = null);
 
     private TimeSpan Ttl => options.Value.HandshakeTtl;
 
@@ -65,18 +67,37 @@ public sealed class ConnectionHandshakeStore(IArgonCacheDatabase cache, TokenSea
         return Read<Started>(previous);
     }
 
-    public Task ParkAsync(Guid handshakeId, Guid userId, ConnectionProvider provider, HandshakeResult result,
+    /// <summary>Parks the exchange; a desktop handshake also gets the one-time key its argon:// hand-off carries.</summary>
+    public async Task<Parked> ParkAsync(Guid handshakeId, Guid userId, ConnectionProvider provider, HandshakeResult result,
         ConnectReturnKind returnTo, bool replace, CancellationToken ct = default)
     {
         var sealedToken = result.Token is { } token
             ? Convert.ToBase64String(sealer.Seal(token, handshakeId, provider))
             : null;
 
-        var parked = new Parked(handshakeId, userId, provider, result.Identity!, sealedToken, result.Details.ToList(),
-            result.Scopes, returnTo, replace, DateTimeOffset.UtcNow);
+        var appKey = returnTo == ConnectReturnKind.DESKTOP ? OAuthCodeFlow.NewState() : null;
 
-        return cache.StringSetAsync(ParkedKey(handshakeId), JsonConvert.SerializeObject(parked), Ttl, ct);
+        var parked = new Parked(handshakeId, userId, provider, result.Identity!, sealedToken, result.Details.ToList(),
+            result.Scopes, returnTo, replace, DateTimeOffset.UtcNow, appKey);
+
+        await cache.StringSetAsync(ParkedKey(handshakeId), JsonConvert.SerializeObject(parked), Ttl, ct);
+
+        return parked;
     }
+
+    /// <summary>The parked result, consumed only when <paramref name="appKey"/> is the one it was parked with.</summary>
+    public async Task<Parked?> ConsumeParkedForAppAsync(Guid handshakeId, string appKey, CancellationToken ct = default)
+    {
+        var parked = await PeekParkedAsync(handshakeId, ct);
+
+        if (parked?.AppKey is not { } expected || !FixedTimeEquals(expected, appKey))
+            return null;
+
+        return await ConsumeParkedAsync(handshakeId, ct);
+    }
+
+    private static bool FixedTimeEquals(string a, string b)
+        => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(a), Encoding.UTF8.GetBytes(b));
 
     /// <summary>The parked result without consuming it — for the page that asks the browser to sign in.</summary>
     public async Task<Parked?> PeekParkedAsync(Guid handshakeId, CancellationToken ct = default)

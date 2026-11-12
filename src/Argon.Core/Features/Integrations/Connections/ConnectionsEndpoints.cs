@@ -253,6 +253,7 @@ public static class ConnectionsEndpoints
             HandshakePageKind.ProviderError          => ("Something went wrong", $"{provider} did not answer as expected. Try again in a moment."),
             HandshakePageKind.Disabled               => ("Not available", $"Linking {provider} is not enabled here."),
             HandshakePageKind.Suspended              => ("Not available", $"Your {provider} connection was suspended by moderators and cannot be linked again for now."),
+            HandshakePageKind.HandOff                => ("Back to Argon", $"{provider} account {name} is ready. Argon finishes linking it — allow your browser to open the app if it asks."),
             _                                        => ("Connections", "")
         };
 
@@ -260,9 +261,14 @@ public static class ConnectionsEndpoints
             ? ResumeUrl(page.HandshakeId)
             : "";
 
-        var deepLink = page.Kind == HandshakePageKind.Linked && page.ReturnTo == ConnectReturnKind.DESKTOP
-            ? $"argon://connections/linked?provider={ConnectionProviders.Slug(page.Provider)}"
-            : "";
+        var deepLink = page.Kind switch
+        {
+            HandshakePageKind.HandOff when page.AppKey is { } appKey
+                => $"argon://connections/complete?h={page.HandshakeId}&k={Uri.EscapeDataString(appKey)}",
+            HandshakePageKind.Linked when page.ReturnTo == ConnectReturnKind.DESKTOP
+                => $"argon://connections/linked?provider={ConnectionProviders.Slug(page.Provider)}",
+            _ => ""
+        };
 
         var signInUrl = page.Kind == HandshakePageKind.NeedsSignIn && !string.IsNullOrWhiteSpace(page.SignInUrl)
             ? page.SignInUrl
@@ -280,7 +286,8 @@ public static class ConnectionsEndpoints
             ["continue_url"]  = WebUtility.HtmlEncode(continueUrl),
             ["auto_continue"] = page.Kind == HandshakePageKind.Continue ? "1" : "",
             ["signin_url"]    = WebUtility.HtmlEncode(signInUrl),
-            ["deep_link"]     = WebUtility.HtmlEncode(deepLink)
+            ["deep_link"]     = WebUtility.HtmlEncode(deepLink),
+            ["auto_open"]     = page.Kind == HandshakePageKind.HandOff ? "1" : ""
         };
 
         string html;
@@ -294,7 +301,8 @@ public static class ConnectionsEndpoints
             logger.LogError(e, "The {Form} page is not loaded; answering plain text", PageForm);
             html = $"<!doctype html><meta name=\"argon-connection-result\" content=\"{values["kind"]}\"><title>{values["title"]}</title>"
                  + $"<h1>{values["title"]}</h1><p>{values["message"]}</p>"
-                 + (continueUrl.Length > 0 ? $"<p><a href=\"{values["continue_url"]}\">Continue</a></p>" : "");
+                 + (continueUrl.Length > 0 ? $"<p><a href=\"{values["continue_url"]}\">Continue</a></p>" : "")
+                 + (deepLink.Length > 0 ? $"<p><a href=\"{values["deep_link"]}\">Open Argon</a></p>" : "");
         }
 
         http.Response.Headers.CacheControl   = "no-store";

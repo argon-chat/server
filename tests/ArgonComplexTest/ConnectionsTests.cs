@@ -30,9 +30,9 @@ public class ConnectionsTests : TestBase
     private sealed record Page(string Kind, Guid? ResumeId, string Html);
 
     private static async Task<(string State, Guid HandshakeId, string Url)> BeginAsync(TestUserSession session, ConnectionProvider provider,
-        CancellationToken ct, bool replace = false)
+        CancellationToken ct, bool replace = false, ConnectReturnKind returnTo = ConnectReturnKind.WEB)
     {
-        var begun = await ConnectionsOf(session).BeginConnect(provider, ConnectReturnKind.WEB, replace, ct);
+        var begun = await ConnectionsOf(session).BeginConnect(provider, returnTo, replace, ct);
 
         Assert.That(begun, Is.InstanceOf<SuccessBeginConnect>(), $"BeginConnect was refused: {(begun as FailedBeginConnect)?.error}");
 
@@ -255,6 +255,65 @@ public class ConnectionsTests : TestBase
             Assert.That(signIn.Html, Does.Contain("https://app.test.local"), "the page does not send the browser to the web client");
             Assert.That(signIn.ResumeId, Is.EqualTo(parked.ResumeId), "the sign-in page lost the continuation");
             Assert.That(finished.Kind, Is.EqualTo("Linked"));
+        });
+    }
+
+    /// <summary>The handshake id and one-time key of the argon:// link a hand-off page opens.</summary>
+    private static (Guid HandshakeId, string Key) HandOffLink(Page page)
+    {
+        var link = ConnectionPagePatterns.HandOff().Match(WebUtility.HtmlDecode(page.Html));
+
+        Assert.That(link.Success, Is.True, $"the hand-off page opens no argon:// link:\n{page.Html}");
+
+        return (Guid.Parse(link.Groups[1].Value), Uri.UnescapeDataString(link.Groups[2].Value));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task A_desktop_handshake_is_finished_by_the_app_without_a_browser_session(CancellationToken ct = default)
+    {
+        var session = await CreateSessionAsync(ct);
+
+        var (state, handshakeId, _) = await BeginAsync(session, ConnectionProvider.GITHUB, ct, returnTo: ConnectReturnKind.DESKTOP);
+        var page                    = await CallbackAsync("github", $"code={Fake.GitHubCode(Fake.NextOutsiderId(), "desk")}&state={state}", ct);
+        var (linkId, key)           = HandOffLink(page);
+
+        var wrongKey = await ConnectionsOf(session).CompleteConnect(linkId, key + "x", ct);
+        var done     = await ConnectionsOf(session).CompleteConnect(linkId, key, ct);
+        var replay   = await ConnectionsOf(session).CompleteConnect(linkId, key, ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That(page.Kind, Is.EqualTo("HandOff"));
+            Assert.That(linkId, Is.EqualTo(handshakeId));
+            Assert.That((wrongKey as FailedCompleteConnect)?.error, Is.EqualTo(CompleteConnectError.EXPIRED));
+            Assert.That(done, Is.InstanceOf<SuccessCompleteConnect>(), "a wrong key spent the handshake");
+            Assert.That((done as SuccessCompleteConnect)?.name, Is.EqualTo("desk"));
+            Assert.That((replay as FailedCompleteConnect)?.error, Is.EqualTo(CompleteConnectError.EXPIRED), "a hand-off was good twice");
+            Assert.That(await MineAsync(session, ConnectionProvider.GITHUB, ct), Is.Not.Null);
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task An_app_signed_in_as_someone_else_cannot_finish_a_desktop_handshake(CancellationToken ct = default)
+    {
+        var victim   = await CreateSessionAsync(ct);
+        var attacker = await CreateSessionAsync(ct);
+
+        // The attacker's desktop handshake consented to by the victim: the page hands it to the
+        // victim's app, which is signed in as the victim.
+        var (state, _, _) = await BeginAsync(attacker, ConnectionProvider.GITHUB, ct, returnTo: ConnectReturnKind.DESKTOP);
+        var page          = await CallbackAsync("github", $"code={Fake.GitHubCode(Fake.NextContributorId(), "victim")}&state={state}", ct);
+        var (id, key)     = HandOffLink(page);
+
+        var refused = await ConnectionsOf(victim).CompleteConnect(id, key, ct);
+        var again   = await ConnectionsOf(attacker).CompleteConnect(id, key, ct);
+
+        await Assert.MultipleAsync(async () =>
+        {
+            Assert.That((refused as FailedCompleteConnect)?.error, Is.EqualTo(CompleteConnectError.WRONG_USER));
+            Assert.That((again as FailedCompleteConnect)?.error, Is.EqualTo(CompleteConnectError.EXPIRED), "a refused hand-off stayed usable");
+            Assert.That(await MineAsync(attacker, ConnectionProvider.GITHUB, ct), Is.Null, "the attacker got the victim's GitHub");
+            Assert.That(await MineAsync(victim, ConnectionProvider.GITHUB, ct), Is.Null);
         });
     }
 
@@ -570,4 +629,7 @@ internal static partial class ConnectionPagePatterns
 
     [GeneratedRegex("/connections/resume/([0-9a-fA-F-]{36})")]
     public static partial Regex Resume();
+
+    [GeneratedRegex("argon://connections/complete\\?h=([0-9a-fA-F-]{36})&k=([A-Za-z0-9_%-]+)")]
+    public static partial Regex HandOff();
 }
