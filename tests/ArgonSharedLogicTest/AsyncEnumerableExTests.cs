@@ -77,8 +77,8 @@ public class AsyncEnumerableExTests
     }
 
     [Test]
-    public void MergeAsync_WithANullArray_Throws()
-        => Assert.ThrowsAsync<ArgumentNullException>(async () =>
+    public async Task MergeAsync_WithANullArray_Throws()
+        => await Assert.ThrowsAsync<ArgumentNullException>(async () =>
         {
             await foreach (var _ in ((IAsyncEnumerable<int>[])null!).MergeAsync()) { }
         });
@@ -180,11 +180,11 @@ public class AsyncEnumerableExTests
     }
 
     [Test, Explicit("leaks the test host - see the remarks on this fixture")]
-    public void MergeAsync_PropagatesAFailingSource()
+    public async Task MergeAsync_PropagatesAFailingSource()
     {
         // The failure comes out of the cleanup block, which collects one exception per source, so it
         // arrives inside an AggregateException rather than bare.
-        var error = Assert.CatchAsync(async () =>
+        var error = await Assert.CatchAsync(async () =>
         {
             await foreach (var _ in new[] { Failing(1), Range(100, 3) }.MergeAsync()) { }
         });
@@ -197,14 +197,14 @@ public class AsyncEnumerableExTests
     }
 
     [Test, Explicit("leaks the test host - see the remarks on this fixture")]
-    public void MergeAsync_WithAnAlreadyCancelledToken_DoesNotEnumerate()
+    public async Task MergeAsync_WithAnAlreadyCancelledToken_DoesNotEnumerate()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
         // The cancellation surfaces through the cleanup block, which aggregates whatever the
         // per-source teardown threw, so it arrives wrapped rather than bare.
-        var error = Assert.CatchAsync(async () =>
+        var error = await Assert.CatchAsync(async () =>
         {
             await foreach (var _ in new[] { Range(0, 10, delayMs: 1) }.MergeAsync(cts.Token)) { }
         });

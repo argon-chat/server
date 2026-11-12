@@ -102,7 +102,7 @@ public class ProfilePrefetchTests : TestBase
 
         // The space id is the only thing saying the caller has met these people. Naming one they are
         // not in has to be refused outright, or a bare user id is all a directory walk needs.
-        Assert.ThrowsAsync<IonRequestException>(
+        await Assert.ThrowsAsync<IonRequestException>(
             () => outsider.Servers.PrefetchProfiles(spaceId, asked, ct));
     }
 
@@ -170,7 +170,7 @@ public class ProfilePrefetchTests : TestBase
         await GetGrainFactory().GetGrain<ISpaceGrain>(spaceId).RemoveMemberAsync(leaver.UserId);
 
         // The door closes the same way it opened: the membership that let them ask is gone.
-        Assert.ThrowsAsync<IonRequestException>(
+        await Assert.ThrowsAsync<IonRequestException>(
             () => leaver.Servers.PrefetchProfiles(spaceId, asked, ct));
     }
 

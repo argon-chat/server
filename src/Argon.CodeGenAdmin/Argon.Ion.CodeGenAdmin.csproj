@@ -2,7 +2,7 @@
     <Sdk Name="ionpath.compiler" Version="2.0.1" />
     <PropertyGroup>
         <OutputType>Library</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>Argon</RootNamespace>
         <!-- The C# is generated at build time into obj/ from the contracts in the Argon.IonAdmin submodule. -->

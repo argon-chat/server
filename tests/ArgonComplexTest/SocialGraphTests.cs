@@ -195,7 +195,7 @@ public class SocialGraphTests : TestBase
         await aliceChats.UnpinChat(bob.UserId, ct);
         Assert.That((await aliceChats.GetRecentChats(50, 0, ct)).Values.First(c => c.peerId == bob.UserId).isPinned, Is.False);
 
-        Assert.DoesNotThrowAsync(async () => await aliceChats.MarkChatRead(bob.UserId, ct));
+        await Assert.DoesNotThrowAsync(async () => await aliceChats.MarkChatRead(bob.UserId, ct));
     }
 
     [Test, CancelAfter(120_000)]
@@ -242,7 +242,7 @@ public class SocialGraphTests : TestBase
             spaceId, MuteTargetKind.Space, MuteLevelType.All, suppressEveryone: true,
             expiresAt: DateTime.UtcNow.AddHours(1), ct);
 
-        Assert.DoesNotThrowAsync(async () => await GetUserService(scope.ServiceProvider).UnmuteTarget(spaceId, ct));
+        await Assert.DoesNotThrowAsync(async () => await GetUserService(scope.ServiceProvider).UnmuteTarget(spaceId, ct));
     }
 
     [Test, CancelAfter(120_000)]
@@ -251,7 +251,7 @@ public class SocialGraphTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         SetAuthToken(await RegisterAndGetTokenAsync(ct));
 
-        Assert.DoesNotThrowAsync(async () =>
+        await Assert.DoesNotThrowAsync(async () =>
         {
             await GetUserService(scope.ServiceProvider).MarkNotificationRead(Guid.NewGuid(), ct);
             await GetUserService(scope.ServiceProvider).MarkAllNotificationsRead(null, ct);
@@ -266,7 +266,7 @@ public class SocialGraphTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         SetAuthToken(await RegisterAndGetTokenAsync(ct));
 
-        Assert.DoesNotThrowAsync(async () =>
+        await Assert.DoesNotThrowAsync(async () =>
         {
             await GetUserService(scope.ServiceProvider).BroadcastPresence(
                 new UserActivityPresence(ActivityPresenceKind.GAME, (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(), "Testing", null, null, null, null), ct);

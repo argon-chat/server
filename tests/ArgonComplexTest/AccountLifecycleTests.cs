@@ -187,7 +187,7 @@ public class AccountLifecycleTests : TestBase
     {
         var (userId, _) = await RegisterAsync(ct);
 
-        Assert.DoesNotThrowAsync(async () =>
+        await Assert.DoesNotThrowAsync(async () =>
             await GetGrainFactory().GetGrain<IUserDataExportGrain>(userId).CancelExportAsync());
     }
 

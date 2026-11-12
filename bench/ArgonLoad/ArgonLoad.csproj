@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>Argon.Load</RootNamespace>
@@ -18,7 +18,7 @@
     <ItemGroup>
         <!-- The hub side of the client. Scenario B is about fan-out, and fan-out only exists over a
              real connection: an RPC round trip would measure a different thing entirely. -->
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
     </ItemGroup>
 
     <ItemGroup>

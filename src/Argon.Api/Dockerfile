@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS base
 LABEL org.opencontainers.image.title="Argon.Api" \
       org.opencontainers.image.description="Argon communication platform API service" \
       org.opencontainers.image.url="https://argon.gl" \
@@ -23,7 +23,9 @@ RUN apt-get update \
  && dpkg -i /tmp/packages-microsoft-prod.deb \
  && rm /tmp/packages-microsoft-prod.deb \
  && apt-get update \
- && apt-get install -y --no-install-recommends libmsquic librlottie0-1 libvpx9 \
+ && vpx=$(apt-cache pkgnames libvpx | grep -E '^libvpx[0-9]+$' | sort -V | tail -n1) \
+ && test -n "$vpx" \
+ && apt-get install -y --no-install-recommends libmsquic librlottie0-1 "$vpx" \
  && apt-get purge -y --auto-remove curl \
  && rm -rf /var/lib/apt/lists/*
 
@@ -48,7 +50,7 @@ COPY src/Frontend ./
 RUN bun run validate:locales && bun run --cwd Aegis build && bun run --cwd Console build
 
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 

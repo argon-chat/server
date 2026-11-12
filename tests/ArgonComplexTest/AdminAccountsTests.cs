@@ -341,7 +341,7 @@ public class AdminAccountsTests : AdminTestBase
 
         Assert.That((await admin.BanDevice(device, "alt farm", null, ct)).success, Is.True);
 
-        Assert.ThrowsAsync<IonRequestException>(async () => await bound.GetMe(ct),
+        await Assert.ThrowsAsync<IonRequestException>(async () => await bound.GetMe(ct),
             "the banned machine was served on its cached 'not banned'");
         Assert.That((await account.Users.GetMe(ct)).userId, Is.EqualTo(account.UserId),
             "the same account on an unbound session is refused too, so the refusal is not about the machine");

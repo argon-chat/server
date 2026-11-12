@@ -159,7 +159,7 @@ public class DirectChatMetadataTests : TestBase
             await db.UserConversations.Where(x => x.UserId == second && x.ConversationId == conversationId)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.ConversationId, otherConversationId), ct);
 
-            Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
                 await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
                 {
                     await using var transaction = await db.Database.BeginTransactionAsync(ct);

@@ -220,9 +220,9 @@ public static class BotOpenApi
             operation.RequestBody = new OpenApiRequestBody
             {
                 Required = true,
-                Content  = new Dictionary<string, OpenApiMediaType>
+                Content  = new Dictionary<string, IOpenApiMediaType>
                 {
-                    ["multipart/form-data"] = new() { Schema = await context.GetOrCreateSchemaAsync(form, null, ct) }
+                    ["multipart/form-data"] = new OpenApiMediaType { Schema =await context.GetOrCreateSchemaAsync(form, null, ct) }
                 }
             };
 
@@ -246,10 +246,10 @@ public static class BotOpenApi
         foreach (var response in operation.Responses.Values)
         {
             if (response is not OpenApiResponse { Content: { } content }
-             || !content.TryGetValue("text/event-stream", out var media))
+             || !content.ContainsKey("text/event-stream"))
                 continue;
 
-            media.Schema = new OpenApiSchema
+            content["text/event-stream"] = new OpenApiMediaType { Schema = new OpenApiSchema
             {
                 Type        = JsonSchemaType.String,
                 Description =
@@ -257,7 +257,7 @@ public static class BotOpenApi
                   + "`messageCreate`), `data:` is that event's payload as one line of JSON, and `id:` is an opaque "
                   + "cursor. There is no envelope around the payload. The payloads are described by the events in "
                   + "`api-manifest.json`, not by this document."
-            };
+            } };
         }
     }
 

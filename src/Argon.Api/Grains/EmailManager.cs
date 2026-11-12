@@ -131,7 +131,7 @@ public class EmailManager(
             await client.ConnectAsync(options.Host, options.Port, SecureSocketOptions.SslOnConnect, cancellationToken);
             await client.AuthenticateAsync(options.User, options.Password, cancellationToken);
             client.AuthenticationMechanisms.Remove("XOAUTH2");
-            await client.SendAsync(message, cancellationToken);
+            await client.SendAsync(new MailKit.SendRequest(message), cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
 
             await journal.RecordAsync(email, kind, delivered: true, null);

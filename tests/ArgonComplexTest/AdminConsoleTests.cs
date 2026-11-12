@@ -159,12 +159,12 @@ public class AdminConsoleTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetUserCard_ForAnUnknownUser_Throws()
+    public async Task GetUserCard_ForAnUnknownUser_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetUserCard(Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetUserCard(Guid.NewGuid()));
     }
 
     // ── Moderation actions ──────────────────────────────────────────────────────────────────────
@@ -532,12 +532,12 @@ public class AdminConsoleTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetSpaceCard_ForAnUnknownSpace_Throws()
+    public async Task GetSpaceCard_ForAnUnknownSpace_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetSpaceCard(Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetSpaceCard(Guid.NewGuid()));
     }
 
     [Test, CancelAfter(120_000)]
@@ -588,16 +588,16 @@ public class AdminConsoleTests : TestBase
 
         Assert.That((await admin.DeleteFeatureFlagOverride(theOverride!.overrideId, ct)).success, Is.True);
         Assert.That((await admin.DeleteFeatureFlag(flagId, ct)).success, Is.True);
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetFeatureFlag(flagId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetFeatureFlag(flagId));
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetFeatureFlag_ForAnUnknownFlag_Throws()
+    public async Task GetFeatureFlag_ForAnUnknownFlag_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetFeatureFlag($"nope.{Guid.NewGuid():N}"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetFeatureFlag($"nope.{Guid.NewGuid():N}"));
     }
 
     // ── Tenant directory ────────────────────────────────────────────────────────────────────────
@@ -691,12 +691,12 @@ public class AdminConsoleTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetOperatorDetails_ForAnUnknownOperator_Throws()
+    public async Task GetOperatorDetails_ForAnUnknownOperator_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetOperatorDetails(Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetOperatorDetails(Guid.NewGuid()));
     }
 
     [Test, CancelAfter(120_000)]
@@ -1140,12 +1140,12 @@ public class AdminConsoleTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetBotCard_ForAnUnknownApp_Throws()
+    public async Task GetBotCard_ForAnUnknownApp_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetBotCard(Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetBotCard(Guid.NewGuid()));
     }
 
     [Test, CancelAfter(120_000)]
@@ -1158,12 +1158,12 @@ public class AdminConsoleTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetTeamCard_ForAnUnknownTeam_Throws()
+    public async Task GetTeamCard_ForAnUnknownTeam_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetTeamCard(Guid.NewGuid()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => admin.GetTeamCard(Guid.NewGuid()));
     }
 
     [Test, CancelAfter(120_000)]
@@ -1202,12 +1202,12 @@ public class AdminConsoleTests : TestBase
     }
 
     [Test, CancelAfter(120_000)]
-    public void GetReportById_ForAnUnknownReport_Throws()
+    public async Task GetReportById_ForAnUnknownReport_Throws()
     {
         var (scope, admin) = Admin();
         using var _ = scope;
 
-        Assert.ThrowsAsync<KeyNotFoundException>(() => admin.GetReportById(Guid.NewGuid()));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => admin.GetReportById(Guid.NewGuid()));
     }
 
     [Test, CancelAfter(120_000)]

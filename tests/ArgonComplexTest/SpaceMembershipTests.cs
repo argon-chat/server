@@ -156,10 +156,10 @@ public class SpaceMembershipTests : TestBase
         Assert.That((await owner.Servers.GetSpaceSnapshot(spaceId, null, ct)).channels!.Value.Values, Has.Count.EqualTo(1),
             "the same call from the owner should answer, or the refusals below prove nothing");
 
-        Assert.Multiple(() =>
+        await Assert.MultipleAsync(async () =>
         {
-            Assert.ThrowsAsync<IonRequestException>(() => outsider.Servers.GetSpaceSnapshot(spaceId, null, ct));
-            Assert.ThrowsAsync<IonRequestException>(() => outsider.Channels.GetChannels(spaceId, Guid.Empty, ct));
+            await Assert.ThrowsAsync<IonRequestException>(() => outsider.Servers.GetSpaceSnapshot(spaceId, null, ct));
+            await Assert.ThrowsAsync<IonRequestException>(() => outsider.Channels.GetChannels(spaceId, Guid.Empty, ct));
         });
     }
 
@@ -260,7 +260,7 @@ public class SpaceMembershipTests : TestBase
         });
 
         // Deleting what is already deleted is nothing, not an error.
-        Assert.DoesNotThrowAsync(() => SpaceGrain(spaceId).DeleteSpace());
+        await Assert.DoesNotThrowAsync(() => SpaceGrain(spaceId).DeleteSpace());
     }
 
     /// <summary>
