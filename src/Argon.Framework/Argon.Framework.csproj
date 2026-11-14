@@ -31,7 +31,7 @@
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="11.0.0" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="11.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
         <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.4.2" />
         <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.4.2" />
         <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.4.2" />
@@ -76,7 +76,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.404" />
     </ItemGroup>
 
 </Project>

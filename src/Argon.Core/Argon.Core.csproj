@@ -17,8 +17,8 @@
         <PackageReference Include="MailKit" Version="5.0.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="11.0.0" />
-        <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.12" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+        <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.15" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
@@ -69,7 +69,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.404" />
     </ItemGroup>
 
 </Project>
